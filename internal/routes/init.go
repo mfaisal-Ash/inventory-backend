@@ -1,27 +1,28 @@
 package routes
 
 import (
+	"log"
 	"time"
 
 	"gorm.io/gorm"
 
+	appinfoController "github.com/projsonal/gowms/internal/controller/appinfo"
 	authController "github.com/projsonal/gowms/internal/controller/auth"
 	barangController "github.com/projsonal/gowms/internal/controller/barang"
 	barangKeluarController "github.com/projsonal/gowms/internal/controller/barang_keluar"
 	barangMasukController "github.com/projsonal/gowms/internal/controller/barang_masuk"
 	captchaController "github.com/projsonal/gowms/internal/controller/captcha"
+	codController "github.com/projsonal/gowms/internal/controller/cod"
 	dashboardController "github.com/projsonal/gowms/internal/controller/dashboard"
 	gudangController "github.com/projsonal/gowms/internal/controller/gudang"
 	laporanController "github.com/projsonal/gowms/internal/controller/laporan"
 	maintenanceController "github.com/projsonal/gowms/internal/controller/maintenance"
-	codController "github.com/projsonal/gowms/internal/controller/cod"
 	pengirimanController "github.com/projsonal/gowms/internal/controller/pengiriman"
 	purchaseOrderController "github.com/projsonal/gowms/internal/controller/po"
 	roleController "github.com/projsonal/gowms/internal/controller/role"
 	securityController "github.com/projsonal/gowms/internal/controller/security"
 	stockOpnameController "github.com/projsonal/gowms/internal/controller/stockOpname"
 	supplierController "github.com/projsonal/gowms/internal/controller/supplier"
-	appinfoController "github.com/projsonal/gowms/internal/controller/appinfo"
 	taskController "github.com/projsonal/gowms/internal/controller/task"
 	usersController "github.com/projsonal/gowms/internal/controller/users"
 	"github.com/projsonal/gowms/internal/health"
@@ -29,9 +30,9 @@ import (
 	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
 	barangKeluarRepo "github.com/projsonal/gowms/internal/repositories/barang_keluar"
 	barangMasukRepo "github.com/projsonal/gowms/internal/repositories/barang_masuk"
+	codRepo "github.com/projsonal/gowms/internal/repositories/cod"
 	gudangRepo "github.com/projsonal/gowms/internal/repositories/gudang"
 	maintenanceRepo "github.com/projsonal/gowms/internal/repositories/maintenance"
-	codRepo "github.com/projsonal/gowms/internal/repositories/cod"
 	pengirimanRepo "github.com/projsonal/gowms/internal/repositories/pengiriman"
 	purchaseOrderRepo "github.com/projsonal/gowms/internal/repositories/po"
 	roleRepo "github.com/projsonal/gowms/internal/repositories/role"
@@ -177,5 +178,11 @@ func newGeoIPResolver(cfg *config.Config) geoip.Resolver {
 	if !cfg.GeoIP.Enabled {
 		return geoip.NoopResolver{}
 	}
-	return geoip.NewHTTPResolver(cfg.GeoIP.BaseURL)
+
+	resolver, err := geoip.NewHTTPResolver(cfg.GeoIP.BaseURL)
+	if err != nil {
+		log.Printf("geoip: konfigurasi GEOIP_BASE_URL tidak valid, fallback ke NoopResolver: %v", err)
+		return geoip.NoopResolver{}
+	}
+	return resolver
 }
