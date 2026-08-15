@@ -263,6 +263,45 @@ func (h *Controller) buildBarangRetur(dari, sampai *time.Time) (headers []string
 	return headers, rows, nil
 }
 
+func sumCurrencyColumn(rows [][]string, colIdx int) int64 {
+	var sum int64
+	for _, row := range rows {
+		if colIdx >= len(row) {
+			continue
+		}
+		cleaned := strings.ReplaceAll(row[colIdx], ".", "")
+		cleaned = strings.ReplaceAll(cleaned, ",", "")
+		cleaned = strings.TrimSpace(strings.TrimPrefix(cleaned, "Rp"))
+		if n, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
+			sum += n
+		}
+	}
+	return sum
+}
+
+func sumNumericColumn(rows [][]string, colIdx int) int64 {
+	var sum int64
+	for _, row := range rows {
+		if colIdx >= len(row) {
+			continue
+		}
+		if n, err := strconv.ParseInt(strings.TrimSpace(row[colIdx]), 10, 64); err == nil {
+			sum += n
+		}
+	}
+	return sum
+}
+
+func countDistinctColumn(rows [][]string, colIdx int) int {
+	distinct := map[string]struct{}{}
+	for _, row := range rows {
+		if colIdx < len(row) && row[colIdx] != "" && row[colIdx] != "-" {
+			distinct[row[colIdx]] = struct{}{}
+		}
+	}
+	return len(distinct)
+}
+
 func computeGenericSummary(headers []string, rows [][]string) [][2]string {
 	summary := [][2]string{{"Total Baris", strconv.Itoa(len(rows))}}
 
@@ -270,39 +309,15 @@ func computeGenericSummary(headers []string, rows [][]string) [][2]string {
 		lower := strings.ToLower(header)
 		switch {
 		case strings.Contains(lower, "nilai") || strings.Contains(lower, "harga") || strings.Contains(lower, "total"):
-			var sum int64
-			for _, row := range rows {
-				if colIdx >= len(row) {
-					continue
-				}
-				cleaned := strings.ReplaceAll(row[colIdx], ".", "")
-				cleaned = strings.ReplaceAll(cleaned, ",", "")
-				cleaned = strings.TrimSpace(strings.TrimPrefix(cleaned, "Rp"))
-				if n, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
-					sum += n
-				}
-			}
+			sum := sumCurrencyColumn(rows, colIdx)
 			summary = append(summary, [2]string{"Total " + header, "Rp " + formatRupiah(sum)})
 		case strings.Contains(lower, "stok") || strings.Contains(lower, "kuantitas") || strings.Contains(lower, "qty"):
-			var sum int64
-			for _, row := range rows {
-				if colIdx >= len(row) {
-					continue
-				}
-				if n, err := strconv.ParseInt(strings.TrimSpace(row[colIdx]), 10, 64); err == nil {
-					sum += n
-				}
-			}
+			sum := sumNumericColumn(rows, colIdx)
 			summary = append(summary, [2]string{"Total " + header, strconv.FormatInt(sum, 10)})
 		case strings.Contains(lower, "gudang"):
-			distinct := map[string]struct{}{}
-			for _, row := range rows {
-				if colIdx < len(row) && row[colIdx] != "" && row[colIdx] != "-" {
-					distinct[row[colIdx]] = struct{}{}
-				}
-			}
-			if len(distinct) > 0 {
-				summary = append(summary, [2]string{"Gudang Terlibat", strconv.Itoa(len(distinct))})
+			count := countDistinctColumn(rows, colIdx)
+			if count > 0 {
+				summary = append(summary, [2]string{"Gudang Terlibat", strconv.Itoa(count)})
 			}
 		}
 	}

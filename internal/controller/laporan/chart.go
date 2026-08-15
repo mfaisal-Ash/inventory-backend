@@ -69,45 +69,47 @@ func periodKey(t time.Time, granularity string) (key, label string) {
 	}
 }
 
-func computeDateSeriesChart(title string, headers []string, rows [][]string, dateColCandidates []string, granularity string) *ChartData {
-	granularity = normalizeGranularity(granularity)
-	dateColIdx := -1
+func findDateColIdx(headers, dateColCandidates []string) int {
 	for _, candidate := range dateColCandidates {
 		for i, h := range headers {
 			if h == candidate {
-				dateColIdx = i
-				break
+				return i
 			}
 		}
-		if dateColIdx >= 0 {
-			break
-		}
 	}
-	if dateColIdx < 0 {
-		return nil
-	}
+	return -1
+}
 
+func parseRowDate(dateStr string) (time.Time, error) {
+	t, err := time.Parse(dateFormat, dateStr)
+	if err == nil {
+		return t, nil
+	}
+	return time.Parse("2 January 2006", dateStr)
+}
+
+func aggregateDateCounts(rows [][]string, dateColIdx int, granularity string) (map[string]float64, map[string]string) {
 	counts := map[string]float64{}
 	labels := map[string]string{}
 	for _, row := range rows {
 		if dateColIdx >= len(row) {
 			continue
 		}
-		t, err := time.Parse(dateFormat, row[dateColIdx])
+		t, err := parseRowDate(row[dateColIdx])
 		if err != nil {
-			t, err = time.Parse("2 January 2006", row[dateColIdx])
-			if err != nil {
-				continue
-			}
+			continue
 		}
 		key, label := periodKey(t, granularity)
 		counts[key]++
 		labels[key] = label
 	}
+	return counts, labels
+}
+
+func buildChartFromCounts(title string, counts map[string]float64, labels map[string]string) *ChartData {
 	if len(counts) == 0 {
 		return nil
 	}
-
 	keys := make([]string, 0, len(counts))
 	for k := range counts {
 		keys = append(keys, k)
@@ -120,6 +122,17 @@ func computeDateSeriesChart(title string, headers []string, rows [][]string, dat
 		cd.Values = append(cd.Values, counts[k])
 	}
 	return cd
+}
+
+func computeDateSeriesChart(title string, headers []string, rows [][]string, dateColCandidates []string, granularity string) *ChartData {
+	granularity = normalizeGranularity(granularity)
+	dateColIdx := findDateColIdx(headers, dateColCandidates)
+	if dateColIdx < 0 {
+		return nil
+	}
+
+	counts, labels := aggregateDateCounts(rows, dateColIdx, granularity)
+	return buildChartFromCounts(title, counts, labels)
 }
 
 func computeTopStokChart(headers []string, rows [][]string) *ChartData {
