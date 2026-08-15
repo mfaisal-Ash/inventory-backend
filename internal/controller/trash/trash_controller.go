@@ -1,0 +1,198 @@
+package trash
+
+import (
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
+
+	"github.com/projsonal/gowms/internal/middleware"
+	"github.com/projsonal/gowms/internal/model"
+	"github.com/projsonal/gowms/pkg/constant"
+	"github.com/projsonal/gowms/pkg/utils"
+)
+
+type entry struct {
+	label string
+}
+
+var registry = map[string]entry{
+	"aset":         {label: "Aset Gudang"},
+	"barang":       {label: "Barang"},
+	"gudang":       {label: "Gudang"},
+	"barang_rusak": {label: "Barang Rusak"},
+}
+
+type Item struct {
+	Type      string    `json:"type"`
+	ID        uint      `json:"id"`
+	Judul     string    `json:"judul"`
+	Subjudul  string    `json:"subjudul,omitempty"`
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+type Controller struct {
+	db     *gorm.DB
+	jwtSvc *utils.JWTService
+}
+
+func New(db *gorm.DB, jwtSvc *utils.JWTService) *Controller {
+	return &Controller{db: db, jwtSvc: jwtSvc}
+}
+
+func (h *Controller) modelForType(t string) (any, bool) {
+	switch t {
+	case "aset":
+		return &model.Asset{}, true
+	case "barang":
+		return &model.Barang{}, true
+	case "gudang":
+		return &model.Gudang{}, true
+	case "barang_rusak":
+		return &model.BarangRusak{}, true
+	default:
+		return nil, false
+	}
+}
+
+func summarize(t string) (judul func(any) string, subjudul func(any) string) {
+	switch t {
+	case "aset":
+		return func(m any) string { return m.(*model.Asset).NameBarang },
+			func(m any) string { return utils.UintToString(m.(*model.Asset).LabelBarang) }
+	case "barang":
+		return func(m any) string { return m.(*model.Barang).Nama },
+			func(m any) string { return m.(*model.Barang).KodeBarang }
+	case "gudang":
+		return func(m any) string { return m.(*model.Gudang).Nama },
+			func(m any) string { return m.(*model.Gudang).Kode }
+	case "barang_rusak":
+		return func(m any) string { return m.(*model.BarangRusak).NamaBarang },
+			func(m any) string { return m.(*model.BarangRusak).LabelBarang }
+	default:
+		return func(any) string { return "" }, func(any) string { return "" }
+	}
+}
+
+func (h *Controller) List(c *fiber.Ctx) error {
+	reqType := c.Query("type", "")
+	types := []string{reqType}
+	if reqType == "" {
+		types = make([]string, 0, len(registry))
+		for t := range registry {
+			types = append(types, t)
+		}
+	} else if _, ok := registry[reqType]; !ok {
+		return utils.Fail(c, fiber.StatusBadRequest, "data tipe ini tidak dikenal", nil)
+	}
+
+	out := make([]Item, 0)
+	for _, t := range types {
+		modelPtr, _ := h.modelForType(t)
+		judulFn, subjudulFn := summarize(t)
+
+		rows, err := queryDeleted(h.db, t, modelPtr)
+		if err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil data tempat sampah", nil)
+		}
+		for _, r := range rows {
+			out = append(out, Item{
+				Type: t, ID: r.id, Judul: judulFn(r.model), Subjudul: subjudulFn(r.model), DeletedAt: r.deletedAt,
+			})
+		}
+	}
+	return utils.OK(c, "data tempat sampah berhasil diambil", out)
+}
+
+type deletedRow struct {
+	id        uint
+	deletedAt time.Time
+	model     any
+}
+
+func queryDeleted(db *gorm.DB, t string, modelPtr any) ([]deletedRow, error) {
+	out := make([]deletedRow, 0)
+	switch t {
+	case "aset":
+		var rows []model.Asset
+		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
+		}
+	case "barang":
+		var rows []model.Barang
+		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
+		}
+	case "gudang":
+		var rows []model.Gudang
+		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
+		}
+	case "barang_rusak":
+		var rows []model.BarangRusak
+		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
+		}
+	}
+	_ = modelPtr
+	return out, nil
+}
+
+func (h *Controller) Restore(c *fiber.Ctx) error {
+	t := c.Params("type")
+	id, err := c.ParamsInt("id")
+	if err != nil || id <= 0 {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	modelPtr, ok := h.modelForType(t)
+	if !ok {
+		return utils.Fail(c, fiber.StatusBadRequest, "tipe tidak dikenal", nil)
+	}
+	res := h.db.Unscoped().Model(modelPtr).Where("id = ? AND deleted_at IS NOT NULL", id).Update("deleted_at", nil)
+	if res.Error != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memulihkan data", nil)
+	}
+	if res.RowsAffected == 0 {
+		return utils.Fail(c, fiber.StatusNotFound, "data tidak ditemukan di tempat sampah", nil)
+	}
+	return utils.OK(c, "data berhasil dipulihkan", nil)
+}
+
+func (h *Controller) Purge(c *fiber.Ctx) error {
+	t := c.Params("type")
+	id, err := c.ParamsInt("id")
+	if err != nil || id <= 0 {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	modelPtr, ok := h.modelForType(t)
+	if !ok {
+		return utils.Fail(c, fiber.StatusBadRequest, "tipe tidak dikenal", nil)
+	}
+	res := h.db.Unscoped().Where("id = ? AND deleted_at IS NOT NULL", id).Delete(modelPtr)
+	if res.Error != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus permanen", nil)
+	}
+	if res.RowsAffected == 0 {
+		return utils.Fail(c, fiber.StatusNotFound, "data tidak ditemukan di tempat sampah", nil)
+	}
+	return utils.OK(c, "data berhasil dihapus permanen", nil)
+}
+
+func (h *Controller) RegisterRoutes(router fiber.Router) {
+	g := router.Group("/trash", middleware.JWTAuth(h.jwtSvc), middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin))
+	g.Get("/", h.List)
+	g.Post("/:type/:id/restore", h.Restore)
+	g.Delete("/:type/:id", h.Purge)
+}

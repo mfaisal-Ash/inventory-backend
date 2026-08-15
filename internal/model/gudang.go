@@ -22,8 +22,15 @@ type Satuan struct {
 func (Satuan) TableName() string { return "satuan" }
 
 type Gudang struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	Nama        string    `json:"nama" gorm:"size:100;not null"`
+	ID     uint   `json:"id" gorm:"primaryKey"`
+	Nama   string `json:"nama" gorm:"size:100;not null"`
+	// Kode: kode singkat gudang (mis. "JKT-01"), dipakai sebagai prefix
+	// LabelRSD aset gudang (lihat internal/controller/asset Create()).
+	// Kosong berarti gudang lama yang belum diisi lewat form Ubah Gudang.
+	Kode string `json:"kode" gorm:"size:20;index"`
+	// Tipe: "pusat" (1 per sistem) atau "cabang" — lihat pkg/constant
+	// TipeGudangPusat/TipeGudangCabang, dipakai filter peta aset gudang.
+	Tipe        string    `json:"tipe" gorm:"size:10;not null;default:'cabang'"`
 	Alamat      string    `json:"alamat" gorm:"size:255"`
 	// PIC & Kapasitas: SEBELUMNYA tidak ada di model sama sekali walau
 	// tabel Manajemen Gudang di frontend SUDAH LAMA menampilkan kolom

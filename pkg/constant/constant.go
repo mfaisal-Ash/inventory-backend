@@ -32,6 +32,8 @@ const (
 	ModuleLaporan         = "laporan"
 	ModuleCOD             = "cod"
 	ModuleTaskManagement  = "tasks"
+	ModuleAsetGudang      = "aset_gudang"
+	ModuleBarangRusak     = "barang_rusak"
 )
 
 // Fiber Locals context key, di-set oleh middleware auth setelah JWT valid.

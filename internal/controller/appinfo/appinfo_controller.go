@@ -6,7 +6,6 @@ import (
 	"github.com/projsonal/gowms/pkg/utils"
 )
 
-
 const CurrentVersion = "v1.3.0"
 
 type VersionChanges struct {
@@ -22,7 +21,7 @@ type VersionEntry struct {
 
 var changelogData = []VersionEntry{
 	{
-		Version: "v1.3.0",
+		Version: "v1.9.0",
 		Date:    "11 Agustus 2026",
 		Changes: VersionChanges{
 			New: []string{

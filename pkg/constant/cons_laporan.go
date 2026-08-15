@@ -6,6 +6,7 @@ const (
 	LaporanBarangKeluar = "Barang Keluar"
 	LaporanPO           = "Purchase Order"
 	LaporanStokOpname   = "Stock Opname"
+	LaporanBarangRetur  = "Barang Retur"
 )
 
 const (

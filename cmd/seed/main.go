@@ -20,6 +20,7 @@ var modules = []string{
 	constant.ModuleBarangMasuk, constant.ModuleBarangKeluar,
 	constant.ModuleStockOpname, constant.ModulePengiriman,
 	constant.ModuleLaporan, constant.ModuleManajemenUser, constant.ModuleSettings, "notifikasi", constant.ModuleCOD,
+	constant.ModuleTaskManagement, constant.ModuleAsetGudang, constant.ModuleBarangRusak,
 }
 var actions = []string{constant.ActionView, constant.ActionTambah, constant.ActionEdit, constant.ActionApprovalReject, constant.ActionPrint, constant.ActionAssignDelegasi}
 
