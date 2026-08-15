@@ -6,11 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Asset merepresentasikan aset gudang (tiang, ODC, OLT, ONT, ODP, modem,
-// transportasi, dst — lihat pkg/constant JenisAset*). Aset dengan koordinat
-// (lihat JenisAsetPunyaKoordinat) mendapat LabelRSD; aset tanpa koordinat
-// (mis. transportasi) mendapat KodeBA sebagai gantinya — keduanya saling
-// eksklusif, lihat internal/controller/asset Create().
 type Asset struct {
 	ID         uint     `json:"id" gorm:"primaryKey"`
 	Nama       string   `json:"nama" gorm:"size:150;not null;index"`
@@ -24,7 +19,6 @@ type Asset struct {
 	Status     string   `json:"status" gorm:"size:20;not null;default:'aktif';index"`
 	Keterangan string   `json:"keterangan" gorm:"size:500"`
 
-	// --- Ping monitoring (lihat internal/controller/asset ping_controller.go) ---
 	IPAddress  string     `json:"ip_address" gorm:"size:45"`
 	PingStatus string     `json:"ping_status" gorm:"size:20;not null;default:'unknown'"`
 	LastPingAt *time.Time `json:"last_ping_at"`
@@ -36,9 +30,6 @@ type Asset struct {
 
 func (Asset) TableName() string { return "assets" }
 
-// JenisAsetPunyaKoordinat menentukan apakah suatu jenis aset dipasang
-// permanen (butuh latitude/longitude & mendapat LabelRSD) atau bergerak
-// (mis. "transportasi", cukup KodeBA tanpa koordinat tetap).
 func JenisAsetPunyaKoordinat(jenisAset string) bool {
 	return jenisAset != "transportasi"
 }
