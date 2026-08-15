@@ -55,6 +55,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.CodTransaction{},
 		&model.Task{},
 		&model.MaintenanceStatus{},
+
+		&model.Asset{},
+		&model.AssetPort{},
+		&model.AssetHistory{},
 	)
 }
 

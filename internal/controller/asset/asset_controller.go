@@ -108,6 +108,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		Nama:       req.Nama,
 		JenisAset:  req.JenisAset,
 		GudangID:   req.GudangID,
+		JumlahPort: req.JumlahPort,
 		Keterangan: req.Keterangan,
 		IPAddress:  req.IPAddress,
 		Status:     "aktif",
@@ -163,6 +164,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	a.Nama = req.Nama
 	a.Keterangan = req.Keterangan
 	a.IPAddress = req.IPAddress
+	a.JumlahPort = req.JumlahPort
 	if model.JenisAsetPunyaKoordinat(a.JenisAset) {
 		if req.Latitude == nil || req.Longitude == nil {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity,

@@ -32,6 +32,8 @@ import (
 	usersController "github.com/projsonal/gowms/internal/controller/users"
 	"github.com/projsonal/gowms/internal/health"
 	assetRepo "github.com/projsonal/gowms/internal/repositories/asset"
+	assetHistoryRepo "github.com/projsonal/gowms/internal/repositories/asset_history"
+	assetPortRepo "github.com/projsonal/gowms/internal/repositories/asset_port"
 	authRepo "github.com/projsonal/gowms/internal/repositories/auth"
 	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
 	barangKeluarRepo "github.com/projsonal/gowms/internal/repositories/barang_keluar"
@@ -117,6 +119,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rPengiriman := pengirimanRepo.New(db)
 	rCod := codRepo.New(db)
 	rAsset := assetRepo.New(db)
+	rAssetHistory := assetHistoryRepo.New(db)
+	rAssetPort := assetPortRepo.New(db)
 	rBarangRusak := barangRusakRepo.New(db)
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
@@ -160,7 +164,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc)
 	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc)
 	cCod := codController.New(rCod, rRole, jwtSvc)
-	cAsset := assetController.New(rAsset, rGudang, rRole, jwtSvc, rNotification)
+	cAsset := assetController.New(rAsset, rGudang, rRole, jwtSvc, rNotification, rAssetHistory, rAssetPort, rUsers)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotification)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rRole, jwtSvc)
