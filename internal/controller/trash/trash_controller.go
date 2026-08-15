@@ -58,8 +58,8 @@ func (h *Controller) modelForType(t string) (any, bool) {
 func summarize(t string) (judul func(any) string, subjudul func(any) string) {
 	switch t {
 	case "aset":
-		return func(m any) string { return m.(*model.Asset).NameBarang },
-			func(m any) string { return utils.UintToString(m.(*model.Asset).LabelBarang) }
+		return func(m any) string { return m.(*model.Asset).Nama },
+			func(m any) string { return m.(*model.Asset).LabelRSD }
 	case "barang":
 		return func(m any) string { return m.(*model.Barang).Nama },
 			func(m any) string { return m.(*model.Barang).KodeBarang }
@@ -110,12 +110,13 @@ type deletedRow struct {
 	model     any
 }
 
-func queryDeleted(db *gorm.DB, t string, modelPtr any) ([]deletedRow, error) {
-	out := make([]deletedRow, 0)
+func getDeletedRows(db *gorm.DB, t string) ([]deletedRow, error) {
+	var out []deletedRow
+
 	switch t {
 	case "aset":
 		var rows []model.Asset
-		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+		if err := db.Unscoped().Where("data deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
 			return nil, err
 		}
 		for i := range rows {
@@ -146,8 +147,12 @@ func queryDeleted(db *gorm.DB, t string, modelPtr any) ([]deletedRow, error) {
 			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
 		}
 	}
-	_ = modelPtr
 	return out, nil
+}
+
+func queryDeleted(db *gorm.DB, t string, modelPtr any) ([]deletedRow, error) {
+	_ = modelPtr
+	return getDeletedRows(db, t)
 }
 
 func (h *Controller) Restore(c *fiber.Ctx) error {

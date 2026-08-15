@@ -188,7 +188,9 @@ func addNativeChart(f *excelize.File, sheet string, chart *ChartData) error {
 				Values:     sheet + "!" + helperCol + "2:" + helperCol + fmt.Sprint(lastRow),
 			},
 		},
-		Title: []excelize.RichTextRun{{Text: chart.Title}},
+		Title: excelize.ChartTitle{
+			Paragraph: []excelize.RichTextRun{{Text: chart.Title}},
+		},
 		Legend: excelize.ChartLegend{
 			Position: "bottom",
 		},

@@ -19,6 +19,7 @@ type Config struct {
 	Storage       StorageConfig
 	Captcha       CaptchaConfig
 	BotCheck      BotCheckConfig
+	HumanCheck    HumanCheckConfig
 	WhatsApp      WhatsAppConfig
 	WAOTP         WAOTPConfig
 	SMS           SMSConfig
@@ -82,6 +83,16 @@ type BotCheckConfig struct {
 	Enabled       bool
 	Secret        string
 	WindowMinutes int
+}
+
+// HumanCheckConfig mengonfigurasi pkg/humancheck.Service — token verifikasi
+// "human check" self-hosted (Secret dipakai menandatangani token via HMAC,
+// TTLMinutes menentukan masa berlaku token, MinDelaySeconds menolak token
+// yang diverifikasi terlalu cepat setelah diterbitkan, indikasi bot).
+type HumanCheckConfig struct {
+	Secret          string
+	TTLMinutes      int
+	MinDelaySeconds int
 }
 
 type WhatsAppConfig struct {
@@ -163,6 +174,11 @@ func Load() *Config {
 			Secret:        getEnv("BOTCHECK_SECRET", "change-me-botcheck-secret"),
 			WindowMinutes: getEnvAsInt("BOTCHECK_WINDOW_MINUTES", 60),
 		},
+		HumanCheck: HumanCheckConfig{
+			Secret:          getEnv("HUMANCHECK_SECRET", "change-me-humancheck-secret"),
+			TTLMinutes:      getEnvAsInt("HUMANCHECK_TTL_MINUTES", 10),
+			MinDelaySeconds: getEnvAsInt("HUMANCHECK_MIN_DELAY_SECONDS", 2),
+		},
 		WhatsApp: WhatsAppConfig{
 			Driver:      getEnv("WHATSAPP_DRIVER", "gateway"),
 			APIURL:      getEnv("WHATSAPP_API_URL", ""),
@@ -203,6 +219,7 @@ var weakSecretDefaults = map[string]string{
 	"JWT_REFRESH_SECRET": "refresh-secret",
 	"CAPTCHA_SECRET":     "change-me-captcha-secret",
 	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
+	"HUMANCHECK_SECRET":  "change-me-humancheck-secret",
 }
 
 func validateProductionSecrets(cfg *Config) {

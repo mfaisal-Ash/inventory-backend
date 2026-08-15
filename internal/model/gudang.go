@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type Kategori struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
@@ -54,10 +58,11 @@ type Gudang struct {
 	// sudah diisi koordinatnya lewat form Tambah/Ubah Gudang.
 	Latitude    *float64  `json:"latitude"`
 	Longitude   *float64  `json:"longitude"`
-	IsProtected bool      `json:"is_protected" gorm:"not null;default:false"` // dikunci super_admin — lihat internal/controller/gudang Protect()
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Raks        []Rak     `json:"raks,omitempty" gorm:"foreignKey:GudangID"`
+	IsProtected bool           `json:"is_protected" gorm:"not null;default:false"` // dikunci super_admin — lihat internal/controller/gudang Protect()
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+	Raks        []Rak          `json:"raks,omitempty" gorm:"foreignKey:GudangID"`
 }
 
 func (Gudang) TableName() string { return "gudangs" }

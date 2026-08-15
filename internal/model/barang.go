@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type Barang struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
@@ -33,8 +37,9 @@ type Barang struct {
 	CatatanApproval string     `json:"catatan_approval" gorm:"size:255"`
 	DireviewPada    *time.Time `json:"direview_pada"`
 
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (Barang) TableName() string { return "barang" }

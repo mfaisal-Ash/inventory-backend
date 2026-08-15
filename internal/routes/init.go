@@ -123,12 +123,12 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 
 	// Services lintas modul.
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
+	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
 		cfg.HumanCheck.Secret,
 		time.Duration(cfg.HumanCheck.TTLMinutes)*time.Minute,
 		time.Duration(cfg.HumanCheck.MinDelaySeconds)*time.Second,
 	)
-	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
 	// Controllers.

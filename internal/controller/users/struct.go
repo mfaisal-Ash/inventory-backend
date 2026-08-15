@@ -7,37 +7,41 @@ import (
 	"github.com/projsonal/gowms/internal/repositories/role"
 	"github.com/projsonal/gowms/internal/repositories/users"
 	"github.com/projsonal/gowms/pkg/captcha"
+	"github.com/projsonal/gowms/pkg/humancheck"
 	"github.com/projsonal/gowms/pkg/utils"
 )
 
 // Controller menangani endpoint HTTP modul Manajemen User & Settings.
 type Controller struct {
-	userRepo    users.Repository
-	roleRepo    role.Repository
-	authRepo    authRepo.Repository
-	jwtSvc      *utils.JWTService
-	captchaSvc  *captcha.Service
-	storagePath string
+	userRepo      users.Repository
+	roleRepo      role.Repository
+	authRepo      authRepo.Repository
+	jwtSvc        *utils.JWTService
+	captchaSvc    *captcha.Service
+	humanCheckSvc *humancheck.Service
+	storagePath   string
 }
 
 type Params struct {
-	UserRepo    users.Repository
-	RoleRepo    role.Repository
-	AuthRepo    authRepo.Repository
-	JWTSvc      *utils.JWTService
-	CaptchaSvc  *captcha.Service
-	StoragePath string
+	UserRepo      users.Repository
+	RoleRepo      role.Repository
+	AuthRepo      authRepo.Repository
+	JWTSvc        *utils.JWTService
+	CaptchaSvc    *captcha.Service
+	HumanCheckSvc *humancheck.Service
+	StoragePath   string
 }
 
 // New membuat instance Controller Manajemen User.
 func New(p Params) *Controller {
 	return &Controller{
-		userRepo:    p.UserRepo,
-		roleRepo:    p.RoleRepo,
-		authRepo:    p.AuthRepo,
-		jwtSvc:      p.JWTSvc,
-		captchaSvc:  p.CaptchaSvc,
-		storagePath: p.StoragePath,
+		userRepo:      p.UserRepo,
+		roleRepo:      p.RoleRepo,
+		authRepo:      p.AuthRepo,
+		jwtSvc:        p.JWTSvc,
+		captchaSvc:    p.CaptchaSvc,
+		humanCheckSvc: p.HumanCheckSvc,
+		storagePath:   p.StoragePath,
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/projsonal/gowms/pkg/captcha"
 	"github.com/projsonal/gowms/pkg/config"
 	"github.com/projsonal/gowms/pkg/geoip"
+	"github.com/projsonal/gowms/pkg/humancheck"
 	"github.com/projsonal/gowms/pkg/utils"
 )
 
@@ -26,13 +27,14 @@ const (
 )
 
 type Controller struct {
-	authRepo   authRepo.Repository
-	userRepo   users.Repository
-	roleRepo   role.Repository
-	jwtSvc     *utils.JWTService
-	captchaSvc *captcha.Service
-	totpIssuer string
-	appEnv     string
+	authRepo      authRepo.Repository
+	userRepo      users.Repository
+	roleRepo      role.Repository
+	jwtSvc        *utils.JWTService
+	captchaSvc    *captcha.Service
+	humanCheckSvc *humancheck.Service
+	totpIssuer    string
+	appEnv        string
 
 	geoipSvc geoip.Resolver
 
@@ -43,25 +45,27 @@ type Controller struct {
 }
 
 type Params struct {
-	AuthRepo   authRepo.Repository
-	UserRepo   users.Repository
-	RoleRepo   role.Repository
-	JWTSvc     *utils.JWTService
-	CaptchaSvc *captcha.Service
-	Cfg        *config.Config
-	GeoipSvc   geoip.Resolver
+	AuthRepo      authRepo.Repository
+	UserRepo      users.Repository
+	RoleRepo      role.Repository
+	JWTSvc        *utils.JWTService
+	CaptchaSvc    *captcha.Service
+	HumanCheckSvc *humancheck.Service
+	Cfg           *config.Config
+	GeoipSvc      geoip.Resolver
 }
 
 func New(p Params) *Controller {
 	return &Controller{
-		authRepo:   p.AuthRepo,
-		userRepo:   p.UserRepo,
-		roleRepo:   p.RoleRepo,
-		jwtSvc:     p.JWTSvc,
-		captchaSvc: p.CaptchaSvc,
-		totpIssuer: p.Cfg.TOTP.Issuer,
-		appEnv:     p.Cfg.App.Env,
-		geoipSvc:   p.GeoipSvc,
+		authRepo:      p.AuthRepo,
+		userRepo:      p.UserRepo,
+		roleRepo:      p.RoleRepo,
+		jwtSvc:        p.JWTSvc,
+		captchaSvc:    p.CaptchaSvc,
+		humanCheckSvc: p.HumanCheckSvc,
+		totpIssuer:    p.Cfg.TOTP.Issuer,
+		appEnv:        p.Cfg.App.Env,
+		geoipSvc:      p.GeoipSvc,
 
 		otpReplayGuard: newTOTPReplayGuard(totpReplayWindow),
 	}
