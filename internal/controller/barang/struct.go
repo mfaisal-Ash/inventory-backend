@@ -19,22 +19,22 @@ func New(repo barangRepo.Repository, gudangRepo gudangRepo.Repository, roleRepo 
 }
 
 type BarangRequest struct {
-	KodeBarang  string `json:"kode_barang" validate:"required,max=30"`
-	Nama        string `json:"nama" validate:"required,max=150"`
-	KategoriID  uint   `json:"kategori_id" validate:"required"`
-	SatuanID    uint   `json:"satuan_id" validate:"required"`
-	HargaBeli   int64  `json:"harga_beli" validate:"min=0"`
+	KodeBarang string `json:"kode_barang" validate:"required,max=30"`
+	Nama       string `json:"nama" validate:"required,max=150"`
+	KategoriID uint   `json:"kategori_id" validate:"required"`
+	SatuanID   uint   `json:"satuan_id" validate:"required"`
+	HargaBeli  int64  `json:"harga_beli" validate:"min=0"`
 	// Stok — stok AWAL saat membuat SKU baru (mis. mendigitalisasi barang
 	// yang sudah ada fisiknya di gudang sebelum sistem ini dipakai), atau
 	// koreksi manual saat Ubah Barang (mis. hasil stok opname). Untuk
 	// penambahan/pengurangan stok yang terikat transaksi (Barang Masuk/
 	// Keluar), tetap pakai PATCH /:id/adjust supaya riwayatnya tercatat —
 	// field ini untuk set NILAI ABSOLUT, bukan menambah/mengurangi.
-	Stok        int    `json:"stok" validate:"min=0"`
-	StokMinimum int    `json:"stok_minimum" validate:"min=0"`
+	Stok        int `json:"stok" validate:"min=0"`
+	StokMinimum int `json:"stok_minimum" validate:"min=0"`
 	// BeratGram: opsional, lihat dokumentasi field di model/barang.go.
-	BeratGram   *int   `json:"berat_gram" validate:"omitempty,min=0"`
-	Deskripsi   string `json:"deskripsi" validate:"max=255"`
+	BeratGram *int   `json:"berat_gram" validate:"omitempty,min=0"`
+	Deskripsi string `json:"deskripsi" validate:"max=255"`
 }
 
 // AdjustStokRequest — dipakai modul lain (Barang Masuk/Keluar/Stock Opname)

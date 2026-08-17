@@ -128,15 +128,15 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	}
 
 	s := &model.Supplier{
-		Kode:     req.Kode,
-		Nama:     req.Nama,
-		PIC:      req.PIC,
-		Telepon:  req.Telepon,
+		Kode:           req.Kode,
+		Nama:           req.Nama,
+		PIC:            req.PIC,
+		Telepon:        req.Telepon,
 		KerjasamaKurir: req.KerjasamaKurir,
-		Alamat:   req.Alamat,
-		NPWP:     req.NPWP,
-		Catatan:  req.Catatan,
-		IsActive: true,
+		Alamat:         req.Alamat,
+		NPWP:           req.NPWP,
+		Catatan:        req.Catatan,
+		IsActive:       true,
 	}
 	if err := h.repo.Create(s); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat supplier", nil)

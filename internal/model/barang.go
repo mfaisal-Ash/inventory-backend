@@ -20,10 +20,10 @@ type Barang struct {
 	// BeratGram: berat satuan barang dalam gram (opsional) — dipakai
 	// menampilkan "Berat" per item di resi pengiriman (Receipt.tsx), mirip
 	// label J&T/Shopee. Nil kalau belum diisi lewat form Tambah/Ubah Barang.
-	BeratGram   *int      `json:"berat_gram"`
-	IsActive    bool      `json:"is_active" gorm:"not null;default:true"` // nonaktif = didiskontinu, tetap tampil di histori
-	IsProtected bool      `json:"is_protected" gorm:"not null;default:false"` // dikunci super_admin — lihat internal/controller/barang Protect()
-	Deskripsi   string    `json:"deskripsi" gorm:"size:255"`
+	BeratGram   *int   `json:"berat_gram"`
+	IsActive    bool   `json:"is_active" gorm:"not null;default:true"`     // nonaktif = didiskontinu, tetap tampil di histori
+	IsProtected bool   `json:"is_protected" gorm:"not null;default:false"` // dikunci super_admin — lihat internal/controller/barang Protect()
+	Deskripsi   string `json:"deskripsi" gorm:"size:255"`
 
 	// --- Alur persetujuan (khusus barang yang DIBUAT role admin) ---
 	// super_admin membuat barang -> langsung "disetujui" (default).
@@ -37,9 +37,10 @@ type Barang struct {
 	CatatanApproval string     `json:"catatan_approval" gorm:"size:255"`
 	DireviewPada    *time.Time `json:"direview_pada"`
 
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	// DeletedAt: soft-delete GORM — lihat catatan lengkap di model.BarangRusak.
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (Barang) TableName() string { return "barang" }

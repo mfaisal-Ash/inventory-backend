@@ -13,9 +13,10 @@ import (
 	notification "github.com/projsonal/gowms/internal/controller/notification"
 	"github.com/projsonal/gowms/internal/middleware"
 	"github.com/projsonal/gowms/internal/model"
-	barangRusakRepo "github.com/projsonal/gowms/internal/repositories/barang_rusak"
 	"github.com/projsonal/gowms/pkg/constant"
 	"github.com/projsonal/gowms/pkg/utils"
+
+	barangRusakRepo "github.com/projsonal/gowms/internal/repositories/barang_rusak"
 )
 
 func parseIDParam(c *fiber.Ctx) (uint, error) {
@@ -26,11 +27,10 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-// List GET /barang-rusak?status=&search=
+// List GET /barang-rusak?status=&page=&limit=&search=
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	f := barangRusakRepo.Filter{Status: c.Query("status", "")}
-
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar barang rusak", nil)
@@ -42,24 +42,32 @@ func (h *Controller) List(c *fiber.Ctx) error {
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrIDInvalid, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "Id barang rusak tidak valid", nil)
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, constant.ErrBarangRusakTidakDitemukan, nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang rusak tidak ditemukan", nil)
 	}
 	return utils.OK(c, "detail barang rusak berhasil diambil", b)
 }
 
-// Create POST /barang-rusak — laporkan barang rusak. Foto (jika ada)
-// diunggah terpisah lewat UploadFoto, mengikuti pola upload avatar di
-// modul users (JSON dulu untuk data, baru multipart untuk file).
+// Summary GET /barang-rusak/summary
+func (h *Controller) Summary(c *fiber.Ctx) error {
+	pengecekan, _ := h.repo.CountByStatus(constant.StatusPengecekan)
+	retur, _ := h.repo.CountByStatus(constant.StatusRetur)
+	rusak, _ := h.repo.CountByStatus(constant.StatusRusak)
+	return utils.OK(c, "ringkasan barang rusak berhasil diambil", SummaryResponse{
+		Pengecekan: pengecekan, Retur: retur, Rusak: rusak,
+		Total: pengecekan + retur + rusak,
+	})
+}
+
+// Create POST /barang-rusak — laporan awal, status SELALU "pengecekan".
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req BarangRusakRequest
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
 	}
-
 	if req.BarangID != nil {
 		if _, err := h.barangRepo.FindByID(*req.BarangID); err != nil {
 			return utils.Fail(c, fiber.StatusBadRequest, "barang tidak ditemukan", nil)
@@ -72,33 +80,130 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		LabelBarang:    req.LabelBarang,
 		NamaBarang:     req.NamaBarang,
 		Keterangan:     req.Keterangan,
-		JenisBarang:    req.JenisBarang,
-		Status:         constant.StatusBarangRusakPengecekan,
+		Status:         constant.StatusPengecekan,
 		DilaporkanOleh: userID,
 	}
 	if err := h.repo.Create(b); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat laporan barang rusak", nil)
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mencatat laporan barang rusak", nil)
 	}
-
-	notification.Notify(h.notifRepo, "barang_rusak", "Laporan Barang Rusak Baru",
-		b.NamaBarang+" ("+b.LabelBarang+") dilaporkan rusak dan menunggu pengecekan.",
-		"/barang-rusak", nil, constant.RoleAdmin)
-
+	notification.Notify(h.notifRepo, "barang_rusak",
+		"Laporan Barang Rusak Baru",
+		b.NamaBarang+" ("+b.LabelBarang+") dilaporkan rusak, menunggu pengecekan fisik.",
+		"/home/barang-rusak", nil, "admin")
+	notification.Notify(h.notifRepo, "barang_rusak",
+		"Laporan Barang Rusak Baru",
+		b.NamaBarang+" ("+b.LabelBarang+") dilaporkan rusak, menunggu pengecekan fisik.",
+		"/home/barang-rusak", nil, constant.RoleSuperAdmin)
 	created, _ := h.repo.FindByID(b.ID)
-	return utils.Created(c, "laporan barang rusak berhasil dibuat", created)
+	return utils.Created(c, "laporan barang rusak berhasil dibuat, menunggu pengecekan fisik", created)
 }
 
-// UploadFoto POST /barang-rusak/:id/foto (multipart/form-data, field "foto")
-// — simpan foto bukti kerusakan di disk lokal (StorageConfig.Path/barang-rusak/),
-// dibatasi 2MB & hanya jpg/jpeg/png, mengikuti pola UploadAvatar di modul users.
-func (h *Controller) UploadFoto(c *fiber.Ctx) error {
+// Update PUT /barang-rusak/:id — hanya bisa diubah selama masih status
+// "pengecekan"; setelah diklasifikasi (retur/rusak) datanya dikunci
+// supaya riwayat pemeriksaan tidak berubah-ubah.
+func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrIDInvalid, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, constant.ErrBarangRusakTidakDitemukan, nil)
+		return utils.Fail(c, fiber.StatusNotFound, "data barang rusak tidak ditemukan", nil)
+	}
+	if b.Status != constant.StatusPengecekan {
+		return utils.Fail(c, fiber.StatusForbidden, "data yang sudah diperiksa tidak bisa diubah", nil)
+	}
+
+	var req BarangRusakRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	if req.BarangID != nil {
+		if _, err := h.barangRepo.FindByID(*req.BarangID); err != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, "barang tidak ditemukan", nil)
+		}
+	}
+	b.BarangID = req.BarangID
+	b.LabelBarang = req.LabelBarang
+	b.NamaBarang = req.NamaBarang
+	b.Keterangan = req.Keterangan
+	if err := h.repo.Update(b); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui laporan barang rusak", nil)
+	}
+	return utils.OK(c, "laporan barang rusak berhasil diperbarui", b)
+}
+
+// Inspeksi PATCH /barang-rusak/:id/inspeksi — hasil pemeriksaan fisik,
+// menutup status "pengecekan" menjadi "retur" atau "rusak" (lihat
+// dokumentasi alur di model.BarangRusak). HANYA super_admin & admin.
+func (h *Controller) Inspeksi(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	b, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "data barang rusak tidak ditemukan", nil)
+	}
+	if b.Status != constant.StatusPengecekan {
+		return utils.Fail(c, fiber.StatusConflict, "data ini sudah pernah diperiksa", nil)
+	}
+
+	var req InspeksiRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+
+	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	now := time.Now()
+	b.JenisBarang = req.JenisBarang
+	b.Status = req.JenisBarang // "retur" atau "rusak" — sinkron dengan jenis_barang
+	b.DicekOleh = &userID
+	b.DicekPada = &now
+	if err := h.repo.Update(b); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan hasil pengecekan", nil)
+	}
+	pelaporID := b.DilaporkanOleh
+	hasilLabel := "bisa diretur ke supplier"
+	if req.JenisBarang == constant.StatusRusak {
+		hasilLabel = "rusak total (tidak bisa diretur)"
+	}
+	notification.Notify(h.notifRepo, "barang_rusak",
+		"Hasil Pengecekan Barang Rusak",
+		b.NamaBarang+" ("+b.LabelBarang+") sudah diperiksa: "+hasilLabel+".",
+		"/home/barang-rusak", &pelaporID, "")
+	return utils.OK(c, "hasil pengecekan berhasil disimpan", b)
+}
+
+// Delete DELETE /barang-rusak/:id — HANYA super_admin & admin.
+func (h *Controller) Delete(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	if _, err := h.repo.FindByID(id); err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "data barang rusak tidak ditemukan", nil)
+	}
+	if err := h.repo.Delete(id); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus data barang rusak", nil)
+	}
+	return utils.OK(c, "data barang rusak berhasil dihapus", nil)
+}
+
+// UploadFoto POST /barang-rusak/:id/foto (multipart/form-data, field
+// "foto") — unggah foto bukti kondisi fisik barang rusak, pola sama
+// seperti UploadAvatar (lihat internal/controller/users). Dibatasi 2MB &
+// hanya jpg/jpeg/png. Boleh diunggah kapan saja (tidak dikunci status
+// "pengecekan" seperti Update biasa) supaya foto tambahan masih bisa
+// ditambah setelah hasil pemeriksaan dikunci.
+func (h *Controller) UploadFoto(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	b, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "data barang rusak tidak ditemukan", nil)
 	}
 
 	file, err := c.FormFile("foto")
@@ -125,83 +230,11 @@ func (h *Controller) UploadFoto(c *fiber.Ctx) error {
 
 	b.FotoURL = "/uploads/barang-rusak/" + filename
 	if err := h.repo.Update(b); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui data barang rusak", nil)
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan foto bukti", nil)
 	}
-	return utils.OK(c, "foto barang rusak berhasil diunggah", b)
+	return utils.OK(c, "foto bukti berhasil diunggah", b)
 }
 
-// UpdateStatus PATCH /barang-rusak/:id/status — admin/super_admin
-// menindaklanjuti hasil pengecekan barang rusak.
-func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrIDInvalid, nil)
-	}
-	b, err := h.repo.FindByID(id)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, constant.ErrBarangRusakTidakDitemukan, nil)
-	}
-
-	var req UpdateStatusRequest
-	if !utils.ParseAndValidate(c, &req) {
-		return nil
-	}
-
-	userID, _ := c.Locals(constant.CtxUserID).(uint)
-	now := time.Now()
-	b.Status = req.Status
-	if req.Keterangan != "" {
-		b.Keterangan = req.Keterangan
-	}
-	b.DicekOleh = &userID
-	b.DicekPada = &now
-
-	if err := h.repo.Update(b); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui status barang rusak", nil)
-	}
-
-	if b.DilaporkanOleh != 0 {
-		reporterID := b.DilaporkanOleh
-		notification.Notify(h.notifRepo, "barang_rusak", "Status Laporan Barang Rusak Diperbarui",
-			b.NamaBarang+" ("+b.LabelBarang+") kini berstatus \""+b.Status+"\".",
-			"/barang-rusak", &reporterID, "")
-	}
-
-	return utils.OK(c, "status barang rusak berhasil diperbarui", b)
-}
-
-// Delete DELETE /barang-rusak/:id (soft-delete, lihat catatan di
-// repositories/barang_rusak Delete() — bisa dipulihkan lewat Tempat Sampah).
-func (h *Controller) Delete(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrIDInvalid, nil)
-	}
-	if _, err := h.repo.FindByID(id); err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, constant.ErrBarangRusakTidakDitemukan, nil)
-	}
-	if err := h.repo.Delete(id); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus data barang rusak", nil)
-	}
-	return utils.OK(c, "data barang rusak berhasil dihapus", nil)
-}
-
-// Summary GET /barang-rusak/summary
-func (h *Controller) Summary(c *fiber.Ctx) error {
-	pengecekan, err1 := h.repo.CountByStatus(constant.StatusBarangRusakPengecekan)
-	diperbaiki, err2 := h.repo.CountByStatus(constant.StatusBarangRusakDiperbaiki)
-	retur, err3 := h.repo.CountByStatus(constant.StatusRetur)
-	dibuang, err4 := h.repo.CountByStatus(constant.StatusBarangRusakDibuang)
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan barang rusak", nil)
-	}
-	return utils.OK(c, "ringkasan barang rusak berhasil diambil", SummaryResponse{
-		Pengecekan: pengecekan, Diperbaiki: diperbaiki, Retur: retur, Dibuang: dibuang,
-		Total: pengecekan + diperbaiki + retur + dibuang,
-	})
-}
-
-// RegisterRoutes mendaftarkan endpoint modul "Barang Rusak".
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/barang-rusak", middleware.JWTAuth(h.jwtSvc))
 
@@ -214,7 +247,8 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, h.Create)
-	g.Post("/:id/foto", tambah, h.UploadFoto)
-	g.Patch("/:id/status", edit, onlyStaff, h.UpdateStatus)
+	g.Put("/:id", edit, h.Update)
+	g.Post("/:id/foto", edit, h.UploadFoto)
+	g.Patch("/:id/inspeksi", edit, onlyStaff, h.Inspeksi)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 }

@@ -47,13 +47,29 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.Asset, in
 	return list, total, nil
 }
 
+// ListForMap mengambil titik-titik aset berkoordinat berikut info gudang
+// pemiliknya (nama, kode, tipe) dalam satu query JOIN — dipakai Peta
+// Sebaran Aset supaya frontend tidak perlu memanggil endpoint gudang
+// terpisah untuk tiap marker. Kolom di-qualify eksplisit per tabel karena
+// "latitude"/"longitude" ada di assets MAUPUN gudangs.
 func (r *repository) ListForMap(f Filter, tipeGudang string) ([]MapRow, error) {
 	var rows []MapRow
 
 	q := r.db.Table("assets a").
 		Select(`a.id, a.nama, a.jenis_aset, a.label_rsd, a.latitude, a.longitude, a.status,
-			g.id AS gudang_id, g.nama AS gudang_nama, g.kode AS gudang_kode, g.tipe AS gudang_tipe`).
+			a.ip_address, a.ping_status, a.jumlah_port,
+			g.id AS gudang_id, g.nama AS gudang_nama, g.kode AS gudang_kode, g.tipe AS gudang_tipe,
+			g.latitude AS gudang_latitude, g.longitude AS gudang_longitude,
+			a.parent_asset_id,
+			pa.latitude AS parent_latitude, pa.longitude AS parent_longitude,
+			COALESCE(pc.terisi, 0) AS port_terisi`).
 		Joins("JOIN gudangs g ON g.id = a.gudang_id").
+		Joins("LEFT JOIN assets pa ON pa.id = a.parent_asset_id AND pa.deleted_at IS NULL").
+		Joins(`LEFT JOIN (
+			SELECT asset_id, COUNT(*) AS terisi FROM asset_ports
+			WHERE status = 'terisi' AND deleted_at IS NULL
+			GROUP BY asset_id
+		) pc ON pc.asset_id = a.id`).
 		Where("a.latitude IS NOT NULL AND a.longitude IS NOT NULL")
 
 	if f.JenisAset != "" {
@@ -91,10 +107,19 @@ func (r *repository) Update(a *model.Asset) error {
 	return r.db.Save(a).Error
 }
 
+// Delete — soft-delete OTOMATIS: model.Asset punya kolom DeletedAt
+// (gorm.DeletedAt), jadi GORM sendiri mengganti ini jadi
+// `UPDATE assets SET deleted_at = NOW()` alih-alih DELETE SQL sungguhan.
+// Baris ini tetap ada di database & bisa dipulihkan lewat fitur Tempat
+// Sampah (lihat internal/controller/trash) sampai dihapus permanen dari sana.
 func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.Asset{}, id).Error
 }
 
+// NextRSDNumber menghitung nomor urut berikutnya untuk label RSD di
+// gudang tertentu, dari jumlah aset berkoordinat (bukan transportasi)
+// yang sudah ada di gudang itu. Reset otomatis per gudang karena hanya
+// menghitung baris milik gudang_id tsb.
 func (r *repository) NextRSDNumber(gudangID uint) (int, error) {
 	var count int64
 	err := r.db.Model(&model.Asset{}).
@@ -106,6 +131,8 @@ func (r *repository) NextRSDNumber(gudangID uint) (int, error) {
 	return int(count) + 1, nil
 }
 
+// NextBANumber menghitung nomor urut berikutnya untuk kode BA, global
+// lintas gudang (khusus aset transportasi).
 func (r *repository) NextBANumber() (int, error) {
 	var count int64
 	err := r.db.Model(&model.Asset{}).

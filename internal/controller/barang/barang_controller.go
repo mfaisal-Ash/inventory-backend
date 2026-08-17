@@ -107,34 +107,25 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar barang berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail godoc
-// @Summary      Detail barang
-// @Tags         Barang
-// @Produce      json
-// @Security     BearerAuth
-// @Param        id   path      int  true  "ID barang"
-// @Success      200  {object}  utils.Envelope
-// @Failure      404  {object}  utils.Envelope
-// @Router       /stockrsd/barang/{id} [get]
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "Data aset gudang `id barang` tidak valid", nil)
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data Data barang tidak ditemukan", nil)
 	}
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
 	if b.ApprovalStatus != constant.ApprovalDisetujui && roleName != constant.RoleSuperAdmin {
 		isOwnSubmission := roleName == constant.RoleAdmin && b.DiajukanOleh != nil && *b.DiajukanOleh == userID
 		if !isOwnSubmission {
-			return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+			return utils.Fail(c, fiber.StatusNotFound, "Data Data barang tidak ditemukan", nil)
 		}
 	}
 	maskProtectedOne(roleName, b)
-	return utils.OK(c, "detail barang berhasil diambil", b)
+	return utils.OK(c, "Data barang berhasil diambil", b)
 }
 
 func (h *Controller) validateReferensi(kategoriID, satuanID uint) error {
@@ -147,24 +138,13 @@ func (h *Controller) validateReferensi(kategoriID, satuanID uint) error {
 	return nil
 }
 
-// Create godoc
-// @Summary      Tambah barang baru
-// @Tags         Barang
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        payload  body      BarangRequest  true  "Data barang"
-// @Success      201      {object}  utils.Envelope
-// @Failure      400      {object}  utils.Envelope
-// @Failure      409      {object}  utils.Envelope  "kode barang sudah dipakai"
-// @Router       /stockrsd/barang [post]
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req BarangRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "payload tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "proses payload tidak valid", nil)
 	}
 	if errs := utils.Validate(req); errs != nil {
-		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, " gagal memvalidasi", errs)
 	}
 
 	if _, err := h.repo.FindByKode(req.KodeBarang); err == nil {
@@ -213,11 +193,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "Data id barang tidak valid", nil)
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data aset gudang tidak ditemukan", nil)
 	}
 	if b.IsProtected {
 		return utils.Fail(c, fiber.StatusForbidden,
@@ -259,11 +239,11 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "Data id barang tidak valid", nil)
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
 	}
 	if b.IsProtected {
 		return utils.Fail(c, fiber.StatusForbidden,
@@ -295,7 +275,7 @@ func (h *Controller) Protect(c *fiber.Ctx) error {
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
 	}
 	b.IsProtected = *req.IsProtected
 	if err := h.repo.Update(b); err != nil {
@@ -315,7 +295,7 @@ func (h *Controller) Approve(c *fiber.Ctx) error {
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
 	}
 	if b.ApprovalStatus != constant.ApprovalMenunggu {
 		return utils.Fail(c, fiber.StatusConflict, "barang ini tidak sedang menunggu persetujuan", nil)
@@ -344,7 +324,7 @@ func (h *Controller) Reject(c *fiber.Ctx) error {
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
 	}
 	if b.ApprovalStatus != constant.ApprovalMenunggu {
 		return utils.Fail(c, fiber.StatusConflict, "barang ini tidak sedang menunggu persetujuan", nil)
@@ -368,7 +348,7 @@ func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
 	}
 
 	var req UpdateStatusRequest

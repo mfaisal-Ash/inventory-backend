@@ -9,24 +9,36 @@ import (
 	"github.com/jung-kurt/gofpdf"
 )
 
+// ChartData — hasil agregasi "Analisa Data" yang disisipkan ke file
+// unduhan. Sengaja didefinisikan ULANG di sini (bukan import paket
+// internal/controller/laporan) supaya pkg/reportexport tetap paket
+// mandiri tanpa dependensi balik ke internal/ (pkg/ dirancang bisa
+// dipakai controller manapun, tidak boleh bergantung ke satu controller
+// spesifik).
 type ChartData struct {
 	Title  string
-	Type   string
+	Type   string // "bar" | "line" — saat ini keduanya digambar sebagai bar chart sederhana di PDF/Excel
 	Labels []string
 	Values []float64
 }
 
+// Kop surat WMS-RSD: pita hijau tua di atas & bawah tiap halaman, meniru
+// gaya kop surat resmi perusahaan (lihat referensi Kopsurat_RSD.docx) tapi
+// dengan nama aplikasi "WMS-RSD" alih-alih nama PT.
 var (
-	headerBandColor   = [3]int{20, 60, 20}
-	headerAccentColor = [3]int{90, 200, 60}
+	headerBandColor   = [3]int{20, 60, 20}  // hijau tua
+	headerAccentColor = [3]int{90, 200, 60} // hijau terang (aksen garis diagonal)
 	footerTextColor   = [3]int{255, 255, 255}
 )
 
 func drawLetterhead(pdf *gofpdf.Fpdf, reportTitle string) {
 	pageWidth, _ := pdf.GetPageSize()
 
+	// Pita header hijau tua penuh lebar halaman.
 	pdf.SetFillColor(headerBandColor[0], headerBandColor[1], headerBandColor[2])
 	pdf.Rect(0, 0, pageWidth, 20, "F")
+	// Aksen garis diagonal khas kop surat referensi (disederhanakan jadi
+	// beberapa garis miring hijau terang di ujung kanan pita).
 	pdf.SetDrawColor(headerAccentColor[0], headerAccentColor[1], headerAccentColor[2])
 	pdf.SetLineWidth(1.2)
 	for i := 0; i < 3; i++ {
@@ -65,6 +77,17 @@ func drawFooterBand(pdf *gofpdf.Fpdf) {
 	pdf.SetTextColor(0, 0, 0)
 }
 
+// drawBarChart menggambar bar chart SEDERHANA langsung pakai primitif
+// vektor gofpdf (Rect/Line/teks) — TIDAK ada library charting eksternal
+// yang di-`go get` (proxy Go modules diblokir di sebagian lingkungan
+// build/sandbox, jadi dependensi baru berisiko gagal fetch). Cukup untuk
+// "Analisa Data" yang diminta (tren per periode / top item), bukan
+// pengganti chart interaktif recharts yang dipakai di UI web.
+//
+// Ukuran chart MENYESUAIKAN OTOMATIS ke lebar halaman A4 potrait (bukan
+// ukuran tetap) — barWidth dihitung dari lebar area usable dibagi jumlah
+// titik data, supaya tetap proporsional baik untuk 3 titik (mis. laporan
+// tahunan) maupun 31 titik (laporan harian sebulan penuh).
 func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 	if chart == nil || len(chart.Values) == 0 {
 		return
@@ -89,6 +112,7 @@ func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 
 	startY := pdf.GetY()
 	startX := marginL
+	// Sisakan ruang label sumbu-Y (angka maksimum) di kiri.
 	yAxisLabelWidth := 12.0
 	plotX := startX + yAxisLabelWidth
 	plotWidth := usable - yAxisLabelWidth
@@ -96,6 +120,9 @@ func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 	gap := 1.5
 	barWidth := (plotWidth - gap*float64(n-1)) / float64(n)
 	if barWidth < 2 {
+		// Terlalu banyak titik data untuk lebar halaman — batasi ke 40
+		// titik terakhir supaya chart tetap terbaca alih-alih bar setipis
+		// rambut yang tidak berguna.
 		const maxBars = 40
 		if n > maxBars {
 			chart.Labels = chart.Labels[n-maxBars:]
@@ -121,6 +148,8 @@ func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 		pdf.Rect(x, y, barWidth, barH, "F")
 	}
 
+	// Label sumbu-X — kalau kebanyakan titik, cuma tampilkan sebagian
+	// (tiap-N) supaya tidak numpuk tak terbaca.
 	pdf.SetFont("Arial", "", 5.5)
 	pdf.SetTextColor(90, 90, 90)
 	labelEvery := 1
@@ -144,6 +173,10 @@ func trimFloatPdf(f float64) string {
 	return strings.TrimSuffix(s, ".0")
 }
 
+// ToPDF membuat laporan PDF A4 POTRAIT dengan kop surat WMS-RSD di setiap
+// halaman, ringkasan (summary [label,value]) sebelum tabel rincian — supaya
+// data di luar tabel (total, agregat, dst — setara "chart data" di UI) ikut
+// terbawa ke file yang diunduh, bukan cuma isi tabel rincian.
 func ToPDF(title string, summary [][2]string, headers []string, rows [][]string, chart *ChartData) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetTitle(title, false)

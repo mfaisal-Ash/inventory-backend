@@ -74,22 +74,18 @@ func (h *Controller) Set(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui status maintenance", nil)
 	}
 	logMaintenanceEvent(userID, req.IsActive, req.Message)
-
-	notifTitle := "Mode Maintenance Dinonaktifkan"
-	notifMsg := "Sistem kembali beroperasi normal."
-	if req.IsActive {
-		notifTitle = "Mode Maintenance Diaktifkan"
-		notifMsg = "Sistem sedang dalam mode maintenance."
-		if req.Message != "" {
-			notifMsg = req.Message
-		}
-	}
-	notification.Notify(h.notifRepo, "maintenance", notifTitle, notifMsg, "/settings/maintenance", nil, constant.RoleAdmin)
-
 	msg := "mode maintenance berhasil dinonaktifkan"
+	title := "Mode Pemeliharaan Dinonaktifkan"
+	body := "Sistem kembali normal, semua fitur bisa diakses seperti biasa."
 	if req.IsActive {
 		msg = "mode maintenance berhasil diaktifkan"
+		title = "Mode Pemeliharaan Diaktifkan"
+		body = "Sebagian fitur untuk sementara tidak bisa diakses."
+		if req.Message != "" {
+			body = req.Message
+		}
 	}
+	notification.Notify(h.notifRepo, "maintenance", title, body, "", nil, "all")
 	return utils.OK(c, msg, toStatusResponse(status.IsActive, status.Message, status.StartedAt, status.EstimatedUntil))
 }
 

@@ -12,7 +12,6 @@ const orderNamaAsc = "nama asc"
 
 // ---- Kategori ----
 
-
 func (r *repository) ListKategori(p utils.PaginationParams) ([]model.Kategori, int64, error) {
 	var list []model.Kategori
 	var total int64
@@ -143,6 +142,17 @@ func (r *repository) FindGudangByID(id uint) (*model.Gudang, error) {
 	return &g, nil
 }
 
+func (r *repository) FindGudangByKode(kode string) (*model.Gudang, error) {
+	if kode == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var g model.Gudang
+	if err := r.db.Where("kode = ?", kode).First(&g).Error; err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
 func (r *repository) CreateGudang(g *model.Gudang) error {
 	return r.db.Create(g).Error
 }
@@ -151,6 +161,9 @@ func (r *repository) UpdateGudang(g *model.Gudang) error {
 	return r.db.Save(g).Error
 }
 
+// DeleteGudang — soft-delete OTOMATIS (lihat catatan lengkap di
+// repositories/asset Delete()) — model.Gudang punya DeletedAt. Pulihkan/
+// hapus permanen lewat fitur Tempat Sampah.
 func (r *repository) DeleteGudang(id uint) error {
 	return r.db.Delete(&model.Gudang{}, id).Error
 }

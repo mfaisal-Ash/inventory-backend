@@ -25,3 +25,11 @@ type NotificationRead struct {
 }
 
 func (NotificationRead) TableName() string { return "notification_reads" }
+
+type NotificationDismissed struct {
+	NotificationID uint      `json:"notification_id" gorm:"primaryKey"`
+	UserID         uint      `json:"user_id" gorm:"primaryKey"`
+	DismissedAt    time.Time `json:"dismissed_at"`
+}
+
+func (NotificationDismissed) TableName() string { return "notification_dismissed" }

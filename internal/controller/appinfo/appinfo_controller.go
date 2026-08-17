@@ -21,7 +21,7 @@ type VersionEntry struct {
 
 var changelogData = []VersionEntry{
 	{
-		Version: "v1.9.0",
+		Version: "v1.3.0",
 		Date:    "11 Agustus 2026",
 		Changes: VersionChanges{
 			New: []string{
@@ -70,14 +70,18 @@ type Controller struct{}
 func New() *Controller { return &Controller{} }
 
 type VersionResponse struct {
-	Version string `json:"version"`
-	AppName string `json:"app_name"`
+	Version     string `json:"version"`
+	AppName     string `json:"app_name"`
+	Description string `json:"description"`
+	Developer   string `json:"developer"`
 }
 
 func (h *Controller) Version(c *fiber.Ctx) error {
 	return utils.OK(c, "versi aplikasi berhasil diambil", VersionResponse{
-		Version: CurrentVersion,
-		AppName: "WMS - RSD",
+		Version:     CurrentVersion,
+		AppName:     "WMS - RSD",
+		Description: "WMS-RSD merupakan pelayanan gudang serta inventaris produk dalam perusahaan — mengelola stok, pengiriman, aset gudang (tiang/ODC/ONT/ODP/OLT/transportasi), hingga laporan operasional dalam satu sistem.",
+		Developer:   "Tim Internal RSD",
 	})
 }
 

@@ -2,6 +2,7 @@ package gudang
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -12,6 +13,16 @@ import (
 )
 
 const Module = constant.ModuleManajemenGudang
+
+// normalizeTipeGudang mengembalikan constant.TipeGudangCabang sebagai
+// default kalau klien tidak mengirim field "tipe" (mis. klien lama yang
+// belum update), supaya kolom Tipe di database selalu terisi valid.
+func normalizeTipeGudang(tipe string) string {
+	if tipe == constant.TipeGudangPusat {
+		return constant.TipeGudangPusat
+	}
+	return constant.TipeGudangCabang
+}
 
 func parseIDParam(c *fiber.Ctx) (uint, error) {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
@@ -233,8 +244,13 @@ func (h *Controller) CreateGudang(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
 	}
 
+	kode := strings.ToUpper(strings.TrimSpace(req.Kode))
+	if existing, err := h.repo.FindGudangByKode(kode); err == nil && existing != nil {
+		return utils.Fail(c, fiber.StatusConflict, "kode gudang sudah digunakan", nil)
+	}
+
 	g := &model.Gudang{
-		Nama: req.Nama, Alamat: req.Alamat, PIC: req.PIC, Telepon: req.Telepon, Kapasitas: req.Kapasitas,
+		Nama: req.Nama, Kode: kode, Tipe: normalizeTipeGudang(req.Tipe), Alamat: req.Alamat, PIC: req.PIC, Telepon: req.Telepon, Kapasitas: req.Kapasitas,
 		Latitude: req.Latitude, Longitude: req.Longitude,
 	}
 	if err := h.repo.CreateGudang(g); err != nil {
@@ -266,7 +282,16 @@ func (h *Controller) UpdateGudang(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
 	}
 
+	kode := strings.ToUpper(strings.TrimSpace(req.Kode))
+	if kode != g.Kode {
+		if existing, err := h.repo.FindGudangByKode(kode); err == nil && existing != nil && existing.ID != g.ID {
+			return utils.Fail(c, fiber.StatusConflict, "kode gudang sudah digunakan", nil)
+		}
+	}
+
 	g.Nama = req.Nama
+	g.Kode = kode
+	g.Tipe = normalizeTipeGudang(req.Tipe)
 	g.Alamat = req.Alamat
 	g.PIC = req.PIC
 	g.Telepon = req.Telepon

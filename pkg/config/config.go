@@ -18,8 +18,8 @@ type Config struct {
 	CORS          CORSConfig
 	Storage       StorageConfig
 	Captcha       CaptchaConfig
-	BotCheck      BotCheckConfig
 	HumanCheck    HumanCheckConfig
+	BotCheck      BotCheckConfig
 	WhatsApp      WhatsAppConfig
 	WAOTP         WAOTPConfig
 	SMS           SMSConfig
@@ -79,20 +79,18 @@ type CaptchaConfig struct {
 	TTLMinutes int
 }
 
-type BotCheckConfig struct {
-	Enabled       bool
-	Secret        string
-	WindowMinutes int
-}
-
-// HumanCheckConfig mengonfigurasi pkg/humancheck.Service — token verifikasi
-// "human check" self-hosted (Secret dipakai menandatangani token via HMAC,
-// TTLMinutes menentukan masa berlaku token, MinDelaySeconds menolak token
-// yang diverifikasi terlalu cepat setelah diterbitkan, indikasi bot).
+// HumanCheckConfig konfigurasi verifikasi "verify you are human" ala
+// Cloudflare Turnstile (lihat pkg/humancheck) yang dipakai ResetPassword.
 type HumanCheckConfig struct {
 	Secret          string
 	TTLMinutes      int
 	MinDelaySeconds int
+}
+
+type BotCheckConfig struct {
+	Enabled       bool
+	Secret        string
+	WindowMinutes int
 }
 
 type WhatsAppConfig struct {
@@ -169,15 +167,15 @@ func Load() *Config {
 			Secret:     getEnv("CAPTCHA_SECRET", "change-me-captcha-secret"),
 			TTLMinutes: getEnvAsInt("CAPTCHA_TTL_MINUTES", 5),
 		},
-		BotCheck: BotCheckConfig{
-			Enabled:       getEnvAsBool("BOTCHECK_ENABLED", false),
-			Secret:        getEnv("BOTCHECK_SECRET", "change-me-botcheck-secret"),
-			WindowMinutes: getEnvAsInt("BOTCHECK_WINDOW_MINUTES", 60),
-		},
 		HumanCheck: HumanCheckConfig{
 			Secret:          getEnv("HUMANCHECK_SECRET", "change-me-humancheck-secret"),
 			TTLMinutes:      getEnvAsInt("HUMANCHECK_TTL_MINUTES", 10),
 			MinDelaySeconds: getEnvAsInt("HUMANCHECK_MIN_DELAY_SECONDS", 2),
+		},
+		BotCheck: BotCheckConfig{
+			Enabled:       getEnvAsBool("BOTCHECK_ENABLED", false),
+			Secret:        getEnv("BOTCHECK_SECRET", "change-me-botcheck-secret"),
+			WindowMinutes: getEnvAsInt("BOTCHECK_WINDOW_MINUTES", 60),
 		},
 		WhatsApp: WhatsAppConfig{
 			Driver:      getEnv("WHATSAPP_DRIVER", "gateway"),
@@ -218,8 +216,8 @@ var weakSecretDefaults = map[string]string{
 	"JWT_ACCESS_SECRET":  "access-secret",
 	"JWT_REFRESH_SECRET": "refresh-secret",
 	"CAPTCHA_SECRET":     "change-me-captcha-secret",
-	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
 	"HUMANCHECK_SECRET":  "change-me-humancheck-secret",
+	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
 }
 
 func validateProductionSecrets(cfg *Config) {
@@ -230,6 +228,7 @@ func validateProductionSecrets(cfg *Config) {
 		"JWT_ACCESS_SECRET":  cfg.JWT.AccessSecret,
 		"JWT_REFRESH_SECRET": cfg.JWT.RefreshSecret,
 		"CAPTCHA_SECRET":     cfg.Captcha.Secret,
+		"HUMANCHECK_SECRET":  cfg.HumanCheck.Secret,
 		"BOTCHECK_SECRET":    cfg.BotCheck.Secret,
 	}
 	var insecure []string

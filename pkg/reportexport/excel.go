@@ -128,7 +128,7 @@ func writeHeaders(f *excelize.File, sheet string, headers []string, headerRow in
 	return nil
 }
 
-func writeRows(f *excelize.File, sheet string, headers []string, rows [][]string, headerRow int) error {
+func writeRows(f *excelize.File, sheet string, _ []string, rows [][]string, headerRow int) error {
 	for r, dataRow := range rows {
 		for c, val := range dataRow {
 			cell, err := excelize.CoordinatesToCellName(c+1, headerRow+1+r)

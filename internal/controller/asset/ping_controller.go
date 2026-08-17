@@ -1,4 +1,4 @@
-package asset
+package assetgudang
 
 import (
 	"sync"
@@ -15,6 +15,10 @@ import (
 
 const pingTimeout = 2 * time.Second
 
+// Ping POST /aset/:id/ping — cek konektivitas SATU aset yang punya
+// ip_address terisi, lalu simpan hasilnya (ping_status + last_ping_at).
+// TIDAK mengubah kolom `status` (kondisi fisik aset) — murni indikator
+// konektivitas terpisah, lihat catatan di model.Asset.
 func (h *Controller) Ping(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -31,6 +35,7 @@ func (h *Controller) Ping(c *fiber.Ctx) error {
 
 	res, perr := netping.Check(a.IPAddress, pingTimeout)
 	now := time.Now()
+	statusLama := a.PingStatus
 	if perr != nil {
 		a.PingStatus = "unknown"
 		a.LastPingAt = &now
@@ -47,6 +52,9 @@ func (h *Controller) Ping(c *fiber.Ctx) error {
 	if err := h.repo.Update(a); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan hasil ping", nil)
 	}
+	if statusLama != a.PingStatus {
+		h.logHistory(c, a.ID, "ping", statusLama, a.PingStatus, "")
+	}
 
 	return utils.OK(c, "ping selesai", PingResponse{
 		ID: a.ID, IPAddress: a.IPAddress, PingStatus: a.PingStatus,
@@ -54,6 +62,10 @@ func (h *Controller) Ping(c *fiber.Ctx) error {
 	})
 }
 
+// PingAll POST /aset/ping — cek konektivitas SEMUA aset yang punya
+// ip_address terisi secara paralel (dibatasi maxConcurrentPing sekaligus,
+// supaya tidak membanjiri jaringan/CPU kalau asetnya ratusan), dipakai
+// tombol "Cek Semua Ping" di halaman Manajemen Aset.
 func (h *Controller) PingAll(c *fiber.Ctx) error {
 	list, _, err := h.repo.List(utils.PaginationParams{Page: 1, Limit: 100000}, assetRepo.Filter{})
 	if err != nil {
@@ -92,6 +104,9 @@ func (h *Controller) PingAll(c *fiber.Ctx) error {
 			}
 			_ = h.repo.Update(&a)
 
+			// Notifikasi HANYA saat transisi online/unknown -> offline (bukan
+			// tiap kali PingAll dijalankan) — supaya tidak spam notifikasi
+			// berulang untuk perangkat yang memang sudah lama offline.
 			if a.PingStatus == "offline" && !wasOffline {
 				notification.Notify(h.notifRepo, "ping",
 					"Aset Terdeteksi Offline",

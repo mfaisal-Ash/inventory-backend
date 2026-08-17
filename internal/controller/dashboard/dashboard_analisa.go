@@ -20,12 +20,12 @@ type BarangRanking struct {
 }
 
 type AnalisaResponse struct {
-	TotalSKU           int64                  `json:"total_sku"`
-	TotalRestockBulanIni int64                `json:"total_restock_bulan_ini"`
-	StokMenipis         int64                  `json:"stok_menipis"`
-	KategoriComposition []KategoriComposition  `json:"kategori_composition"`
-	TopRestocked        []BarangRanking        `json:"top_restocked"`
-	TopKeluar           []BarangRanking        `json:"top_keluar"`
+	TotalSKU             int64                 `json:"total_sku"`
+	TotalRestockBulanIni int64                 `json:"total_restock_bulan_ini"`
+	StokMenipis          int64                 `json:"stok_menipis"`
+	KategoriComposition  []KategoriComposition `json:"kategori_composition"`
+	TopRestocked         []BarangRanking       `json:"top_restocked"`
+	TopKeluar            []BarangRanking       `json:"top_keluar"`
 }
 
 // Analisa GET /dashboard/analisa — dipakai halaman "Analisa Data". SEMUA

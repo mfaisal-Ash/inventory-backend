@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	appinfoController "github.com/projsonal/gowms/internal/controller/appinfo"
-	assetController "github.com/projsonal/gowms/internal/controller/asset"
+	assetController "github.com/projsonal/gowms/internal/controller/asset_gudang"
 	authController "github.com/projsonal/gowms/internal/controller/auth"
 	barangController "github.com/projsonal/gowms/internal/controller/barang"
 	barangKeluarController "github.com/projsonal/gowms/internal/controller/barang_keluar"
@@ -119,20 +119,20 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rPengiriman := pengirimanRepo.New(db)
 	rCod := codRepo.New(db)
 	rAsset := assetRepo.New(db)
-	rAssetHistory := assetHistoryRepo.New(db)
 	rAssetPort := assetPortRepo.New(db)
+	rAssetHistory := assetHistoryRepo.New(db)
 	rBarangRusak := barangRusakRepo.New(db)
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
 
 	// Services lintas modul.
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
-	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
 		cfg.HumanCheck.Secret,
 		time.Duration(cfg.HumanCheck.TTLMinutes)*time.Minute,
 		time.Duration(cfg.HumanCheck.MinDelaySeconds)*time.Second,
 	)
+	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
 	// Controllers.
@@ -158,13 +158,13 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cGudang := gudangController.New(rGudang, rRole, jwtSvc)
 	cBarang := barangController.New(rBarang, rGudang, rRole, jwtSvc)
 	cSupplier := supplierController.New(rSupplier, rRole, jwtSvc)
-	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc)
-	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc)
-	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc)
-	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc)
-	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc)
+	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc, rNotification)
+	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc, rNotification)
+	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
 	cCod := codController.New(rCod, rRole, jwtSvc)
-	cAsset := assetController.New(rAsset, rGudang, rRole, jwtSvc, rNotification, rAssetHistory, rAssetPort, rUsers)
+	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotification)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotification)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rRole, jwtSvc)
