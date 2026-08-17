@@ -6,9 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
@@ -22,11 +22,7 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 		q = q.Where("purchase_order_id = ?", f.PurchaseOrderID)
 	}
 	if f.KategoriID != 0 {
-		// Dokumen barang masuk bisa berisi beberapa item; JOIN + DISTINCT
-		// (dengan SELECT eksplisit ke tabel utama supaya tidak "ambiguous
-		// column" karena semua tabel yang di-JOIN sama-sama punya kolom id)
-		// supaya satu dokumen tidak muncul dobel kalau punya >1 item
-		// dengan kategori yang sama.
+
 		q = q.Select("barang_masuk.*").Distinct().
 			Joins("JOIN barang_masuk_items ON barang_masuk_items.barang_masuk_id = barang_masuk.id").
 			Joins("JOIN barang ON barang.id = barang_masuk_items.barang_id").
@@ -143,10 +139,6 @@ func (r *repository) Complete(id uint, userID uint) (*model.BarangMasuk, error) 
 	return r.FindByID(id)
 }
 
-// adjustRak menambah/mengurangi Terisi pada rak, meng-clamp ke [0, tak
-// terbatas] lalu menghitung ulang status kosong/terisi_sebagian/penuh —
-// sama persis dengan logika Rak.RecalculateStatus di modul Manajemen
-// Gudang (murni dari angka tercatat, tidak perlu sensor IoT).
 func adjustRak(tx *gorm.DB, rakID uint, delta int) error {
 	var rak model.Rak
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&rak, rakID).Error; err != nil {

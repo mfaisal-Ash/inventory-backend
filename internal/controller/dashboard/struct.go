@@ -1,16 +1,16 @@
 package dashboard
 
 import (
-	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
-	barangKeluarRepo "github.com/projsonal/gowms/internal/repositories/barang_keluar"
-	barangMasukRepo "github.com/projsonal/gowms/internal/repositories/barang_masuk"
-	gudangRepo "github.com/projsonal/gowms/internal/repositories/gudang"
-	pengirimanRepo "github.com/projsonal/gowms/internal/repositories/pengiriman"
-	purchaseOrderRepo "github.com/projsonal/gowms/internal/repositories/po"
-	"github.com/projsonal/gowms/internal/repositories/role"
-	stockOpnameRepo "github.com/projsonal/gowms/internal/repositories/stockOpname"
-	supplierRepo "github.com/projsonal/gowms/internal/repositories/supplier"
-	"github.com/projsonal/gowms/pkg/utils"
+	barangRepo "github.com/inventory-backend/internal/repositories/barang"
+	barangKeluarRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
+	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
+	pengirimanRepo "github.com/inventory-backend/internal/repositories/pengiriman"
+	purchaseOrderRepo "github.com/inventory-backend/internal/repositories/po"
+	"github.com/inventory-backend/internal/repositories/role"
+	stockOpnameRepo "github.com/inventory-backend/internal/repositories/stockOpname"
+	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
+	"github.com/inventory-backend/pkg/utils"
 	"gorm.io/gorm"
 )
 

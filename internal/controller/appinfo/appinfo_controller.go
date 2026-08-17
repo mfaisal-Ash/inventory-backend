@@ -3,7 +3,7 @@ package appinfo
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const CurrentVersion = "v1.3.0"

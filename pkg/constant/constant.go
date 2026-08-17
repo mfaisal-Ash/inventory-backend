@@ -15,8 +15,6 @@ const (
 	ActionAssignDelegasi = "assign_delegasi"
 )
 
-// Nama modul untuk RBAC, sesuai menu sidebar pada mockup. Modul selain
-// user & role akan dipakai saat modul terkait (barang, PO, dst) dikerjakan.
 const (
 	ModuleDashboard       = "dashboard"
 	ModuleManajemenUser   = "manajemen_user"
@@ -31,12 +29,11 @@ const (
 	ModulePengiriman      = "pengiriman"
 	ModuleLaporan         = "laporan"
 	ModuleCOD             = "cod"
-	ModuleAsetGudang = "aset_gudang"
+	ModuleAsetGudang      = "aset_gudang"
 
 	ModuleBarangRusak = "barang_rusak"
 )
 
-// Jenis aset gudang yang didukung modul Manajemen Aset (lihat model.Asset).
 const (
 	JenisAsetTiang        = "tiang"
 	JenisAsetODC          = "odc"
@@ -58,18 +55,14 @@ const (
 	StatusRusak      = "rusak"
 )
 
-// Fiber Locals context key, di-set oleh middleware auth setelah JWT valid.
 const (
 	CtxUserID   = "ctx_user_id"
 	CtxRoleID   = "ctx_role_id"
 	CtxRoleName = "ctx_role_name"
-	// CtxSessionID: ID baris refresh_tokens yang menerbitkan access token
-	// yang sedang dipakai — lihat pkg/utils/jwt.go JWTClaims.SessionID &
-	// internal/controller/auth ListSessions/RevokeSession.
+
 	CtxSessionID = "ctx_session_id"
 )
 
-// Status akun & sesi.
 const (
 	StatusActive   = "active"
 	StatusInactive = "inactive"

@@ -6,9 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
@@ -55,9 +55,6 @@ func (r *repository) FindByNomor(nomor string) (*model.StockOpname, error) {
 	return &so, nil
 }
 
-// buildItems mengubah ItemInput (dari request client) jadi StockOpnameItem
-// siap simpan, dengan StokSistem di-snapshot LANGSUNG dari Barang.Stok saat
-// ini (bukan dari input client) supaya tidak bisa dipalsukan.
 func buildItems(tx *gorm.DB, soID uint, inputs []ItemInput) ([]model.StockOpnameItem, error) {
 	items := make([]model.StockOpnameItem, 0, len(inputs))
 	for _, in := range inputs {
@@ -125,10 +122,6 @@ func (r *repository) Delete(id uint) error {
 	})
 }
 
-// Complete menerapkan hasil hitung fisik ke stok sesungguhnya: Barang.Stok
-// di-SET langsung ke StokFisik (bukan ditambah/dikurangi) karena StokFisik
-// sudah merupakan angka akhir hasil hitung, dan Rak.Terisi disesuaikan
-// sebesar Selisih (kalau item terkait rak tertentu).
 func (r *repository) Complete(id uint, userID uint) (*model.StockOpname, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var so model.StockOpname
@@ -167,7 +160,6 @@ func (r *repository) Complete(id uint, userID uint) (*model.StockOpname, error) 
 	return r.FindByID(id)
 }
 
-// adjustRak lihat dokumentasi di package barang_masuk.
 func adjustRak(tx *gorm.DB, rakID uint, delta int) error {
 	var rak model.Rak
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&rak, rakID).Error; err != nil {

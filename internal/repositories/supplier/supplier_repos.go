@@ -3,8 +3,8 @@ package supplier
 import (
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
@@ -71,12 +71,6 @@ func (r *repository) CountActive() (int64, error) {
 	return count, err
 }
 
-// KurirStats lihat dokumentasi di interfaces.go. Query langsung ke tabel
-// pengiriman (model.Pengiriman) berdasarkan kecocokan NamaKurir — TANPA
-// join/foreign key formal, karena NamaKurir memang disimpan sebagai teks
-// bebas di Pengiriman (lihat catatan panjang soal ini di modules.ts
-// frontend). Kalau kurirNames kosong (supplier belum mengisi Kerjasama
-// Kurir), langsung kembalikan 0/0 tanpa query.
 func (r *repository) KurirStats(kurirNames []string) (int64, int64, error) {
 	if len(kurirNames) == 0 {
 		return 0, 0, nil

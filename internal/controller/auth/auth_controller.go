@@ -11,10 +11,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const (
@@ -117,7 +117,7 @@ func (h *Controller) CheckUsernameAvailability(c *fiber.Ctx) error {
 		return utils.OK(c, "username terlalu pendek", fiber.Map{"available": false})
 	}
 	_, err := h.userRepo.FindByUsername(username)
-	available := err != nil // error (tidak ketemu) berarti TERSEDIA
+	available := err != nil
 	return utils.OK(c, "berhasil cek ketersediaan username", fiber.Map{"available": available})
 }
 

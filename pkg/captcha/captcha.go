@@ -41,7 +41,7 @@ func NewService(secret string, ttl time.Duration) *Service {
 
 type Challenge struct {
 	Token       string `json:"captcha_token"`
-	ImageBase64 string `json:"captcha_image_base64"` // "data:image/png;base64,...."
+	ImageBase64 string `json:"captcha_image_base64"`
 }
 
 func (s *Service) Generate() (*Challenge, error) {
@@ -104,8 +104,6 @@ func (s *Service) Verify(token, userAnswer string) error {
 	return nil
 }
 
-// ---- token signing (HMAC-SHA256, stateless & tamper-proof) ----
-
 func (s *Service) signToken(answer int) (string, error) {
 	expiresAt := time.Now().Add(s.ttl).Unix()
 
@@ -148,8 +146,6 @@ func (s *Service) parseToken(token string) (answer int, expiresAt time.Time, err
 	return int(a), time.Unix(exp, 0), nil
 }
 
-// ---- render gambar PNG ----
-
 func renderCaptchaImage(text string) image.Image {
 	const (
 		charW, charH = 5, 7
@@ -183,7 +179,7 @@ func renderCaptchaImage(text string) image.Image {
 		if !ok {
 			glyph = font5x7[' ']
 		}
-		yOffset := mrand.Intn(5) - 2 // distorsi vertikal ringan per karakter
+		yOffset := mrand.Intn(5) - 2
 		drawGlyph(img, glyph, x, padding+yOffset, scale, randomDarkColor())
 		x += charW*scale + gap
 	}

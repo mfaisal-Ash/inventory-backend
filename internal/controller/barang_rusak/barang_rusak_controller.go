@@ -10,13 +10,13 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/projsonal/gowms/internal/controller/notification"
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 
-	barangRusakRepo "github.com/projsonal/gowms/internal/repositories/barang_rusak"
+	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
 )
 
 func parseIDParam(c *fiber.Ctx) (uint, error) {
@@ -27,7 +27,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-// List GET /barang-rusak?status=&page=&limit=&search=
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	f := barangRusakRepo.Filter{Status: c.Query("status", "")}
@@ -38,7 +37,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar barang rusak berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail GET /barang-rusak/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -51,7 +49,6 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	return utils.OK(c, "detail barang rusak berhasil diambil", b)
 }
 
-// Summary GET /barang-rusak/summary
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	pengecekan, _ := h.repo.CountByStatus(constant.StatusPengecekan)
 	retur, _ := h.repo.CountByStatus(constant.StatusRetur)
@@ -62,7 +59,6 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	})
 }
 
-// Create POST /barang-rusak — laporan awal, status SELALU "pengecekan".
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req BarangRusakRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -86,11 +82,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if err := h.repo.Create(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mencatat laporan barang rusak", nil)
 	}
-	notification.Notify(h.notifRepo, "barang_rusak",
+	notifikasi.Notify(h.notifRepo, "barang_rusak",
 		"Laporan Barang Rusak Baru",
 		b.NamaBarang+" ("+b.LabelBarang+") dilaporkan rusak, menunggu pengecekan fisik.",
 		"/home/barang-rusak", nil, "admin")
-	notification.Notify(h.notifRepo, "barang_rusak",
+	notifikasi.Notify(h.notifRepo, "barang_rusak",
 		"Laporan Barang Rusak Baru",
 		b.NamaBarang+" ("+b.LabelBarang+") dilaporkan rusak, menunggu pengecekan fisik.",
 		"/home/barang-rusak", nil, constant.RoleSuperAdmin)
@@ -98,9 +94,6 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	return utils.Created(c, "laporan barang rusak berhasil dibuat, menunggu pengecekan fisik", created)
 }
 
-// Update PUT /barang-rusak/:id — hanya bisa diubah selama masih status
-// "pengecekan"; setelah diklasifikasi (retur/rusak) datanya dikunci
-// supaya riwayat pemeriksaan tidak berubah-ubah.
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -133,9 +126,6 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	return utils.OK(c, "laporan barang rusak berhasil diperbarui", b)
 }
 
-// Inspeksi PATCH /barang-rusak/:id/inspeksi — hasil pemeriksaan fisik,
-// menutup status "pengecekan" menjadi "retur" atau "rusak" (lihat
-// dokumentasi alur di model.BarangRusak). HANYA super_admin & admin.
 func (h *Controller) Inspeksi(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -157,7 +147,7 @@ func (h *Controller) Inspeksi(c *fiber.Ctx) error {
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
 	now := time.Now()
 	b.JenisBarang = req.JenisBarang
-	b.Status = req.JenisBarang // "retur" atau "rusak" — sinkron dengan jenis_barang
+	b.Status = req.JenisBarang
 	b.DicekOleh = &userID
 	b.DicekPada = &now
 	if err := h.repo.Update(b); err != nil {
@@ -168,14 +158,13 @@ func (h *Controller) Inspeksi(c *fiber.Ctx) error {
 	if req.JenisBarang == constant.StatusRusak {
 		hasilLabel = "rusak total (tidak bisa diretur)"
 	}
-	notification.Notify(h.notifRepo, "barang_rusak",
+	notifikasi.Notify(h.notifRepo, "barang_rusak",
 		"Hasil Pengecekan Barang Rusak",
 		b.NamaBarang+" ("+b.LabelBarang+") sudah diperiksa: "+hasilLabel+".",
 		"/home/barang-rusak", &pelaporID, "")
 	return utils.OK(c, "hasil pengecekan berhasil disimpan", b)
 }
 
-// Delete DELETE /barang-rusak/:id — HANYA super_admin & admin.
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -190,12 +179,6 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	return utils.OK(c, "data barang rusak berhasil dihapus", nil)
 }
 
-// UploadFoto POST /barang-rusak/:id/foto (multipart/form-data, field
-// "foto") — unggah foto bukti kondisi fisik barang rusak, pola sama
-// seperti UploadAvatar (lihat internal/controller/users). Dibatasi 2MB &
-// hanya jpg/jpeg/png. Boleh diunggah kapan saja (tidak dikunci status
-// "pengecekan" seperti Update biasa) supaya foto tambahan masih bisa
-// ditambah setelah hasil pemeriksaan dikunci.
 func (h *Controller) UploadFoto(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -210,7 +193,7 @@ func (h *Controller) UploadFoto(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, "file foto tidak ditemukan (field: foto)", nil)
 	}
-	const maxFotoSize = 2 * 1024 * 1024 // 2MB
+	const maxFotoSize = 2 * 1024 * 1024
 	if file.Size > maxFotoSize {
 		return utils.Fail(c, fiber.StatusBadRequest, "ukuran file maksimal 2MB", nil)
 	}

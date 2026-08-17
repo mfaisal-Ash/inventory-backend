@@ -6,19 +6,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/projsonal/gowms/internal/controller/notification"
-	"github.com/projsonal/gowms/internal/model"
-	assetRepo "github.com/projsonal/gowms/internal/repositories/asset"
-	"github.com/projsonal/gowms/pkg/netping"
-	"github.com/projsonal/gowms/pkg/utils"
+	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
+	"github.com/inventory-backend/internal/model"
+	assetRepo "github.com/inventory-backend/internal/repositories/asset"
+	"github.com/inventory-backend/pkg/netping"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const pingTimeout = 2 * time.Second
 
-// Ping POST /aset/:id/ping — cek konektivitas SATU aset yang punya
-// ip_address terisi, lalu simpan hasilnya (ping_status + last_ping_at).
-// TIDAK mengubah kolom `status` (kondisi fisik aset) — murni indikator
-// konektivitas terpisah, lihat catatan di model.Asset.
 func (h *Controller) Ping(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -62,10 +58,6 @@ func (h *Controller) Ping(c *fiber.Ctx) error {
 	})
 }
 
-// PingAll POST /aset/ping — cek konektivitas SEMUA aset yang punya
-// ip_address terisi secara paralel (dibatasi maxConcurrentPing sekaligus,
-// supaya tidak membanjiri jaringan/CPU kalau asetnya ratusan), dipakai
-// tombol "Cek Semua Ping" di halaman Manajemen Aset.
 func (h *Controller) PingAll(c *fiber.Ctx) error {
 	list, _, err := h.repo.List(utils.PaginationParams{Page: 1, Limit: 100000}, assetRepo.Filter{})
 	if err != nil {
@@ -104,11 +96,8 @@ func (h *Controller) PingAll(c *fiber.Ctx) error {
 			}
 			_ = h.repo.Update(&a)
 
-			// Notifikasi HANYA saat transisi online/unknown -> offline (bukan
-			// tiap kali PingAll dijalankan) — supaya tidak spam notifikasi
-			// berulang untuk perangkat yang memang sudah lama offline.
 			if a.PingStatus == "offline" && !wasOffline {
-				notification.Notify(h.notifRepo, "ping",
+				notifikasi.Notify(h.notifRepo, "ping",
 					"Aset Terdeteksi Offline",
 					a.Nama+" ("+a.LabelRSD+") tidak merespon ping.",
 					"/home/aset-gudang", nil, "admin")

@@ -1,14 +1,14 @@
 package laporan
 
 import (
-	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
-	barangKeluarRepo "github.com/projsonal/gowms/internal/repositories/barang_keluar"
-	barangMasukRepo "github.com/projsonal/gowms/internal/repositories/barang_masuk"
-	barangRusakRepo "github.com/projsonal/gowms/internal/repositories/barang_rusak"
-	purchaseOrderRepo "github.com/projsonal/gowms/internal/repositories/po"
-	"github.com/projsonal/gowms/internal/repositories/role"
-	stockOpnameRepo "github.com/projsonal/gowms/internal/repositories/stockOpname"
-	"github.com/projsonal/gowms/pkg/utils"
+	barangRepo "github.com/inventory-backend/internal/repositories/barang"
+	barangKeluarRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
+	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
+	purchaseOrderRepo "github.com/inventory-backend/internal/repositories/po"
+	"github.com/inventory-backend/internal/repositories/role"
+	stockOpnameRepo "github.com/inventory-backend/internal/repositories/stockOpname"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const exportRowLimit = 20000

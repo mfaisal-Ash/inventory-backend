@@ -9,16 +9,16 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	barangRepoPkg "github.com/projsonal/gowms/internal/repositories/barang"
-	barangKeluarRepoPkg "github.com/projsonal/gowms/internal/repositories/barang_keluar"
-	barangMasukRepoPkg "github.com/projsonal/gowms/internal/repositories/barang_masuk"
-	barangRusakRepoPkg "github.com/projsonal/gowms/internal/repositories/barang_rusak"
-	purchaseOrderRepoPkg "github.com/projsonal/gowms/internal/repositories/po"
-	stockOpnameRepoPkg "github.com/projsonal/gowms/internal/repositories/stockOpname"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/reportexport"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	barangRepoPkg "github.com/inventory-backend/internal/repositories/barang"
+	barangKeluarRepoPkg "github.com/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepoPkg "github.com/inventory-backend/internal/repositories/barang_masuk"
+	barangRusakRepoPkg "github.com/inventory-backend/internal/repositories/barang_rusak"
+	purchaseOrderRepoPkg "github.com/inventory-backend/internal/repositories/po"
+	stockOpnameRepoPkg "github.com/inventory-backend/internal/repositories/stockOpname"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/reportexport"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleLaporan
@@ -236,12 +236,6 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 	return title, headers, rows, err
 }
 
-// buildBarangRetur — daftar barang rusak yang HASIL PENGECEKANNYA "retur"
-// (bisa diperbaiki/dikembalikan ke supplier, lihat dokumentasi alur di
-// model.BarangRusak) dalam rentang tanggal pengecekan (DicekPada). Barang
-// dengan hasil "rusak" (tidak bisa diperbaiki) atau yang masih menunggu
-// pengecekan TIDAK ikut di laporan ini — beda modul dari Laporan Barang
-// Keluar/Masuk, sumbernya BarangRusak bukan BarangKeluar/BarangMasuk.
 func (h *Controller) buildBarangRetur(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
 	list, _, err := h.barangRusakRepo.List(bigPagination(), barangRusakRepoPkg.Filter{Status: constant.StatusRetur})
 	if err != nil {
@@ -269,11 +263,6 @@ func (h *Controller) buildBarangRetur(dari, sampai *time.Time) (headers []string
 	return headers, rows, nil
 }
 
-// computeGenericSummary membangun ringkasan generik (total baris + agregat
-// kolom yang namanya mengindikasikan nilai uang/kuantitas) dari data
-// laporan APA PUN — dipakai supaya file yang diunduh (Excel/PDF/Word) ikut
-// membawa info "di luar tabel rincian" (setara kartu ringkasan/chart di
-// UI), tanpa perlu logika ringkasan terpisah untuk tiap tipe laporan.
 func computeGenericSummary(headers []string, rows [][]string) [][2]string {
 	summary := [][2]string{{"Total Baris", strconv.Itoa(len(rows))}}
 
@@ -363,11 +352,7 @@ func (h *Controller) Export(c *fiber.Ctx) error {
 		c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`attachment; filename="%s-%s.pdf"`, tipe, timestamp))
 		return c.Send(data)
 	case constant.FormatWord:
-		// Docx dirakit manual dari OOXML mentah (lihat pkg/reportexport/docs.go)
-		// TANPA library chart — chart sungguhan tidak bisa disisipkan di sini,
-		// jadi FALLBACK ke insight teks otomatis (lihat ChartData.Insight()),
-		// sesuai instruksi eksplisit: kalau gambar chart tidak bisa
-		// disesuaikan ke suatu format, cukup insight tekstualnya saja.
+
 		insight := ""
 		if chart != nil {
 			insight = "Analisa Data — " + chart.Title + ": " + chart.Insight()
@@ -383,8 +368,6 @@ func (h *Controller) Export(c *fiber.Ctx) error {
 	return utils.Fail(c, fiber.StatusBadRequest, constant.ErrLaporanFormatTidakDidukung, nil)
 }
 
-// toExportChart — jembatan ChartData (paket laporan) -> reportexport.ChartData
-// (paket reportexport) supaya kedua paket tidak saling import satu sama lain.
 func toExportChart(cd *ChartData) *reportexport.ChartData {
 	if cd == nil {
 		return nil
@@ -400,11 +383,6 @@ func (h *Controller) Types(c *fiber.Ctx) error {
 	return utils.OK(c, "daftar tipe laporan berhasil diambil", types)
 }
 
-// Preview GET /laporan/preview?tipe=&dari=&sampai= — dipakai halaman
-// laporan di frontend untuk menampilkan tabel "Rincian Laporan" & kartu
-// ringkasan dengan data ASLI dari database, sebelum user memutuskan mau
-// diunduh atau tidak (sebelumnya frontend cuma menampilkan data dummy dan
-// baru memanggil backend saat tombol "Unduh Laporan" ditekan).
 func (h *Controller) Preview(c *fiber.Ctx) error {
 	tipe := c.Query("tipe", "")
 	dari, sampai, err := parseDateRange(c)
@@ -436,7 +414,6 @@ func (h *Controller) Preview(c *fiber.Ctx) error {
 	})
 }
 
-// RegisterRoutes mendaftarkan endpoint modul "Laporan".
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/laporan", middleware.JWTAuth(h.jwtSvc))
 	view := middleware.RequirePermission(h.roleRepo, Module, constant.ActionView)

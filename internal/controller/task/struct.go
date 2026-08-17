@@ -1,11 +1,10 @@
 package task
 
 import (
-	"github.com/projsonal/gowms/internal/repositories/role"
-	taskRepo "github.com/projsonal/gowms/internal/repositories/task"
+	"github.com/inventory-backend/internal/repositories/role"
+	taskRepo "github.com/inventory-backend/internal/repositories/task"
 
-	//"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const Module = "task"
@@ -24,7 +23,7 @@ type TaskRequest struct {
 	Title       string `json:"title" validate:"required,max=150"`
 	Description string `json:"description" validate:"max=500"`
 	AssignedTo  uint   `json:"assigned_to" validate:"required"`
-	DueDate     string `json:"due_date" validate:"required"` // format YYYY-MM-DD
+	DueDate     string `json:"due_date" validate:"required"`
 	Priority    string `json:"priority" validate:"required,oneof=rendah sedang tinggi"`
 }
 

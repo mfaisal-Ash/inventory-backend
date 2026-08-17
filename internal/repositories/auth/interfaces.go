@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/projsonal/gowms/internal/model"
+import "github.com/inventory-backend/internal/model"
 
 type Repository interface {
 	SaveRefreshToken(t *model.RefreshToken) error

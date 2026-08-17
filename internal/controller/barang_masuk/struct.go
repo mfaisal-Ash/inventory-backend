@@ -3,14 +3,14 @@ package barang_masuk
 import (
 	"time"
 
-	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
-	bmRepo "github.com/projsonal/gowms/internal/repositories/barang_masuk"
-	gudangRepo "github.com/projsonal/gowms/internal/repositories/gudang"
-	notificationRepo "github.com/projsonal/gowms/internal/repositories/notification"
-	poRepo "github.com/projsonal/gowms/internal/repositories/po"
-	"github.com/projsonal/gowms/internal/repositories/role"
-	supplierRepo "github.com/projsonal/gowms/internal/repositories/supplier"
-	"github.com/projsonal/gowms/pkg/utils"
+	barangRepo "github.com/inventory-backend/internal/repositories/barang"
+	bmRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
+	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
+	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
+	poRepo "github.com/inventory-backend/internal/repositories/po"
+	"github.com/inventory-backend/internal/repositories/role"
+	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
@@ -21,12 +21,12 @@ type Controller struct {
 	supplierRepo supplierRepo.Repository
 	roleRepo     role.Repository
 	jwtSvc       *utils.JWTService
-	notifRepo    notificationRepo.Repository
+	notifRepo    notifikasiRepo.Repository
 }
 
 func New(repo bmRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gudangRepo.Repository,
 	poRepo poRepo.Repository, supplierRepo supplierRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService,
-	notifRepo notificationRepo.Repository) *Controller {
+	notifRepo notifikasiRepo.Repository) *Controller {
 	return &Controller{
 		repo: repo, barangRepo: barangRepo, gudangRepo: gudangRepo,
 		poRepo: poRepo, supplierRepo: supplierRepo, roleRepo: roleRepo, jwtSvc: jwtSvc,
@@ -45,24 +45,12 @@ type BMRequest struct {
 	PurchaseOrderID *uint `json:"purchase_order_id"`
 	SupplierID      *uint `json:"supplier_id"`
 	GudangID        uint  `json:"gudang_id" validate:"required"`
-	// Tanggal: SENGAJA string "YYYY-MM-DD" (bukan time.Time langsung) —
-	// form HTML <input type="date"> di frontend cuma kirim tanggal polos
-	// tanpa jam/zona waktu (mis. "2026-08-10"), sedangkan JSON unmarshal
-	// bawaan Go untuk time.Time WAJIB format RFC3339 penuh
-	// ("2026-08-10T00:00:00Z"). Kalau field ini langsung time.Time,
-	// c.BodyParser() SELALU gagal untuk payload dari form ini dengan
-	// pesan "payload tidak valid" — bukan soal izin/permission sama
-	// sekali, murni ketidakcocokan format tanggal. Diparse manual di
-	// Create()/Update() pakai parseTanggalHarian().
+
 	Tanggal string        `json:"tanggal" validate:"required"`
 	Catatan string        `json:"catatan" validate:"max=255"`
 	Items   []ItemRequest `json:"items" validate:"required,min=1,dive"`
 }
 
-// parseTanggalHarian mem-parse tanggal "YYYY-MM-DD" (format bawaan
-// <input type="date">) — dipakai semua modul yang formnya punya field
-// tanggal (Barang Masuk/Keluar, Pengiriman, Purchase Order, Stock Opname)
-// supaya konsisten, alih-alih tiap modul menulis parsing sendiri-sendiri.
 func parseTanggalHarian(raw string) (time.Time, error) {
 	return time.Parse("2006-01-02", raw)
 }

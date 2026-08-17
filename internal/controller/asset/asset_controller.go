@@ -1,16 +1,24 @@
 package assetgudang
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	assetRepo "github.com/projsonal/gowms/internal/repositories/asset"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	assetRepo "github.com/inventory-backend/internal/repositories/asset"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
+)
+
+var (
+	errParentNotFound     = errors.New("aset induk tidak ditemukan")
+	errParentSelf         = errors.New("aset tidak bisa jadi induk untuk dirinya sendiri")
+	errCoordinateRequired = errors.New("latitude dan longitude wajib diisi untuk jenis aset ini")
+	errGudangKodeMissing  = errors.New("gudang belum punya kode — isi kode gudang dulu sebelum menambah aset")
 )
 
 func parseIDParam(c *fiber.Ctx) (uint, error) {
@@ -21,7 +29,72 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-// List GET /aset?jenis_aset=&gudang_id=&status=&page=&limit=&search=
+func parentHierarchyError(childJenis, parentJenis string) error {
+	return fmt.Errorf("%s tidak bisa berinduk ke %s — cek urutan hierarki jaringan (OLT -> ODC -> ODP -> ONT)", childJenis, parentJenis)
+}
+
+func parentErrorResponse(c *fiber.Ctx, err error) error {
+	if errors.Is(err, errParentNotFound) {
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
+	}
+	return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+}
+
+// findValidParent memastikan parentID ada dan hierarki jenis aset (anak ->
+// induk) sesuai urutan jaringan yang diizinkan.
+func (h *Controller) findValidParent(childJenis string, parentID uint) (*model.Asset, error) {
+	parent, err := h.repo.FindByID(parentID)
+	if err != nil {
+		return nil, errParentNotFound
+	}
+	if !model.JenisIndukValid(childJenis, parent.JenisAset) {
+		return nil, parentHierarchyError(childJenis, parent.JenisAset)
+	}
+	return parent, nil
+}
+
+// assignAssetIdentifiers mengisi label RSD+koordinat (aset berkoordinat)
+// atau kode BA (aset transportasi) pada aset baru.
+func (h *Controller) assignAssetIdentifiers(req AssetRequest, gudang *model.Gudang, a *model.Asset) error {
+	if !model.JenisAsetPunyaKoordinat(req.JenisAset) {
+		nomor, err := h.repo.NextBANumber()
+		if err != nil {
+			return errors.New("gagal membuat kode BA")
+		}
+		a.KodeBA = fmt.Sprintf("BA-%04d", nomor)
+		return nil
+	}
+
+	if req.Latitude == nil || req.Longitude == nil {
+		return errCoordinateRequired
+	}
+	if gudang.Kode == "" {
+		return errGudangKodeMissing
+	}
+	nomor, err := h.repo.NextRSDNumber(req.GudangID)
+	if err != nil {
+		return errors.New("gagal membuat label RSD")
+	}
+	a.LabelRSD = fmt.Sprintf("%s-RSD-%04d", gudang.Kode, nomor)
+	a.Latitude = req.Latitude
+	a.Longitude = req.Longitude
+	return nil
+}
+
+// logAssetChanges mencatat riwayat perubahan induk & lokasi setelah update,
+// hanya jika nilainya benar-benar berubah.
+func (h *Controller) logAssetChanges(c *fiber.Ctx, a *model.Asset, oldParentID *uint, oldLat, oldLng *float64) {
+	if !samePtrUint(oldParentID, a.ParentAssetID) {
+		h.logHistory(c, a.ID, "induk", ptrUintLabel(oldParentID), ptrUintLabel(a.ParentAssetID), "Aset induk (hierarki jaringan) diubah")
+	}
+	if !samePtrFloat(oldLat, a.Latitude) || !samePtrFloat(oldLng, a.Longitude) {
+		h.logHistory(c, a.ID, "lokasi",
+			fmt.Sprintf("%s, %s", ptrFloatLabel(oldLat), ptrFloatLabel(oldLng)),
+			fmt.Sprintf("%s, %s", ptrFloatLabel(a.Latitude), ptrFloatLabel(a.Longitude)),
+			"Titik koordinat lokasi diubah")
+	}
+}
+
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
@@ -37,7 +110,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar aset berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail GET /aset/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -50,8 +122,6 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	return utils.OK(c, "detail aset berhasil diambil", a)
 }
 
-// Summary GET /aset/summary — ringkasan jumlah aset per jenis, dipakai
-// kartu ringkasan di halaman Manajemen Aset (mirip Task Summary lama).
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	tiang, _ := h.repo.CountByJenis(constant.JenisAsetTiang)
 	odc, _ := h.repo.CountByJenis(constant.JenisAsetODC)
@@ -66,11 +136,6 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	})
 }
 
-// MapPoints GET /aset/map?jenis_aset=&gudang_id=&tipe_gudang=&status= — daftar
-// SEMUA titik aset berkoordinat (tanpa paginasi) untuk dirender sebagai
-// marker di Google Maps pada halaman Peta Sebaran Aset. Parameter
-// `tipe_gudang` (pusat|cabang) memfilter berdasarkan tipe gudang pemilik
-// aset, dipakai untuk membedakan sebaran aset kantor pusat vs cabang.
 func (h *Controller) MapPoints(c *fiber.Ctx) error {
 	f := assetRepo.Filter{
 		JenisAset: c.Query("jenis_aset", ""),
@@ -104,11 +169,6 @@ func (h *Controller) MapPoints(c *fiber.Ctx) error {
 	return utils.OK(c, "titik peta aset berhasil diambil", out)
 }
 
-// Create POST /aset — label RSD / kode BA dibuat OTOMATIS oleh server,
-// TIDAK boleh dikirim dari klien, supaya format & urutannya konsisten:
-//   - tiang/odc/ont/odp/olt: "{KodeGudang}-RSD-{nomor urut per gudang}",
-//     wajib menyertakan koordinat (latitude & longitude).
-//   - transportasi: "BA-{nomor urut global}", tanpa koordinat.
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req AssetRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -120,13 +180,8 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "gudang tidak ditemukan", nil)
 	}
 	if req.ParentAssetID != nil {
-		parent, perr := h.repo.FindByID(*req.ParentAssetID)
-		if perr != nil {
-			return utils.Fail(c, fiber.StatusBadRequest, "aset induk tidak ditemukan", nil)
-		}
-		if !model.JenisIndukValid(req.JenisAset, parent.JenisAset) {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity,
-				fmt.Sprintf("%s tidak bisa berinduk ke %s — cek urutan hierarki jaringan (OLT -> ODC -> ODP -> ONT)", req.JenisAset, parent.JenisAset), nil)
+		if _, perr := h.findValidParent(req.JenisAset, *req.ParentAssetID); perr != nil {
+			return parentErrorResponse(c, perr)
 		}
 	}
 
@@ -142,28 +197,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		PingStatus:    "unknown",
 	}
 
-	if model.JenisAsetPunyaKoordinat(req.JenisAset) {
-		if req.Latitude == nil || req.Longitude == nil {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity,
-				"latitude dan longitude wajib diisi untuk jenis aset ini", nil)
+	if err := h.assignAssetIdentifiers(req, gudang, a); err != nil {
+		if errors.Is(err, errCoordinateRequired) || errors.Is(err, errGudangKodeMissing) {
+			return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
 		}
-		if gudang.Kode == "" {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity,
-				"gudang belum punya kode — isi kode gudang dulu sebelum menambah aset", nil)
-		}
-		nomor, err := h.repo.NextRSDNumber(req.GudangID)
-		if err != nil {
-			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat label RSD", nil)
-		}
-		a.LabelRSD = fmt.Sprintf("%s-RSD-%04d", gudang.Kode, nomor)
-		a.Latitude = req.Latitude
-		a.Longitude = req.Longitude
-	} else {
-		nomor, err := h.repo.NextBANumber()
-		if err != nil {
-			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat kode BA", nil)
-		}
-		a.KodeBA = fmt.Sprintf("BA-%04d", nomor)
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error(), nil)
 	}
 
 	if err := h.repo.Create(a); err != nil {
@@ -174,9 +212,6 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	return utils.Created(c, "aset berhasil dibuat", created)
 }
 
-// Update PUT /aset/:id — label RSD / kode BA TIDAK BISA diubah lewat
-// endpoint ini (identitas aset harus tetap), hanya data deskriptif &
-// (untuk aset berkoordinat) titik lokasinya.
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -193,15 +228,10 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	}
 	if req.ParentAssetID != nil {
 		if *req.ParentAssetID == a.ID {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity, "aset tidak bisa jadi induk untuk dirinya sendiri", nil)
+			return utils.Fail(c, fiber.StatusUnprocessableEntity, errParentSelf.Error(), nil)
 		}
-		parent, perr := h.repo.FindByID(*req.ParentAssetID)
-		if perr != nil {
-			return utils.Fail(c, fiber.StatusBadRequest, "aset induk tidak ditemukan", nil)
-		}
-		if !model.JenisIndukValid(a.JenisAset, parent.JenisAset) {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity,
-				fmt.Sprintf("%s tidak bisa berinduk ke %s — cek urutan hierarki jaringan (OLT -> ODC -> ODP -> ONT)", a.JenisAset, parent.JenisAset), nil)
+		if _, perr := h.findValidParent(a.JenisAset, *req.ParentAssetID); perr != nil {
+			return parentErrorResponse(c, perr)
 		}
 	}
 
@@ -225,18 +255,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui aset", nil)
 	}
 
-	// Catat riwayat HANYA kalau field yang benar-benar berubah — supaya
-	// timeline tidak penuh kejadian "kosong" tiap kali form disimpan tanpa
-	// perubahan nyata.
-	if !samePtrUint(oldParentID, a.ParentAssetID) {
-		h.logHistory(c, a.ID, "induk", ptrUintLabel(oldParentID), ptrUintLabel(a.ParentAssetID), "Aset induk (hierarki jaringan) diubah")
-	}
-	if !samePtrFloat(oldLat, a.Latitude) || !samePtrFloat(oldLng, a.Longitude) {
-		h.logHistory(c, a.ID, "lokasi",
-			fmt.Sprintf("%s, %s", ptrFloatLabel(oldLat), ptrFloatLabel(oldLng)),
-			fmt.Sprintf("%s, %s", ptrFloatLabel(a.Latitude), ptrFloatLabel(a.Longitude)),
-			"Titik koordinat lokasi diubah")
-	}
+	h.logAssetChanges(c, a, oldParentID, oldLat, oldLng)
 	return utils.OK(c, "aset berhasil diperbarui", a)
 }
 
@@ -268,7 +287,6 @@ func ptrFloatLabel(v *float64) string {
 	return fmt.Sprintf("%.6f", *v)
 }
 
-// UpdateStatus PATCH /aset/:id/status
 func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -294,7 +312,6 @@ func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	return utils.OK(c, "status aset berhasil diperbarui", a)
 }
 
-// Delete DELETE /aset/:id
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -318,17 +335,14 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
 
 	g.Get("/summary", view, h.Summary)
-	// "/map" WAJIB didaftarkan sebelum "/:id" — kalau tertukar urutannya,
-	// request GET /aset/map akan tertangkap oleh handler Detail dengan
-	// :id="map" (gagal parse ke uint, balas 400 alih-alih data peta).
+
 	g.Get("/map", view, h.MapPoints)
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, onlyStaff, h.Create)
 	g.Put("/:id", edit, onlyStaff, h.Update)
 	g.Patch("/:id/status", edit, h.UpdateStatus)
-	// Ping/PingAll cuma butuh permission "edit" (bukan onlyStaff) — sifatnya
-	// diagnostik/read-check, bukan mengubah data inti aset.
+
 	g.Post("/ping", edit, h.PingAll)
 	g.Post("/:id/ping", edit, h.Ping)
 	g.Get("/:id/port", view, h.ListPorts)

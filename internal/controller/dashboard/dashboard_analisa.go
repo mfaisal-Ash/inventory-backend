@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type KategoriComposition struct {
@@ -28,13 +28,6 @@ type AnalisaResponse struct {
 	TopKeluar            []BarangRanking       `json:"top_keluar"`
 }
 
-// Analisa GET /dashboard/analisa — dipakai halaman "Analisa Data". SEMUA
-// angka dihitung langsung dari database (bukan dummy) — TIDAK ADA metrik
-// "akurasi prediksi stok" seperti versi awal frontend karena aplikasi ini
-// belum punya sistem forecasting/ML apa pun; menampilkan angka semacam itu
-// tanpa model di baliknya cuma akan jadi angka karangan. "Stok Menipis"
-// (jumlah SKU yang stoknya <= stok_minimum) dipakai sebagai gantinya —
-// metrik yang sama-sama actionable tapi benar-benar bisa dihitung.
 func (h *Controller) Analisa(c *fiber.Ctx) error {
 	db := h.db
 	now := time.Now()

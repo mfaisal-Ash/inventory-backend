@@ -6,18 +6,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	barangRepo "github.com/inventory-backend/internal/repositories/barang"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleKelolaBarang
 
-// parseIDParam mengonversi parameter path ":id" ke uint dan memvalidasi
-// formatnya, supaya path segmen non-numerik langsung dibalas 400 (bukan
-// diam-diam jadi id=0 dan baru gagal belakangan di lookup DB).
 func parseIDParam(c *fiber.Ctx) (uint, error) {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
 	if err != nil {
@@ -26,13 +23,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-// maskProtected menyamarkan field sensitif (harga beli & deskripsi) pada
-// baris yang di-Protect, KHUSUS untuk role karyawan — supaya karyawan tetap
-// bisa melihat baris itu ada di daftar (nama/SKU/stok) tapi tidak bisa
-// mengecek data komersialnya. super_admin & admin tetap melihat data asli.
-// Dipanggil di List/Detail sebelum data dikirim ke client (masking di sisi
-// server, bukan sekadar disembunyikan di UI, supaya benar-benar tidak
-// ikut terkirim lewat response API).
 func maskProtectedOne(role string, b *model.Barang) {
 	if role == constant.RoleSuperAdmin || role == constant.RoleAdmin || !b.IsProtected {
 		return
@@ -57,43 +47,24 @@ func parseListFilter(c *fiber.Ctx) barangRepo.Filter {
 		OnlyActive:  c.Query("status", "") == "aktif",
 	}
 
-	// --- Visibilitas alur persetujuan (lihat model.Barang.ApprovalStatus) ---
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
 	switch roleName {
 	case constant.RoleSuperAdmin:
-		// super_admin lihat semua status secara default; ?approval_status=menunggu
-		// dipakai halaman "Menunggu Persetujuan" untuk fokus ke antrean review.
+
 		if s := c.Query("approval_status", ""); s != "" {
 			f.ApprovalStatuses = []string{s}
 		}
 	case constant.RoleAdmin:
-		// admin: lihat semua yang sudah disetujui, PLUS pengajuannya sendiri
-		// apa pun statusnya (termasuk yang masih menunggu/ditolak).
+
 		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
 		f.OrSubmittedBy = userID
-	default: // karyawan & role lain: HANYA yang sudah disetujui.
+	default:
 		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
 	}
 	return f
 }
 
-// List godoc
-// @Summary      Daftar barang
-// @Description  Daftar barang dengan pagination & filter.
-// @Tags         Barang
-// @Produce      json
-// @Security     BearerAuth
-// @Param        page          query     int     false  "Halaman"     default(1)
-// @Param        limit         query     int     false  "Item per halaman"  default(10)
-// @Param        search        query     string  false  "Kata kunci pencarian"
-// @Param        kategori_id   query     int     false  "Filter kategori"
-// @Param        satuan_id     query     int     false  "Filter satuan"
-// @Param        stok_menipis  query     bool    false  "Hanya tampilkan stok menipis"
-// @Param        status        query     string  false  "aktif untuk hanya barang aktif"
-// @Success      200  {object}  utils.Envelope
-// @Failure      401  {object}  utils.Envelope
-// @Router       /stockrsd/barang [get]
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	f := parseListFilter(c)
@@ -167,11 +138,6 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		Deskripsi:   req.Deskripsi,
 	}
 
-	// --- Alur persetujuan (lihat model.Barang.ApprovalStatus) ---
-	// Barang yang dibuat admin TIDAK langsung aktif — menunggu Approve/Reject
-	// dari super_admin dulu. super_admin membuat barang langsung disetujui
-	// (nilai default kolom). Karyawan tetap memakai izin "tambah" biasa dari
-	// matrix (lihat RegisterRoutes) — belum ada gerbang tambahan di sini.
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	if roleName == constant.RoleAdmin {
 		userID, _ := c.Locals(constant.CtxUserID).(uint)
@@ -189,7 +155,6 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	return utils.Created(c, msg, b)
 }
 
-// Update PUT /barang/:id
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -259,11 +224,6 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	return utils.OK(c, "barang berhasil dihapus", nil)
 }
 
-// Protect PATCH /barang/:id/protect — aksi "Protect" di action bar tabel.
-// HANYA super_admin (lihat RegisterRoutes). Saat dikunci: barang tetap
-// terlihat di daftar untuk semua role, tapi field sensitif (harga beli,
-// deskripsi) disamarkan untuk karyawan, dan Update/Delete ditolak sampai
-// dibuka kuncinya lagi.
 func (h *Controller) Protect(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -284,10 +244,6 @@ func (h *Controller) Protect(c *fiber.Ctx) error {
 	return utils.OK(c, "status proteksi berhasil diubah", b)
 }
 
-// Approve PATCH /barang/:id/approve — super_admin menyetujui pengajuan
-// barang yang dibuat admin (lihat model.Barang.ApprovalStatus). Setelah
-// disetujui, barang langsung tampil normal untuk semua role termasuk
-// karyawan.
 func (h *Controller) Approve(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -311,8 +267,6 @@ func (h *Controller) Approve(c *fiber.Ctx) error {
 	return utils.OK(c, "barang berhasil disetujui", b)
 }
 
-// Reject PATCH /barang/:id/reject — super_admin menolak pengajuan barang
-// dari admin, disertai catatan alasan penolakan.
 func (h *Controller) Reject(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -413,8 +367,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	tambah := middleware.RequirePermission(h.roleRepo, Module, constant.ActionTambah)
 	edit := middleware.RequirePermission(h.roleRepo, Module, constant.ActionEdit)
 	onlySuperAdmin := middleware.RequireRole(constant.RoleSuperAdmin)
-	// karyawan TIDAK PERNAH boleh menghapus data apa pun, meski matrix
-	// izin "edit" untuknya diaktifkan untuk modul ini — Delete WAJIB staff.
+
 	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
 
 	g.Get("/summary", view, h.Summary)
@@ -425,7 +378,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 	g.Patch("/:id/status", edit, h.UpdateStatus)
 	g.Patch("/:id/adjust", edit, h.AdjustStok)
-	g.Patch("/:id/protect", onlySuperAdmin, h.Protect) // Protect — khusus super admin
-	g.Patch("/:id/approve", onlySuperAdmin, h.Approve) // Setujui pengajuan admin
-	g.Patch("/:id/reject", onlySuperAdmin, h.Reject)   // Tolak pengajuan admin
+	g.Patch("/:id/protect", onlySuperAdmin, h.Protect)
+	g.Patch("/:id/approve", onlySuperAdmin, h.Approve)
+	g.Patch("/:id/reject", onlySuperAdmin, h.Reject)
 }

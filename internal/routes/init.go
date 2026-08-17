@@ -6,56 +6,56 @@ import (
 
 	"gorm.io/gorm"
 
-	appinfoController "github.com/projsonal/gowms/internal/controller/appinfo"
-	assetController "github.com/projsonal/gowms/internal/controller/asset_gudang"
-	authController "github.com/projsonal/gowms/internal/controller/auth"
-	barangController "github.com/projsonal/gowms/internal/controller/barang"
-	barangKeluarController "github.com/projsonal/gowms/internal/controller/barang_keluar"
-	barangMasukController "github.com/projsonal/gowms/internal/controller/barang_masuk"
-	barangRusakController "github.com/projsonal/gowms/internal/controller/barang_rusak"
-	captchaController "github.com/projsonal/gowms/internal/controller/captcha"
-	codController "github.com/projsonal/gowms/internal/controller/cod"
-	dashboardController "github.com/projsonal/gowms/internal/controller/dashboard"
-	gudangController "github.com/projsonal/gowms/internal/controller/gudang"
-	humanCheckController "github.com/projsonal/gowms/internal/controller/humancheck"
-	laporanController "github.com/projsonal/gowms/internal/controller/laporan"
-	maintenanceController "github.com/projsonal/gowms/internal/controller/maintenance"
-	notificationController "github.com/projsonal/gowms/internal/controller/notification"
-	pengirimanController "github.com/projsonal/gowms/internal/controller/pengiriman"
-	purchaseOrderController "github.com/projsonal/gowms/internal/controller/po"
-	roleController "github.com/projsonal/gowms/internal/controller/role"
-	securityController "github.com/projsonal/gowms/internal/controller/security"
-	stockOpnameController "github.com/projsonal/gowms/internal/controller/stockOpname"
-	supplierController "github.com/projsonal/gowms/internal/controller/supplier"
-	taskController "github.com/projsonal/gowms/internal/controller/task"
-	trashController "github.com/projsonal/gowms/internal/controller/trash"
-	usersController "github.com/projsonal/gowms/internal/controller/users"
-	"github.com/projsonal/gowms/internal/health"
-	assetRepo "github.com/projsonal/gowms/internal/repositories/asset"
-	assetHistoryRepo "github.com/projsonal/gowms/internal/repositories/asset_history"
-	assetPortRepo "github.com/projsonal/gowms/internal/repositories/asset_port"
-	authRepo "github.com/projsonal/gowms/internal/repositories/auth"
-	barangRepo "github.com/projsonal/gowms/internal/repositories/barang"
-	barangKeluarRepo "github.com/projsonal/gowms/internal/repositories/barang_keluar"
-	barangMasukRepo "github.com/projsonal/gowms/internal/repositories/barang_masuk"
-	barangRusakRepo "github.com/projsonal/gowms/internal/repositories/barang_rusak"
-	codRepo "github.com/projsonal/gowms/internal/repositories/cod"
-	gudangRepo "github.com/projsonal/gowms/internal/repositories/gudang"
-	maintenanceRepo "github.com/projsonal/gowms/internal/repositories/maintenance"
-	notificationRepo "github.com/projsonal/gowms/internal/repositories/notification"
-	pengirimanRepo "github.com/projsonal/gowms/internal/repositories/pengiriman"
-	purchaseOrderRepo "github.com/projsonal/gowms/internal/repositories/po"
-	roleRepo "github.com/projsonal/gowms/internal/repositories/role"
-	stockOpnameRepo "github.com/projsonal/gowms/internal/repositories/stockOpname"
-	supplierRepo "github.com/projsonal/gowms/internal/repositories/supplier"
-	taskRepo "github.com/projsonal/gowms/internal/repositories/task"
-	usersRepo "github.com/projsonal/gowms/internal/repositories/users"
-	"github.com/projsonal/gowms/pkg/botcheck"
-	"github.com/projsonal/gowms/pkg/captcha"
-	"github.com/projsonal/gowms/pkg/config"
-	"github.com/projsonal/gowms/pkg/geoip"
-	"github.com/projsonal/gowms/pkg/humancheck"
-	"github.com/projsonal/gowms/pkg/utils"
+	appinfoController "github.com/inventory-backend/internal/controller/appinfo"
+	assetController "github.com/inventory-backend/internal/controller/asset"
+	authController "github.com/inventory-backend/internal/controller/auth"
+	barangController "github.com/inventory-backend/internal/controller/barang"
+	barangKeluarController "github.com/inventory-backend/internal/controller/barang_keluar"
+	barangMasukController "github.com/inventory-backend/internal/controller/barang_masuk"
+	barangRusakController "github.com/inventory-backend/internal/controller/barang_rusak"
+	captchaController "github.com/inventory-backend/internal/controller/captcha"
+	codController "github.com/inventory-backend/internal/controller/cod"
+	dashboardController "github.com/inventory-backend/internal/controller/dashboard"
+	gudangController "github.com/inventory-backend/internal/controller/gudang"
+	humanCheckController "github.com/inventory-backend/internal/controller/humancheck"
+	laporanController "github.com/inventory-backend/internal/controller/laporan"
+	maintenanceController "github.com/inventory-backend/internal/controller/maintenance"
+	notifikasiController "github.com/inventory-backend/internal/controller/notifikasi"
+	pengirimanController "github.com/inventory-backend/internal/controller/pengiriman"
+	purchaseOrderController "github.com/inventory-backend/internal/controller/po"
+	roleController "github.com/inventory-backend/internal/controller/role"
+	securityController "github.com/inventory-backend/internal/controller/security"
+	stockOpnameController "github.com/inventory-backend/internal/controller/stockOpname"
+	supplierController "github.com/inventory-backend/internal/controller/supplier"
+	taskController "github.com/inventory-backend/internal/controller/task"
+	trashController "github.com/inventory-backend/internal/controller/trash"
+	usersController "github.com/inventory-backend/internal/controller/users"
+	"github.com/inventory-backend/internal/health"
+	assetRepo "github.com/inventory-backend/internal/repositories/asset"
+	assetHistoryRepo "github.com/inventory-backend/internal/repositories/asset_history"
+	assetPortRepo "github.com/inventory-backend/internal/repositories/asset_port"
+	authRepo "github.com/inventory-backend/internal/repositories/auth"
+	barangRepo "github.com/inventory-backend/internal/repositories/barang"
+	barangKeluarRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
+	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
+	codRepo "github.com/inventory-backend/internal/repositories/cod"
+	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
+	maintenanceRepo "github.com/inventory-backend/internal/repositories/maintenance"
+	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
+	pengirimanRepo "github.com/inventory-backend/internal/repositories/pengiriman"
+	purchaseOrderRepo "github.com/inventory-backend/internal/repositories/po"
+	roleRepo "github.com/inventory-backend/internal/repositories/role"
+	stockOpnameRepo "github.com/inventory-backend/internal/repositories/stockOpname"
+	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
+	taskRepo "github.com/inventory-backend/internal/repositories/task"
+	usersRepo "github.com/inventory-backend/internal/repositories/users"
+	"github.com/inventory-backend/pkg/botcheck"
+	"github.com/inventory-backend/pkg/captcha"
+	"github.com/inventory-backend/pkg/config"
+	"github.com/inventory-backend/pkg/geoip"
+	"github.com/inventory-backend/pkg/humancheck"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Dependencies struct {
@@ -85,8 +85,8 @@ type Dependencies struct {
 	TaskController          *taskController.Controller
 	AppInfoController       *appinfoController.Controller
 	TrashController         *trashController.Controller
-	NotificationController  *notificationController.Controller
-	NotificationRepo        notificationRepo.Repository
+	NotifikasiController    *notifikasiController.Controller
+	NotifikasiRepo          notifikasiRepo.Repository
 
 	LaporanController   *laporanController.Controller
 	DashboardController *dashboardController.Controller
@@ -104,10 +104,9 @@ type Dependencies struct {
 func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	jwtSvc := utils.NewJWTService(&cfg.JWT)
 
-	// Repositories.
 	rRole := roleRepo.New(db)
 	rUsers := usersRepo.New(db)
-	rNotification := notificationRepo.New(db)
+	rNotifikasi := notifikasiRepo.New(db)
 	rAuth := authRepo.New(db)
 	rGudang := gudangRepo.New(db)
 	rBarang := barangRepo.New(db)
@@ -125,7 +124,6 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
 
-	// Services lintas modul.
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
 		cfg.HumanCheck.Secret,
@@ -135,7 +133,6 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
-	// Controllers.
 	cAuth := authController.New(authController.Params{
 		AuthRepo:      rAuth,
 		UserRepo:      rUsers,
@@ -158,21 +155,21 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cGudang := gudangController.New(rGudang, rRole, jwtSvc)
 	cBarang := barangController.New(rBarang, rGudang, rRole, jwtSvc)
 	cSupplier := supplierController.New(rSupplier, rRole, jwtSvc)
-	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc, rNotification)
-	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc, rNotification)
-	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotification)
-	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
-	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
+	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc, rNotifikasi)
+	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc, rNotifikasi)
+	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotifikasi)
+	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotifikasi)
+	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotifikasi)
 	cCod := codController.New(rCod, rRole, jwtSvc)
-	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotification)
-	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotification)
+	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotifikasi)
+	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotifikasi)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rRole, jwtSvc)
 	cDashboard := dashboardController.New(rBarang, rGudang, rSupplier, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rPengiriman, rRole, jwtSvc, db)
 	cCaptcha := captchaController.New(captchaSvc)
 	cHumanCheck := humanCheckController.New(humanCheckSvc)
 	cSecurity := securityController.New(botCheckSvc, captchaSvc)
-	cMaintenance := maintenanceController.New(rMaintenance, jwtSvc, rNotification)
+	cMaintenance := maintenanceController.New(rMaintenance, jwtSvc, rNotifikasi)
 	cHealth := health.NewController(health.NewChecker(db, cfg.Storage.Path))
 
 	return &Dependencies{
@@ -198,8 +195,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		TaskController:          cTask,
 		AppInfoController:       appinfoController.New(),
 		TrashController:         trashController.New(db, jwtSvc),
-		NotificationController:  notificationController.New(rNotification, jwtSvc),
-		NotificationRepo:        rNotification,
+		NotifikasiController:    notifikasiController.New(rNotifikasi, jwtSvc),
+		NotifikasiRepo:          rNotifikasi,
 		LaporanController:       cLaporan,
 		DashboardController:     cDashboard,
 		CaptchaController:       cCaptcha,

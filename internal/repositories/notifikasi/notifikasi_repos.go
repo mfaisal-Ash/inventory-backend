@@ -1,10 +1,10 @@
-package notification
+package notifikasi
 
 import (
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type repository struct {
@@ -20,7 +20,9 @@ func (r *repository) Create(n *model.Notification) error {
 }
 
 func scopeVisible(db *gorm.DB, userID uint, userRole string) *gorm.DB {
-	return db.Where("user_id = ? OR role_target = ? OR role_target = ?", userID, userRole, "all")
+	return db.
+		Where("user_id = ? OR role_target = ? OR role_target = ?", userID, userRole, "all").
+		Where("id NOT IN (SELECT notification_id FROM notification_dismissed WHERE user_id = ?)", userID)
 }
 
 func (r *repository) List(userID uint, userRole string, p utils.PaginationParams) ([]Row, int64, error) {
@@ -94,5 +96,14 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 		 SELECT unnest(?::int[]), ?, NOW()
 		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
 		ids, userID,
+	).Error
+}
+
+func (r *repository) Dismiss(notificationID, userID uint) error {
+	return r.db.Exec(
+		`INSERT INTO notification_dismissed (notification_id, user_id, dismissed_at)
+		 VALUES (?, ?, NOW())
+		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
+		notificationID, userID,
 	).Error
 }

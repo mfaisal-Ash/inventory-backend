@@ -8,12 +8,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/projsonal/gowms/internal/controller/notification"
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	soRepo "github.com/projsonal/gowms/internal/repositories/stockOpname"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	soRepo "github.com/inventory-backend/internal/repositories/stockOpname"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleStockOpname
@@ -54,7 +54,6 @@ func toItemInputs(items []ItemRequest) []soRepo.ItemInput {
 	return out
 }
 
-// List GET /stock-opname?page=&limit=&search=&status=&gudang_id=
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
@@ -67,7 +66,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar stock opname berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail GET /stock-opname/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -80,9 +78,6 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	return utils.OK(c, "detail stock opname berhasil diambil", so)
 }
 
-// Create POST /stock-opname — StokSistem tiap item di-snapshot otomatis
-// dari Barang.Stok saat ini oleh repository (bukan dari input client),
-// operator hanya mengisi StokFisik hasil hitung manual.
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req SORequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -109,7 +104,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if err := h.repo.Create(so, toItemInputs(req.Items)); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat dokumen stock opname", nil)
 	}
-	notification.Notify(h.notifRepo, "opname",
+	notifikasi.Notify(h.notifRepo, "opname",
 		"Stock Opname Baru",
 		so.NomorOpname+" dilakukan.",
 		"/home/inventory-management", nil, "all")
@@ -127,7 +122,6 @@ func (h *Controller) requireDraft(id uint) (*model.StockOpname, error) {
 	return so, nil
 }
 
-// Update PUT /stock-opname/:id — hanya boleh selama status masih draft.
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -162,7 +156,6 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen stock opname berhasil diperbarui", so)
 }
 
-// Delete DELETE /stock-opname/:id — hanya boleh selama status draft.
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -177,8 +170,6 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen stock opname berhasil dihapus", nil)
 }
 
-// Complete PATCH /stock-opname/:id/selesai — menerapkan selisih hasil
-// hitung fisik ke stok barang (dan isi rak bila item terkait rak).
 func (h *Controller) Complete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -193,7 +184,6 @@ func (h *Controller) Complete(c *fiber.Ctx) error {
 	return utils.OK(c, "stock opname berhasil diselesaikan, selisih telah diterapkan ke stok", so)
 }
 
-// Batalkan PATCH /stock-opname/:id/batalkan
 func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -206,7 +196,6 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen stock opname berhasil dibatalkan", so)
 }
 
-// Summary GET /stock-opname/summary
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	total, err := h.repo.CountByStatus("")
 	draft, err2 := h.repo.CountByStatus(constant.StatusSODraft)
@@ -219,7 +208,6 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	})
 }
 
-// RegisterRoutes mendaftarkan endpoint modul "Stock Opname".
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/stock-opname", middleware.JWTAuth(h.jwtSvc))
 

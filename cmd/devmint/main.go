@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/config"
+	"github.com/inventory-backend/pkg/utils"
 	"github.com/joho/godotenv"
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/config"
-	"github.com/projsonal/gowms/pkg/utils"
 	"gorm.io/gorm"
 )
 

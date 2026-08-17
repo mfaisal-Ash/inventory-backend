@@ -3,14 +3,13 @@ package users
 import (
 	"time"
 
-	authRepo "github.com/projsonal/gowms/internal/repositories/auth"
-	"github.com/projsonal/gowms/internal/repositories/role"
-	"github.com/projsonal/gowms/internal/repositories/users"
-	"github.com/projsonal/gowms/pkg/humancheck"
-	"github.com/projsonal/gowms/pkg/utils"
+	authRepo "github.com/inventory-backend/internal/repositories/auth"
+	"github.com/inventory-backend/internal/repositories/role"
+	"github.com/inventory-backend/internal/repositories/users"
+	"github.com/inventory-backend/pkg/humancheck"
+	"github.com/inventory-backend/pkg/utils"
 )
 
-// Controller menangani endpoint HTTP modul Manajemen User & Settings.
 type Controller struct {
 	userRepo      users.Repository
 	roleRepo      role.Repository
@@ -29,7 +28,6 @@ type Params struct {
 	StoragePath   string
 }
 
-// New membuat instance Controller Manajemen User.
 func New(p Params) *Controller {
 	return &Controller{
 		userRepo:      p.UserRepo,
@@ -49,7 +47,6 @@ type CreateUserRequest struct {
 	RoleID   uint   `json:"role_id" validate:"required"`
 }
 
-// UpdateUserRequest handles admin-side user edits (Manajemen User).
 type UpdateUserRequest struct {
 	Email    string `json:"email" validate:"omitempty,email"`
 	FullName string `json:"full_name"`
@@ -57,10 +54,6 @@ type UpdateUserRequest struct {
 	IsActive *bool  `json:"is_active"`
 }
 
-// ChangePasswordRequest — ganti password langsung dalam SATU langkah (tanpa
-// OTP WhatsApp), diverifikasi lewat checkbox "verify you are human" ala
-// Cloudflare Turnstile (lihat pkg/humancheck) supaya tetap ada perlindungan
-// dari automated abuse tanpa menyuruh user memecahkan captcha gambar.
 type ChangePasswordRequest struct {
 	OldPassword     string `json:"old_password" validate:"required"`
 	NewPassword     string `json:"new_password" validate:"required,min=8"`
@@ -77,11 +70,7 @@ type Response struct {
 	RoleID      uint   `json:"role_id"`
 	RoleName    string `json:"role_name"`
 	IsActive    bool   `json:"is_active"`
-	// IsOnline: status login SAAT INI (punya sesi refresh token yang
-	// belum dicabut & belum kedaluwarsa) — INI yang ditampilkan kolom
-	// "Status" (Aktif/Nonaktif) di tabel Manajemen User, BUKAN IsActive
-	// (itu flag akun diaktifkan/dinonaktifkan admin, konsep berbeda: akun
-	// bisa "aktif" tapi user-nya sedang tidak login sama sekali).
+
 	IsOnline     bool       `json:"is_online"`
 	Is2FAEnabled bool       `json:"is_2fa_enabled"`
 	LastLoginAt  *time.Time `json:"last_login_at"`

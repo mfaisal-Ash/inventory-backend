@@ -3,7 +3,7 @@ package constant
 const (
 	StatusBarangRusakPengecekan = "pengecekan"
 	StatusBarangRusakDiperbaiki = "diperbaiki"
-	StatusRetur                 = "retur"
+	StatusBarangRusakRetur      = "retur"
 	StatusBarangRusakDibuang    = "dibuang"
 )
 

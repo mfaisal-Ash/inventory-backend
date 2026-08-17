@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/xuri/excelize/v2"
 
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const dateFormat = "2006-01-02"
@@ -92,7 +92,7 @@ func (h *Controller) ReportExport(c *fiber.Ctx) error {
 		f.SetCellValue(sheet, "D5", "Info")
 		f.SetCellValue(sheet, "E5", "Status")
 		f.SetCellValue(sheet, "F5", "Qty/Total")
-		// Data
+
 		for i, r := range rows {
 			row := i + 6
 			f.SetCellValue(sheet, cell("A", row), i+1)

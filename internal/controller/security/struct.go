@@ -1,8 +1,8 @@
 package security
 
 import (
-	"github.com/projsonal/gowms/pkg/botcheck"
-	"github.com/projsonal/gowms/pkg/captcha"
+	"github.com/inventory-backend/pkg/botcheck"
+	"github.com/inventory-backend/pkg/captcha"
 )
 
 type Controller struct {

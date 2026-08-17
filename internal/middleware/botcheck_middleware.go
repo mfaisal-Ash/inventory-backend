@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/pkg/botcheck"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/pkg/botcheck"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const BotTokenHeader = "X-Bot-Token"

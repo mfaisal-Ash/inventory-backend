@@ -1,23 +1,23 @@
-package notification
+package notifikasi
 
 import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	notificationRepo "github.com/projsonal/gowms/internal/repositories/notifikasi"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
-	repo   notificationRepo.Repository
+	repo   notifikasiRepo.Repository
 	jwtSvc *utils.JWTService
 }
 
-func New(repo notificationRepo.Repository, jwtSvc *utils.JWTService) *Controller {
+func New(repo notifikasiRepo.Repository, jwtSvc *utils.JWTService) *Controller {
 	return &Controller{repo: repo, jwtSvc: jwtSvc}
 }
 
@@ -66,15 +66,28 @@ func (h *Controller) MarkAllRead(c *fiber.Ctx) error {
 	return utils.OK(c, "semua notifikasi ditandai sudah dibaca", nil)
 }
 
+func (h *Controller) Delete(c *fiber.Ctx) error {
+	userID, _ := currentUser(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	if err := h.repo.Dismiss(uint(id), userID); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus notifikasi", nil)
+	}
+	return utils.OK(c, "notifikasi dihapus dari daftar", nil)
+}
+
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/notifications", middleware.JWTAuth(h.jwtSvc))
 	g.Get("/", h.List)
 	g.Get("/unread-count", h.UnreadCount)
 	g.Patch("/read-all", h.MarkAllRead)
 	g.Patch("/:id/read", h.MarkRead)
+	g.Delete("/:id", h.Delete)
 }
 
-func Notify(repo notificationRepo.Repository, notifType, title, message, linkHref string, userID *uint, roleTarget string) {
+func Notify(repo notifikasiRepo.Repository, notifType, title, message, linkHref string, userID *uint, roleTarget string) {
 	_ = repo.Create(&model.Notification{
 		UserID: userID, RoleTarget: roleTarget,
 		Type: notifType, Title: title, Message: message, LinkHref: linkHref,

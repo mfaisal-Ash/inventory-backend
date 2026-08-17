@@ -1,8 +1,8 @@
 package supplier
 
 import (
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Filter struct {
@@ -20,10 +20,5 @@ type Repository interface {
 	CountAll() (int64, error)
 	CountActive() (int64, error)
 
-	// KurirStats menghitung "hasil pelayanan" (service outcome) untuk
-	// sekumpulan nama kurir mitra: totalOrder = jumlah pengiriman yang
-	// sudah benar-benar diproses (bukan draft/dibatalkan) atas nama
-	// kurir-kurir itu; terkirim = jumlah yang berhasil sampai tujuan.
-	// Rating (0-5) dihitung di layer controller dari kedua angka ini.
 	KurirStats(kurirNames []string) (totalOrder int64, terkirim int64, err error)
 }

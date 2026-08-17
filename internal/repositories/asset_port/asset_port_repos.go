@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
+	"github.com/inventory-backend/internal/model"
 )
 
 type repository struct {

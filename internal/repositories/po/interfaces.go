@@ -3,8 +3,8 @@ package purchase_order
 import (
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/model"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Filter struct {

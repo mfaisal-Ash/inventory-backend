@@ -1,9 +1,9 @@
 package cod
 
 import (
-	codRepo "github.com/projsonal/gowms/internal/repositories/cod"
-	"github.com/projsonal/gowms/internal/repositories/role"
-	"github.com/projsonal/gowms/pkg/utils"
+	codRepo "github.com/inventory-backend/internal/repositories/cod"
+	"github.com/inventory-backend/internal/repositories/role"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
@@ -21,7 +21,7 @@ type CodRequest struct {
 	Pelanggan string `json:"pelanggan" validate:"required,max=150"`
 	Nominal   int64  `json:"nominal" validate:"required,min=1"`
 	Kurir     string `json:"kurir" validate:"max=100"`
-	Tanggal   string `json:"tanggal" validate:"required"` // format YYYY-MM-DD
+	Tanggal   string `json:"tanggal" validate:"required"`
 	Status    string `json:"status" validate:"required,oneof=menunggu lunas bermasalah"`
 }
 

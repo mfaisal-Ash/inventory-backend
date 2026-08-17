@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	supplierRepo "github.com/projsonal/gowms/internal/repositories/supplier"
-	"github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/inventory-backend/internal/middleware"
+	"github.com/inventory-backend/internal/model"
+	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
+	"github.com/inventory-backend/pkg/constant"
+	"github.com/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleSupplier
@@ -23,11 +23,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-// maskProtectedOne menyamarkan field kontak sensitif (telepon, email,
-// alamat, NPWP, catatan) pada supplier yang di-Protect, KHUSUS untuk role
-// karyawan — baris tetap terlihat ada di daftar (nama, status) tapi
-// datanya tidak bisa dicek. Masking dilakukan di server sebelum data
-// dikirim, bukan cuma disembunyikan di UI.
 func maskProtectedOne(role string, s *model.Supplier) {
 	if role == constant.RoleSuperAdmin || role == constant.RoleAdmin || !s.IsProtected {
 		return
@@ -51,8 +46,6 @@ func maskProtected(role string, list []model.Supplier) {
 	}
 }
 
-// parseKurirNames memecah "JNE, J&T,Lalamove" jadi ["JNE","J&T","Lalamove"],
-// membuang entri kosong hasil koma berlebih/spasi.
 func parseKurirNames(raw string) []string {
 	parts := strings.Split(raw, ",")
 	names := make([]string, 0, len(parts))
@@ -65,9 +58,6 @@ func parseKurirNames(raw string) []string {
 	return names
 }
 
-// withStats menghitung TotalOrder & Rating satu supplier dari
-// KerjasamaKurir-nya (lihat KurirStats di repository). Rating diskalakan
-// 0-5 dari proporsi pengiriman yang berhasil "terkirim".
 func (h *Controller) withStats(s model.Supplier) SupplierResponse {
 	kurirNames := parseKurirNames(s.KerjasamaKurir)
 	total, terkirim, err := h.repo.KurirStats(kurirNames)
@@ -102,7 +92,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar supplier berhasil diambil", withStatsList(h, list), utils.BuildPaginationMeta(p, total))
 }
 
-// Detail GET /supplier/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -202,8 +191,6 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	return utils.OK(c, "supplier berhasil dihapus", nil)
 }
 
-// Protect PATCH /supplier/:id/protect — aksi "Protect" di action bar
-// tabel. HANYA super_admin (lihat RegisterRoutes). Sama pola dengan Barang/COD.
 func (h *Controller) Protect(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -277,5 +264,5 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Put("/:id", edit, h.Update)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 	g.Patch("/:id/status", edit, h.UpdateStatus)
-	g.Patch("/:id/protect", onlySuperAdmin, h.Protect) // Protect — khusus super admin
+	g.Patch("/:id/protect", onlySuperAdmin, h.Protect)
 }
