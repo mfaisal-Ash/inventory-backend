@@ -1,3 +1,5 @@
+// Package stock_opname mengimplementasikan layar "Stock Opname": pencocokan
+// stok sistem vs hasil hitung fisik manual di lapangan (tanpa alat IoT).
 package stock_opname
 
 import (
@@ -25,6 +27,8 @@ func New(repo soRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gu
 	return &Controller{repo: repo, barangRepo: barangRepo, gudangRepo: gudangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
+// ---- DTO ----
+
 type ItemRequest struct {
 	BarangID  uint   `json:"barang_id" validate:"required"`
 	RakID     *uint  `json:"rak_id"`
@@ -34,7 +38,8 @@ type ItemRequest struct {
 
 type SORequest struct {
 	GudangID uint `json:"gudang_id" validate:"required"`
-
+	// Tanggal: string "YYYY-MM-DD" — lihat catatan lengkap di
+	// internal/controller/barang_masuk/struct.go BMRequest.Tanggal.
 	Tanggal string        `json:"tanggal" validate:"required"`
 	Catatan string        `json:"catatan" validate:"max=255"`
 	Items   []ItemRequest `json:"items" validate:"required,min=1,dive"`

@@ -158,7 +158,7 @@ func addNativeChart(f *excelize.File, sheet string, chart *ChartData) error {
 	if chart == nil || len(chart.Values) == 0 {
 		return nil
 	}
-	const helperCol = "AA"
+	const helperCol = "AA" // jauh dari kolom data laporan (laporan di sini tidak pernah >15 kolom)
 	helperColLabel := "AB"
 
 	if err := f.SetCellValue(sheet, helperCol+"1", "(Data Grafik — "+chart.Title+")"); err != nil {

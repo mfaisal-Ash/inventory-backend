@@ -8,7 +8,7 @@ import (
 
 type repository struct {
 	db     *gorm.DB
-	poRepo poRepo.Repository
+	poRepo poRepo.Repository // dipakai TambahPenerimaan saat Complete, kalau BM ini berasal dari PO
 }
 
 func New(db *gorm.DB, poRepo poRepo.Repository) Repository {

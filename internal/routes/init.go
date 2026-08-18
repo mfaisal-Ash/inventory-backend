@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	appinfoController "github.com/inventory-backend/internal/controller/appinfo"
-	assetController "github.com/inventory-backend/internal/controller/asset"
+	assetController "github.com/inventory-backend/internal/controller/asset_gudang"
 	authController "github.com/inventory-backend/internal/controller/auth"
 	barangController "github.com/inventory-backend/internal/controller/barang"
 	barangKeluarController "github.com/inventory-backend/internal/controller/barang_keluar"
@@ -85,8 +85,8 @@ type Dependencies struct {
 	TaskController          *taskController.Controller
 	AppInfoController       *appinfoController.Controller
 	TrashController         *trashController.Controller
-	NotifikasiController    *notifikasiController.Controller
-	NotifikasiRepo          notifikasiRepo.Repository
+	NotificationController  *notifikasiController.Controller
+	NotificationRepo        notifikasiRepo.Repository
 
 	LaporanController   *laporanController.Controller
 	DashboardController *dashboardController.Controller
@@ -104,9 +104,10 @@ type Dependencies struct {
 func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	jwtSvc := utils.NewJWTService(&cfg.JWT)
 
+	// Repositories.
 	rRole := roleRepo.New(db)
 	rUsers := usersRepo.New(db)
-	rNotifikasi := notifikasiRepo.New(db)
+	rNotification := notifikasiRepo.New(db)
 	rAuth := authRepo.New(db)
 	rGudang := gudangRepo.New(db)
 	rBarang := barangRepo.New(db)
@@ -124,6 +125,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
 
+	// Services lintas modul.
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
 		cfg.HumanCheck.Secret,
@@ -133,6 +135,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
+	// Controllers.
 	cAuth := authController.New(authController.Params{
 		AuthRepo:      rAuth,
 		UserRepo:      rUsers,
@@ -155,21 +158,21 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cGudang := gudangController.New(rGudang, rRole, jwtSvc)
 	cBarang := barangController.New(rBarang, rGudang, rRole, jwtSvc)
 	cSupplier := supplierController.New(rSupplier, rRole, jwtSvc)
-	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc, rNotifikasi)
-	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc, rNotifikasi)
-	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotifikasi)
-	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotifikasi)
-	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotifikasi)
+	cPO := purchaseOrderController.New(rPO, rSupplier, rRole, jwtSvc, rNotification)
+	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rPO, rSupplier, rRole, jwtSvc, rNotification)
+	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
 	cCod := codController.New(rCod, rRole, jwtSvc)
-	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotifikasi)
-	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotifikasi)
+	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotification)
+	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotification)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rRole, jwtSvc)
 	cDashboard := dashboardController.New(rBarang, rGudang, rSupplier, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rPengiriman, rRole, jwtSvc, db)
 	cCaptcha := captchaController.New(captchaSvc)
 	cHumanCheck := humanCheckController.New(humanCheckSvc)
 	cSecurity := securityController.New(botCheckSvc, captchaSvc)
-	cMaintenance := maintenanceController.New(rMaintenance, jwtSvc, rNotifikasi)
+	cMaintenance := maintenanceController.New(rMaintenance, jwtSvc, rNotification)
 	cHealth := health.NewController(health.NewChecker(db, cfg.Storage.Path))
 
 	return &Dependencies{
@@ -195,8 +198,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		TaskController:          cTask,
 		AppInfoController:       appinfoController.New(),
 		TrashController:         trashController.New(db, jwtSvc),
-		NotifikasiController:    notifikasiController.New(rNotifikasi, jwtSvc),
-		NotifikasiRepo:          rNotifikasi,
+		NotificationController:  notifikasiController.New(rNotification, jwtSvc),
+		NotificationRepo:        rNotification,
 		LaporanController:       cLaporan,
 		DashboardController:     cDashboard,
 		CaptchaController:       cCaptcha,

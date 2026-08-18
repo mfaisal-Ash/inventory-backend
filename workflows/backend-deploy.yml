@@ -1,4 +1,4 @@
-# File ini: .github/workflows/deploy.yml  (letakkan di repo projsonal/gowms)
+# File ini: .github/workflows/deploy.yml  (letakkan di repo inventory-backend)
 #
 # Secrets yang wajib diisi di GitHub repo Settings > Secrets and variables > Actions:
 #   VPS_HOST        - IP / hostname VPS

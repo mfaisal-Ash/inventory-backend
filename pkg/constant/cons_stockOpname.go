@@ -1,5 +1,6 @@
 package constant
 
+// Status dokumen Stock Opname (penghitungan fisik stok).
 const (
 	StatusSODraft      = "draft"
 	StatusSOSelesai    = "selesai"

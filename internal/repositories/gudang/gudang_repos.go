@@ -10,6 +10,8 @@ import (
 
 const orderNamaAsc = "nama asc"
 
+// ---- Kategori ----
+
 func (r *repository) ListKategori(p utils.PaginationParams) ([]model.Kategori, int64, error) {
 	var list []model.Kategori
 	var total int64
@@ -61,6 +63,8 @@ func (r *repository) CountKategori() (int64, error) {
 	return count, err
 }
 
+// ---- Satuan ----
+
 func (r *repository) ListSatuan(p utils.PaginationParams) ([]model.Satuan, int64, error) {
 	var list []model.Satuan
 	var total int64
@@ -106,6 +110,8 @@ func (r *repository) DeleteSatuan(id uint) error {
 	return r.db.Delete(&model.Satuan{}, id).Error
 }
 
+// ---- Gudang ----
+
 func (r *repository) ListGudang(p utils.PaginationParams) ([]model.Gudang, int64, error) {
 	var list []model.Gudang
 	var total int64
@@ -117,7 +123,11 @@ func (r *repository) ListGudang(p utils.PaginationParams) ([]model.Gudang, int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
+	// Preload Raks supaya frontend bisa menghitung "Kapasitas Terpakai"
+	// (SUM Terisi) & "Total Barang" per gudang tanpa endpoint terpisah —
+	// angka Terisi per rak sudah otomatis mutakhir lewat adjustRak() di
+	// Barang Masuk/Keluar/Stock Opname (lihat catatan di
+	// barang_masuk_repos.go), jadi tidak perlu sensor IoT tambahan.
 	if err := p.Apply(q.Order(orderNamaAsc)).Preload("Raks").Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
@@ -151,6 +161,9 @@ func (r *repository) UpdateGudang(g *model.Gudang) error {
 	return r.db.Save(g).Error
 }
 
+// DeleteGudang — soft-delete OTOMATIS (lihat catatan lengkap di
+// repositories/asset Delete()) — model.Gudang punya DeletedAt. Pulihkan/
+// hapus permanen lewat fitur Tempat Sampah.
 func (r *repository) DeleteGudang(id uint) error {
 	return r.db.Delete(&model.Gudang{}, id).Error
 }
@@ -160,6 +173,8 @@ func (r *repository) CountGudang() (int64, error) {
 	err := r.db.Model(&model.Gudang{}).Count(&count).Error
 	return count, err
 }
+
+// ---- Rak ----
 
 func (r *repository) ListRak(p utils.PaginationParams, gudangID uint) ([]model.Rak, int64, error) {
 	var list []model.Rak

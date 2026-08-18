@@ -103,6 +103,10 @@ func (r *repository) Complete(id uint, userID uint) (*model.BarangKeluar, error)
 			return errors.New(constant.ErrBKBukanDraft)
 		}
 
+		// Validasi ketersediaan SEMUA item terlebih dahulu, sebelum
+		// mengubah apa pun — supaya dokumen dengan satu baris saja yang
+		// kurang stok tidak menyebabkan sebagian barang lain terlanjur
+		// terpotong (all-or-nothing).
 		for _, item := range bk.Items {
 			var b model.Barang
 			if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {
@@ -149,6 +153,10 @@ func (r *repository) Complete(id uint, userID uint) (*model.BarangKeluar, error)
 	return r.FindByID(id)
 }
 
+// adjustRak lihat dokumentasi di package barang_masuk — logika identik,
+// diduplikasi tipis di sini karena kedua package memang sengaja dibuat
+// independen (tidak saling meng-import) supaya masing-masing modul tetap
+// bisa berdiri sendiri.
 func adjustRak(tx *gorm.DB, rakID uint, delta int) error {
 	var rak model.Rak
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&rak, rakID).Error; err != nil {

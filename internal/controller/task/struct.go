@@ -4,6 +4,7 @@ import (
 	"github.com/inventory-backend/internal/repositories/role"
 	taskRepo "github.com/inventory-backend/internal/repositories/task"
 
+	//"github.com/inventory-backend/pkg/constant"
 	"github.com/inventory-backend/pkg/utils"
 )
 
@@ -23,7 +24,7 @@ type TaskRequest struct {
 	Title       string `json:"title" validate:"required,max=150"`
 	Description string `json:"description" validate:"max=500"`
 	AssignedTo  uint   `json:"assigned_to" validate:"required"`
-	DueDate     string `json:"due_date" validate:"required"`
+	DueDate     string `json:"due_date" validate:"required"` // format YYYY-MM-DD
 	Priority    string `json:"priority" validate:"required,oneof=rendah sedang tinggi"`
 }
 

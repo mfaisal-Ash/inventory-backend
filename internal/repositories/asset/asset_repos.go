@@ -1,6 +1,9 @@
 package asset
 
 import (
+	"strconv"
+	"strings"
+
 	"gorm.io/gorm"
 
 	"github.com/inventory-backend/internal/model"
@@ -47,6 +50,11 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.Asset, in
 	return list, total, nil
 }
 
+// ListForMap mengambil titik-titik aset berkoordinat berikut info gudang
+// pemiliknya (nama, kode, tipe) dalam satu query JOIN — dipakai Peta
+// Sebaran Aset supaya frontend tidak perlu memanggil endpoint gudang
+// terpisah untuk tiap marker. Kolom di-qualify eksplisit per tabel karena
+// "latitude"/"longitude" ada di assets MAUPUN gudangs.
 func (r *repository) ListForMap(f Filter, tipeGudang string) ([]MapRow, error) {
 	var rows []MapRow
 
@@ -102,30 +110,75 @@ func (r *repository) Update(a *model.Asset) error {
 	return r.db.Save(a).Error
 }
 
+// Delete — soft-delete OTOMATIS: model.Asset punya kolom DeletedAt
+// (gorm.DeletedAt), jadi GORM sendiri mengganti ini jadi
+// `UPDATE assets SET deleted_at = NOW()` alih-alih DELETE SQL sungguhan.
+// Baris ini tetap ada di database & bisa dipulihkan lewat fitur Tempat
+// Sampah (lihat internal/controller/trash) sampai dihapus permanen dari sana.
 func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.Asset{}, id).Error
 }
 
+// NextRSDNumber menghitung nomor urut berikutnya untuk label RSD di
+// gudang tertentu.
+//
+// SENGAJA TIDAK pakai "hitung jumlah baris lalu +1" (versi lama) —
+// pendekatan itu rapuh: begitu jumlah baris yang tercatat "meleset" dari
+// nomor tertinggi yang PERNAH benar-benar dipakai (bisa karena baris
+// soft-delete di Tempat Sampah, data seed manual, atau percobaan gagal
+// sebelumnya yang sempat bikin urutan tidak rapi), fungsi ini akan
+// TERUS-MENERUS mengusulkan nomor yang sama berulang-ulang — dan setiap
+// kali bentrok dengan `uniqueIndex` di kolom label_rsd, INSERT gagal
+// dengan galat "gagal membuat aset" tanpa penjelasan.
+//
+// Sebagai gantinya: PARSE nomor urut dari SEMUA label RSD yang pernah
+// ada di gudang ini (Unscoped — termasuk yang di Tempat Sampah, supaya
+// tidak mengusulkan nomor yang sudah pernah dipakai aset yang dihapus
+// tapi belum di-purge), ambil yang PALING BESAR, lalu +1. Ini kebal dari
+// drift/inkonsistensi riwayat apa pun — nomor yang dihasilkan dijamin
+// belum pernah dipakai, walau catatan "jumlah baris" tidak akurat.
 func (r *repository) NextRSDNumber(gudangID uint) (int, error) {
-	var count int64
-	err := r.db.Model(&model.Asset{}).
+	var labels []string
+	err := r.db.Unscoped().Model(&model.Asset{}).
 		Where("gudang_id = ? AND label_rsd <> ''", gudangID).
-		Count(&count).Error
+		Pluck("label_rsd", &labels).Error
 	if err != nil {
 		return 0, err
 	}
-	return int(count) + 1, nil
+	return maxSuffixNumber(labels, "-RSD-") + 1, nil
 }
 
+// NextBANumber menghitung nomor urut berikutnya untuk kode BA, global
+// lintas gudang (khusus aset transportasi). Pendekatan & alasan SAMA
+// PERSIS seperti NextRSDNumber di atas — KodeBA juga uniqueIndex.
 func (r *repository) NextBANumber() (int, error) {
-	var count int64
-	err := r.db.Model(&model.Asset{}).
+	var codes []string
+	err := r.db.Unscoped().Model(&model.Asset{}).
 		Where("kode_ba <> ''").
-		Count(&count).Error
+		Pluck("kode_ba", &codes).Error
 	if err != nil {
 		return 0, err
 	}
-	return int(count) + 1, nil
+	return maxSuffixNumber(codes, "BA-") + 1, nil
+}
+
+func maxSuffixNumber(values []string, sep string) int {
+	max := 0
+	for _, v := range values {
+		idx := strings.LastIndex(v, sep)
+		if idx == -1 {
+			continue
+		}
+		suffix := v[idx+len(sep):]
+		n, err := strconv.Atoi(suffix)
+		if err != nil {
+			continue
+		}
+		if n > max {
+			max = n
+		}
+	}
+	return max
 }
 
 func (r *repository) CountByJenis(jenisAset string) (int64, error) {

@@ -100,6 +100,7 @@ func toItemModels(items []ItemRequest) []model.BarangMasukItem {
 	return out
 }
 
+// List GET /barang-masuk?page=&limit=&search=&status=&gudang_id=&purchase_order_id=
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
@@ -119,6 +120,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar barang masuk berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
+// Detail GET /barang-masuk/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -131,6 +133,8 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	return utils.OK(c, "detail barang masuk berhasil diambil", bm)
 }
 
+// Create POST /barang-masuk — dibuat berstatus "draft"; stok & rak baru
+// berubah setelah dokumen diselesaikan lewat Complete.
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req BMRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -178,6 +182,7 @@ func (h *Controller) requireDraft(id uint) (*model.BarangMasuk, error) {
 	return bm, nil
 }
 
+// Update PUT /barang-masuk/:id — hanya boleh selama status masih draft.
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -214,6 +219,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen barang masuk berhasil diperbarui", bm)
 }
 
+// Delete DELETE /barang-masuk/:id — hanya boleh selama status draft.
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -242,6 +248,7 @@ func (h *Controller) Complete(c *fiber.Ctx) error {
 	return utils.OK(c, "barang masuk berhasil diselesaikan, stok & rak telah diperbarui", bm)
 }
 
+// Batalkan PATCH /barang-masuk/:id/batalkan
 func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -254,6 +261,7 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen barang masuk berhasil dibatalkan", bm)
 }
 
+// Summary GET /barang-masuk/summary
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	total, err := h.repo.CountByStatus("")
 	draft, err2 := h.repo.CountByStatus(constant.StatusBMDraft)

@@ -117,7 +117,7 @@ func (h *Controller) CheckUsernameAvailability(c *fiber.Ctx) error {
 		return utils.OK(c, "username terlalu pendek", fiber.Map{"available": false})
 	}
 	_, err := h.userRepo.FindByUsername(username)
-	available := err != nil
+	available := err != nil // error (tidak ketemu) berarti TERSEDIA
 	return utils.OK(c, "berhasil cek ketersediaan username", fiber.Map{"available": available})
 }
 

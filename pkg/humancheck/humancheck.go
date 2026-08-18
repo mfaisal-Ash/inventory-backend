@@ -17,6 +17,10 @@ var (
 	ErrAlreadyUsed = errors.New("token verifikasi sudah digunakan, silakan verifikasi ulang")
 )
 
+// Service memverifikasi human-check token: HMAC-signed timestamp + nonce
+// yang harus di-"issue" lebih dulu, tidak boleh dipakai lebih cepat dari
+// minDelay (menggagalkan bot yang submit instan), tidak boleh kedaluwarsa
+// dari ttl, dan tidak boleh dipakai dua kali (replay).
 type Service struct {
 	secret   []byte
 	ttl      time.Duration
@@ -60,12 +64,13 @@ func (s *Service) Verify(token string) error {
 	if s.used.isUsed(token) {
 		return ErrAlreadyUsed
 	}
-	s.used.markUsed(token, s.ttl)
 
 	elapsed := time.Since(issuedAt)
 	if elapsed > s.ttl {
 		return ErrExpired
 	}
+	s.used.markUsed(token, s.ttl)
+
 	if elapsed < s.minDelay {
 		return ErrTooFast
 	}

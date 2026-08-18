@@ -1,3 +1,5 @@
+// Package middleware berisi seluruh middleware Fiber: autentikasi JWT dan
+// otorisasi RBAC per-modul, dipakai oleh internal/routes/router.go.
 package middleware
 
 import (

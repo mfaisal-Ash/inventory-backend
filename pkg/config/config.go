@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config merepresentasikan seluruh konfigurasi aplikasi.
 type Config struct {
 	App           AppConfig
 	DB            DBConfig
@@ -78,6 +79,8 @@ type CaptchaConfig struct {
 	TTLMinutes int
 }
 
+// HumanCheckConfig konfigurasi verifikasi "verify you are human" ala
+// Cloudflare Turnstile (lihat pkg/humancheck) yang dipakai ResetPassword.
 type HumanCheckConfig struct {
 	Secret          string
 	TTLMinutes      int
