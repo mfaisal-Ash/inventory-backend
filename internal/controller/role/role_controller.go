@@ -5,10 +5,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func (h *Controller) List(c *fiber.Ctx) error {

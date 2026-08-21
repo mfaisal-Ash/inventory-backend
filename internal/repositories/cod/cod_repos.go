@@ -3,8 +3,8 @@ package cod
 import (
 	"gorm.io/gorm"
 
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {

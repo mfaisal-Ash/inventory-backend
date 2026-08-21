@@ -9,16 +9,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
-// logMaintenanceEvent menulis satu baris audit trail ke var/log/maintenance.log
-// setiap kali super_admin mengaktifkan/menonaktifkan mode maintenance —
-// terpisah dari backend.log umum supaya gampang diaudit siapa & kapan
-// fitur ini dipakai (dampaknya besar: memblokir semua role non-super_admin).
 func logMaintenanceEvent(userID uint, isActive bool, message string) {
 	logDir := filepath.Join("var", "log")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
@@ -85,7 +81,7 @@ func (h *Controller) Set(c *fiber.Ctx) error {
 			body = req.Message
 		}
 	}
-	notifikasi.Notify(h.notifRepo, "maintenance", title, body, "", nil, "all")
+	notification.Notify(h.notifRepo, "maintenance", title, body, "", nil, "all")
 	return utils.OK(c, msg, toStatusResponse(status.IsActive, status.Message, status.StartedAt, status.EstimatedUntil))
 }
 

@@ -3,9 +3,9 @@ package dashboard
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleDashboard

@@ -3,12 +3,12 @@ package barang_masuk
 import (
 	"gorm.io/gorm"
 
-	poRepo "github.com/inventory-backend/internal/repositories/po"
+	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
 )
 
 type repository struct {
 	db     *gorm.DB
-	poRepo poRepo.Repository // dipakai TambahPenerimaan saat Complete, kalau BM ini berasal dari PO
+	poRepo poRepo.Repository
 }
 
 func New(db *gorm.DB, poRepo poRepo.Repository) Repository {

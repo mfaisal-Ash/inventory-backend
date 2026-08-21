@@ -6,56 +6,58 @@ import (
 
 	"gorm.io/gorm"
 
-	appinfoController "github.com/inventory-backend/internal/controller/appinfo"
-	assetController "github.com/inventory-backend/internal/controller/asset_gudang"
-	authController "github.com/inventory-backend/internal/controller/auth"
-	barangController "github.com/inventory-backend/internal/controller/barang"
-	barangKeluarController "github.com/inventory-backend/internal/controller/barang_keluar"
-	barangMasukController "github.com/inventory-backend/internal/controller/barang_masuk"
-	barangRusakController "github.com/inventory-backend/internal/controller/barang_rusak"
-	captchaController "github.com/inventory-backend/internal/controller/captcha"
-	codController "github.com/inventory-backend/internal/controller/cod"
-	dashboardController "github.com/inventory-backend/internal/controller/dashboard"
-	gudangController "github.com/inventory-backend/internal/controller/gudang"
-	humanCheckController "github.com/inventory-backend/internal/controller/humancheck"
-	laporanController "github.com/inventory-backend/internal/controller/laporan"
-	maintenanceController "github.com/inventory-backend/internal/controller/maintenance"
-	notifikasiController "github.com/inventory-backend/internal/controller/notifikasi"
-	pengirimanController "github.com/inventory-backend/internal/controller/pengiriman"
-	purchaseOrderController "github.com/inventory-backend/internal/controller/po"
-	roleController "github.com/inventory-backend/internal/controller/role"
-	securityController "github.com/inventory-backend/internal/controller/security"
-	stockOpnameController "github.com/inventory-backend/internal/controller/stockOpname"
-	supplierController "github.com/inventory-backend/internal/controller/supplier"
-	taskController "github.com/inventory-backend/internal/controller/task"
-	trashController "github.com/inventory-backend/internal/controller/trash"
-	usersController "github.com/inventory-backend/internal/controller/users"
-	"github.com/inventory-backend/internal/health"
-	assetRepo "github.com/inventory-backend/internal/repositories/asset"
-	assetHistoryRepo "github.com/inventory-backend/internal/repositories/asset_history"
-	assetPortRepo "github.com/inventory-backend/internal/repositories/asset_port"
-	authRepo "github.com/inventory-backend/internal/repositories/auth"
-	barangRepo "github.com/inventory-backend/internal/repositories/barang"
-	barangKeluarRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
-	barangMasukRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
-	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
-	codRepo "github.com/inventory-backend/internal/repositories/cod"
-	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
-	maintenanceRepo "github.com/inventory-backend/internal/repositories/maintenance"
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	pengirimanRepo "github.com/inventory-backend/internal/repositories/pengiriman"
-	purchaseOrderRepo "github.com/inventory-backend/internal/repositories/po"
-	roleRepo "github.com/inventory-backend/internal/repositories/role"
-	stockOpnameRepo "github.com/inventory-backend/internal/repositories/stockOpname"
-	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
-	taskRepo "github.com/inventory-backend/internal/repositories/task"
-	usersRepo "github.com/inventory-backend/internal/repositories/users"
-	"github.com/inventory-backend/pkg/botcheck"
-	"github.com/inventory-backend/pkg/captcha"
-	"github.com/inventory-backend/pkg/config"
-	"github.com/inventory-backend/pkg/geoip"
-	"github.com/inventory-backend/pkg/humancheck"
-	"github.com/inventory-backend/pkg/utils"
+	appinfoController "github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo"
+	assetController "github.com/mfaisal-Ash/inventory-backend/internal/controller/asset_gudang"
+	assetTypeController "github.com/mfaisal-Ash/inventory-backend/internal/controller/asset_type"
+	authController "github.com/mfaisal-Ash/inventory-backend/internal/controller/auth"
+	barangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang"
+	barangKeluarController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_keluar"
+	barangMasukController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_masuk"
+	barangRusakController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_rusak"
+	captchaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/captcha"
+	codController "github.com/mfaisal-Ash/inventory-backend/internal/controller/cod"
+	dashboardController "github.com/mfaisal-Ash/inventory-backend/internal/controller/dashboard"
+	gudangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/gudang"
+	humanCheckController "github.com/mfaisal-Ash/inventory-backend/internal/controller/humancheck"
+	laporanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/laporan"
+	maintenanceController "github.com/mfaisal-Ash/inventory-backend/internal/controller/maintenance"
+	notificationController "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	pengirimanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengiriman"
+	purchaseOrderController "github.com/mfaisal-Ash/inventory-backend/internal/controller/po"
+	roleController "github.com/mfaisal-Ash/inventory-backend/internal/controller/role"
+	securityController "github.com/mfaisal-Ash/inventory-backend/internal/controller/security"
+	stockOpnameController "github.com/mfaisal-Ash/inventory-backend/internal/controller/stockOpname"
+	supplierController "github.com/mfaisal-Ash/inventory-backend/internal/controller/supplier"
+	taskController "github.com/mfaisal-Ash/inventory-backend/internal/controller/task"
+	trashController "github.com/mfaisal-Ash/inventory-backend/internal/controller/trash"
+	usersController "github.com/mfaisal-Ash/inventory-backend/internal/controller/users"
+	"github.com/mfaisal-Ash/inventory-backend/internal/health"
+	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
+	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
+	assetTypeRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_type"
+	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
+	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	barangKeluarRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
+	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
+	codRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/cod"
+	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	pengirimanRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengiriman"
+	purchaseOrderRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
+	roleRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	stockOpnameRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
+	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"
+	taskRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/task"
+	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/botcheck"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/captcha"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/config"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/geoip"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/humancheck"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Dependencies struct {
@@ -81,12 +83,13 @@ type Dependencies struct {
 	PengirimanController    *pengirimanController.Controller
 	CodController           *codController.Controller
 	AssetController         *assetController.Controller
+	AssetTypeController     *assetTypeController.Controller
 	BarangRusakController   *barangRusakController.Controller
 	TaskController          *taskController.Controller
 	AppInfoController       *appinfoController.Controller
 	TrashController         *trashController.Controller
-	NotificationController  *notifikasiController.Controller
-	NotificationRepo        notifikasiRepo.Repository
+	NotificationController  *notificationController.Controller
+	NotificationRepo        notificationRepo.Repository
 
 	LaporanController   *laporanController.Controller
 	DashboardController *dashboardController.Controller
@@ -104,10 +107,9 @@ type Dependencies struct {
 func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	jwtSvc := utils.NewJWTService(&cfg.JWT)
 
-	// Repositories.
 	rRole := roleRepo.New(db)
 	rUsers := usersRepo.New(db)
-	rNotification := notifikasiRepo.New(db)
+	rNotification := notificationRepo.New(db)
 	rAuth := authRepo.New(db)
 	rGudang := gudangRepo.New(db)
 	rBarang := barangRepo.New(db)
@@ -124,8 +126,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rBarangRusak := barangRusakRepo.New(db)
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
+	rAssetType := assetTypeRepo.New(db)
 
-	// Services lintas modul.
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
 		cfg.HumanCheck.Secret,
@@ -135,7 +137,6 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
-	// Controllers.
 	cAuth := authController.New(authController.Params{
 		AuthRepo:      rAuth,
 		UserRepo:      rUsers,
@@ -164,7 +165,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
 	cCod := codController.New(rCod, rRole, jwtSvc)
-	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotification)
+	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, jwtSvc, rNotification, rAssetType)
+	cAssetType := assetTypeController.New(rAssetType, jwtSvc)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rRole, jwtSvc, cfg.Storage.Path, rNotification)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rPO, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rRole, jwtSvc)
@@ -194,11 +196,12 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		PengirimanController:    cPengiriman,
 		CodController:           cCod,
 		AssetController:         cAsset,
+		AssetTypeController:     cAssetType,
 		BarangRusakController:   cBarangRusak,
 		TaskController:          cTask,
-		AppInfoController:       appinfoController.New(),
+		AppInfoController:       appinfoController.New(cfg, jwtSvc, rMaintenance, rNotification),
 		TrashController:         trashController.New(db, jwtSvc),
-		NotificationController:  notifikasiController.New(rNotification, jwtSvc),
+		NotificationController:  notificationController.New(rNotification, jwtSvc),
 		NotificationRepo:        rNotification,
 		LaporanController:       cLaporan,
 		DashboardController:     cDashboard,

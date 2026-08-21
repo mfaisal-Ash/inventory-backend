@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
-	"github.com/inventory-backend/internal/model"
-	assetRepo "github.com/inventory-backend/internal/repositories/asset"
-	"github.com/inventory-backend/pkg/netping"
-	"github.com/inventory-backend/pkg/utils"
+	notifikasi "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/netping"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const pingTimeout = 2 * time.Second

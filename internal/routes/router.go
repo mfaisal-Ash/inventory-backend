@@ -8,32 +8,21 @@ import (
 	"github.com/gofiber/fiber/v2"
 	fiberSwagger "github.com/gofiber/swagger"
 
-	"github.com/inventory-backend/internal/controller"
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/controller"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func SetupRouter(deps *Dependencies) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:      deps.Cfg.App.Name,
 		ErrorHandler: globalErrorHandler,
-		// Mitigasi DDoS/slowloris dasar di level aplikasi: batasi ukuran
-		// body request & waktu baca/tulis koneksi, supaya klien nakal
-		// tidak bisa menahan koneksi terbuka lama atau mengirim payload
-		// raksasa untuk menghabiskan resource server.
-		BodyLimit:    4 * 1024 * 1024, // 4MB — lebih dari cukup untuk payload JSON biasa
+
+		BodyLimit:    4 * 1024 * 1024,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
-		// Di produksi, app ini SELALU berjalan di belakang reverse proxy
-		// (nginx — lihat panduan CI/CD). Tanpa konfigurasi ini, c.IP()
-		// akan selalu mengembalikan alamat nginx (biasanya 127.0.0.1),
-		// BUKAN alamat IP pengunjung asli — yang menjelaskan kenapa kolom
-		// IP/lokasi login selalu kosong/"-". Dengan ini, Fiber membaca IP
-		// asli dari header X-Forwarded-For yang dikirim nginx, TAPI hanya
-		// mempercayai header itu kalau permintaan datang dari proxy yang
-		// terdaftar di TrustedProxies — mencegah klien memalsukan IP-nya
-		// sendiri lewat header itu.
+
 		EnableTrustedProxyCheck: true,
 		TrustedProxies:          deps.Cfg.App.TrustedProxies,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
@@ -49,14 +38,6 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	app.Get("/health/ready", deps.HealthController.Ready)
 	app.Get("/health", deps.HealthController.Health)
 
-	// File lain yang masih diupload ke disk lokal (mis. foto bukti
-	// barang_rusak) disajikan statis dari sini. Foto profil user SUDAH
-	// TIDAK lewat sini lagi — sekarang disimpan sebagai bytea di database
-	// & diserve lewat GET /users/:id/avatar yang wajib login (lihat
-	// internal/controller/users/user_controller.go ServeAvatar), karena
-	// route statis ini tidak punya proteksi/otentikasi sama sekali. Kalau
-	// foto barang_rusak juga dianggap sensitif, pola yang sama (simpan di
-	// DB + endpoint ber-auth) bisa dipakai di controller barang_rusak.
 	app.Static("/uploads", deps.Cfg.Storage.Path)
 
 	if deps.Cfg.Swagger.Enabled {
@@ -73,6 +54,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	deps.HumanCheckController.RegisterRoutes(api)
 	deps.SecurityController.RegisterRoutes(api)
 	deps.AppInfoController.RegisterRoutes(api)
+	deps.AssetTypeController.RegisterRoutes(api)
 	deps.TrashController.RegisterRoutes(api)
 	deps.NotificationController.RegisterRoutes(api)
 
@@ -84,9 +66,6 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 
 	api.Use("/auth/login", middleware.LoginRateLimiter())
 
-	// Modul yang TETAP bisa diakses walau mode maintenance aktif: auth
-	// (supaya user termasuk super_admin tetap bisa login) & manajemen
-	// user/role (tugas administratif, bukan operasional harian).
 	alwaysOn := []controller.RouteRegistrar{
 		deps.AuthController,
 		deps.UserController,
@@ -127,20 +106,12 @@ func globalErrorHandler(c *fiber.Ctx, err error) error {
 	message := "terjadi kesalahan pada server, silakan coba lagi"
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
-		// fiber.Error di sini SELALU berasal dari error yang sengaja
-		// dilempar handler/router Fiber sendiri (mis. body terlalu besar,
-		// method tidak diizinkan) — bukan error internal Go yang bisa
-		// membawa detail implementasi (path file, query SQL, dsb). Untuk
-		// status 5xx tetap pakai pesan generik; untuk 4xx aman ditampilkan
-		// karena pesannya memang ditujukan untuk klien.
+
 		if code < fiber.StatusInternalServerError {
 			message = e.Message
 		}
 	} else {
-		// Error non-fiber.Error berarti panic/error Go mentah yang lolos
-		// sampai sini — JANGAN pernah balas err.Error() ke klien: bisa
-		// membocorkan detail internal (path, driver DB, dsb). Cukup log
-		// di server, klien cukup dapat pesan generik.
+
 		log.Printf("router: unhandled error di %s %s: %v", c.Method(), c.Path(), err)
 	}
 	return utils.Fail(c, code, message, nil)

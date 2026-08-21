@@ -1,0 +1,27 @@
+package barang_serial
+
+import (
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
+)
+
+type Filter struct {
+	BarangID uint
+	GudangID uint
+	Status   string
+}
+
+type Repository interface {
+	List(p utils.PaginationParams, f Filter) ([]model.BarangSerial, int64, error)
+	FindByID(id uint) (*model.BarangSerial, error)
+
+	FindBySerial(serial string) (*model.BarangSerial, error)
+	CountByBarang(barangID uint) (tersedia int64, terpasang int64, rusak int64, err error)
+
+	Create(barangID, gudangID uint, rakID *uint, serialNumber, catatan string) (*model.BarangSerial, error)
+
+	RiwayatDokumen(s *model.BarangSerial) (nomorMasuk string, nomorKeluar string, err error)
+
+	UpdateStatusManual(id uint, status string, catatan string) (*model.BarangSerial, error)
+	Delete(id uint) error
+}

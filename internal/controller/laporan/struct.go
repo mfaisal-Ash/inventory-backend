@@ -1,14 +1,14 @@
 package laporan
 
 import (
-	barangRepo "github.com/inventory-backend/internal/repositories/barang"
-	barangKeluarRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
-	barangMasukRepo "github.com/inventory-backend/internal/repositories/barang_masuk"
-	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
-	purchaseOrderRepo "github.com/inventory-backend/internal/repositories/po"
-	"github.com/inventory-backend/internal/repositories/role"
-	stockOpnameRepo "github.com/inventory-backend/internal/repositories/stockOpname"
-	"github.com/inventory-backend/pkg/utils"
+	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	barangKeluarRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
+	barangMasukRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
+	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
+	purchaseOrderRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	stockOpnameRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const exportRowLimit = 20000

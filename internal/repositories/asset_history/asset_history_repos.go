@@ -3,16 +3,12 @@ package asset_history
 import (
 	"gorm.io/gorm"
 
-	"github.com/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 )
 
 type Repository interface {
-	// Log — catat satu kejadian riwayat. Dipanggil dari controller lain
-	// (asset_gudang) setiap kali ada perubahan berarti, BUKAN endpoint
-	// publik sendiri (riwayat cuma bisa "ditulis" lewat efek samping
-	// perubahan aset, tidak bisa diisi manual).
 	Log(h *model.AssetHistory) error
-	// ListByAsset — riwayat satu aset, terbaru dulu.
+
 	ListByAsset(assetID uint, limit int) ([]model.AssetHistory, error)
 }
 

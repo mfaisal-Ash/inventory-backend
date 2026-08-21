@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const dashboardDateFormat = "2006-01-02"

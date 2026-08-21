@@ -3,12 +3,12 @@ package barang_keluar
 import (
 	"time"
 
-	barangRepo "github.com/inventory-backend/internal/repositories/barang"
-	bkRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
-	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	"github.com/inventory-backend/internal/repositories/role"
-	"github.com/inventory-backend/pkg/utils"
+	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	bkRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
+	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
@@ -17,11 +17,11 @@ type Controller struct {
 	gudangRepo gudangRepo.Repository
 	roleRepo   role.Repository
 	jwtSvc     *utils.JWTService
-	notifRepo  notifikasiRepo.Repository
+	notifRepo  notificationRepo.Repository
 }
 
 func New(repo bkRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gudangRepo.Repository,
-	roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notifikasiRepo.Repository) *Controller {
+	roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
 	return &Controller{repo: repo, barangRepo: barangRepo, gudangRepo: gudangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
@@ -33,9 +33,7 @@ type ItemRequest struct {
 
 type BKRequest struct {
 	GudangID uint `json:"gudang_id" validate:"required"`
-	// Tanggal: string "YYYY-MM-DD" — lihat catatan lengkap di
-	// internal/controller/barang_masuk/struct.go BMRequest.Tanggal soal
-	// kenapa ini WAJIB string, bukan time.Time langsung.
+
 	Tanggal   string        `json:"tanggal" validate:"required"`
 	Keperluan string        `json:"keperluan" validate:"required,max=255"`
 	Penerima  string        `json:"penerima" validate:"max=150"`

@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/botcheck"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/botcheck"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const BotTokenHeader = "X-Bot-Token"
@@ -27,7 +27,7 @@ func BotCheck(svc *botcheck.Service) fiber.Handler {
 		token := c.Get(BotTokenHeader)
 		if token == "" || !svc.Verify(token) {
 			return utils.Fail(c, fiber.StatusPreconditionRequired,
-				"verifikasi bukan-bot diperlukan (sesi baru atau idle terlalu lama), selesaikan captcha lewat /security/challenge", nil)
+				"verifikasi bukanbot diperlukan (sesi baru atau idle terlalu lama), selesaikan captcha lewat /security/challenge", nil)
 		}
 
 		fresh, err := svc.Issue()

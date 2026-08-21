@@ -1,8 +1,8 @@
 package model
 
-type asset struct {
+type assets struct {
 	ID          uint   `json:"id" gorm:"primaryKey"`
 	BarangID    uint   `json:"barang_id" gorm:"index;not null"`
-	LabelBarang string `json:"label_barang"`
-	NamaBarang  string `json:"nama_barang"`
+	labelbrng   string `json:"label_barang"`
+	nama_barang string `json:"nama_barang"`
 }

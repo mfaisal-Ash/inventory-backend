@@ -1,13 +1,13 @@
 package barang_rusak
 
 import (
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 
-	barangRepo "github.com/inventory-backend/internal/repositories/barang"
-	barangRusakRepo "github.com/inventory-backend/internal/repositories/barang_rusak"
-	"github.com/inventory-backend/internal/repositories/role"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleBarangRusak
@@ -18,10 +18,10 @@ type Controller struct {
 	roleRepo    role.Repository
 	jwtSvc      *utils.JWTService
 	storagePath string
-	notifRepo   notifikasiRepo.Repository
+	notifRepo   notificationRepo.Repository
 }
 
-func New(repo barangRusakRepo.Repository, barangRepo barangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, storagePath string, notifRepo notifikasiRepo.Repository) *Controller {
+func New(repo barangRusakRepo.Repository, barangRepo barangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, storagePath string, notifRepo notificationRepo.Repository) *Controller {
 	return &Controller{repo: repo, barangRepo: barangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, storagePath: storagePath, notifRepo: notifRepo}
 }
 

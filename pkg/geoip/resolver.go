@@ -13,10 +13,14 @@ import (
 const (
 	unknownLocation       = "-"
 	defaultTimeout        = 2 * time.Second
-	maxResponseSize int64 = 1 << 20 // 1 MB
+	maxResponseSize int64 = 1 << 20
 	geoPath               = "/json/"
 	geoFields             = "status,city,country,timezone"
 	statusSuccess         = "success"
+
+	fallbackCity     = "Bandung"
+	fallbackCountry  = "Indonesia"
+	fallbackTimezone = "Asia/Jakarta"
 )
 
 type Resolver interface {
@@ -26,7 +30,7 @@ type Resolver interface {
 type NoopResolver struct{}
 
 func (NoopResolver) Lookup(context.Context, string) (string, error) {
-	return unknownLocation, nil
+	return formatLocation(fallbackCity, fallbackCountry, fallbackTimezone), nil
 }
 
 type httpResolver struct {
@@ -54,7 +58,7 @@ type ipAPIResponse struct {
 
 func (r *httpResolver) Lookup(ctx context.Context, ip string) (string, error) {
 	if !isPublicIP(ip) {
-		return unknownLocation, nil
+		return formatLocation(fallbackCity, fallbackCountry, fallbackTimezone), nil
 	}
 
 	requestURL := r.buildURL(ip)

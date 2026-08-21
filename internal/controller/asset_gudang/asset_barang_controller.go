@@ -2,17 +2,15 @@ package assetgudang
 
 import (
 	"fmt"
-	"log"
 	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	assetRepo "github.com/inventory-backend/internal/repositories/asset"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func parseIDParam(c *fiber.Ctx) (uint, error) {
@@ -23,17 +21,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-func handleCreateOrUpdateError(c *fiber.Ctx, action string, err error) error {
-	log.Printf("aset_gudang: gagal %s aset: %v", action, err)
-	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint") {
-		return utils.Fail(c, fiber.StatusConflict,
-			"nomor label aset ini kebetulan sudah dipakai (kemungkinan sisa aset yang sudah dihapus di Tempat Sampah) — coba simpan sekali lagi", nil)
-	}
-	return utils.Fail(c, fiber.StatusInternalServerError, fmt.Sprintf("gagal %s aset", action), nil)
-}
-
-// List GET
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
@@ -49,7 +36,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar aset berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -63,17 +49,18 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 }
 
 func (h *Controller) Summary(c *fiber.Ctx) error {
-	tiang, _ := h.repo.CountByJenis(constant.JenisAsetTiang)
-	odc, _ := h.repo.CountByJenis(constant.JenisAsetODC)
-	olt, _ := h.repo.CountByJenis(constant.JenisAsetOLT)
-	ont, _ := h.repo.CountByJenis(constant.JenisAsetONT)
-	odp, _ := h.repo.CountByJenis(constant.JenisAsetODP)
-	modem, _ := h.repo.CountByJenis(constant.JenisAsetModem)
-	transportasi, _ := h.repo.CountByJenis(constant.JenisAsetTransportasi)
-	return utils.OK(c, "ringkasan aset berhasil diambil", SummaryResponse{
-		Tiang: tiang, Odc: odc, Olt: olt, Ont: ont, Odp: odp, Modem: modem, Transportasi: transportasi,
-		Total: tiang + odc + olt + ont + odp + modem + transportasi,
-	})
+	types, err := h.assetTypeRepo.List()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan aset", nil)
+	}
+	items := make([]SummaryItem, 0, len(types))
+	var total int64
+	for _, t := range types {
+		count, _ := h.repo.CountByJenis(t.Kode)
+		items = append(items, SummaryItem{Kode: t.Kode, Label: t.Label, Color: t.Color, Abbr: t.Abbr, Count: count})
+		total += count
+	}
+	return utils.OK(c, "ringkasan aset berhasil diambil", SummaryResponse{Items: items, Total: total})
 }
 
 func (h *Controller) MapPoints(c *fiber.Ctx) error {
@@ -109,10 +96,25 @@ func (h *Controller) MapPoints(c *fiber.Ctx) error {
 	return utils.OK(c, "titik peta aset berhasil diambil", out)
 }
 
+// hasKoordinat menentukan apakah suatu jenis aset punya titik lokasi tetap
+// (dapat label RSD) atau tidak (dapat kode BA). Dicek dulu ke tabel
+// asset_types (dinamis, termasuk jenis buatan user); kalau jenisnya tidak
+// terdaftar di sana (data lama / belum sempat di-seed), fallback ke aturan
+// hardcoded lama supaya tetap kompatibel.
+func (h *Controller) hasKoordinat(jenisAset string) bool {
+	if t, err := h.assetTypeRepo.FindByKode(jenisAset); err == nil {
+		return t.HasKoordinat
+	}
+	return model.JenisAsetPunyaKoordinat(jenisAset)
+}
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req AssetRequest
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
+	}
+	if _, terr := h.assetTypeRepo.FindByKode(req.JenisAset); terr != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "jenis aset tidak dikenal — tambahkan dulu lewat Kelola Jenis Aset", nil)
 	}
 
 	gudang, err := h.gudangRepo.FindGudangByID(req.GudangID)
@@ -142,7 +144,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		PingStatus:    "unknown",
 	}
 
-	if model.JenisAsetPunyaKoordinat(req.JenisAset) {
+	if h.hasKoordinat(req.JenisAset) {
 		if req.Latitude == nil || req.Longitude == nil {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity,
 				"latitude dan longitude wajib diisi untuk jenis aset ini", nil)
@@ -167,7 +169,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	}
 
 	if err := h.repo.Create(a); err != nil {
-		return handleCreateOrUpdateError(c, "membuat", err)
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat aset", nil)
 	}
 	h.logHistory(c, a.ID, "dibuat", "", a.Status, "Aset ditambahkan ke sistem")
 	created, _ := h.repo.FindByID(a.ID)
@@ -210,7 +212,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	a.IPAddress = req.IPAddress
 	a.ParentAssetID = req.ParentAssetID
 	a.JumlahPort = req.JumlahPort
-	if model.JenisAsetPunyaKoordinat(a.JenisAset) {
+	if h.hasKoordinat(a.JenisAset) {
 		if req.Latitude == nil || req.Longitude == nil {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity,
 				"latitude dan longitude wajib diisi untuk jenis aset ini", nil)
@@ -219,7 +221,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		a.Longitude = req.Longitude
 	}
 	if err := h.repo.Update(a); err != nil {
-		return handleCreateOrUpdateError(c, "memperbarui", err)
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui aset", nil)
 	}
 
 	if !samePtrUint(oldParentID, a.ParentAssetID) {
@@ -262,7 +264,6 @@ func ptrFloatLabel(v *float64) string {
 	return fmt.Sprintf("%.6f", *v)
 }
 
-// UpdateStatus
 func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -288,7 +289,6 @@ func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	return utils.OK(c, "status aset berhasil diperbarui", a)
 }
 
-// Delete
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {

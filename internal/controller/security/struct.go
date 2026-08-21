@@ -1,8 +1,8 @@
 package security
 
 import (
-	"github.com/inventory-backend/pkg/botcheck"
-	"github.com/inventory-backend/pkg/captcha"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/botcheck"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/captcha"
 )
 
 type Controller struct {

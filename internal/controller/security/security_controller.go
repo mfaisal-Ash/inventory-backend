@@ -3,12 +3,12 @@ package security
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func (h *Controller) Check(c *fiber.Ctx) error {
 	var req CheckRequest
-	_ = c.BodyParser(&req) // body opsional, boleh kosong di percobaan pertama
+	_ = c.BodyParser(&req)
 
 	if req.BotToken != "" && h.botSvc.Verify(req.BotToken) {
 		fresh, err := h.botSvc.Issue()

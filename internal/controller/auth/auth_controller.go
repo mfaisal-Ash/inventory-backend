@@ -11,10 +11,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const (
@@ -95,6 +95,7 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 			DeviceType:     string(device.DeviceType),
 			IPAddress:      ip,
 			Location:       location,
+			CreatedAt:      session.CreatedAt.Format(time.RFC3339),
 			IsCurrent:      true,
 		},
 	}, nil
@@ -105,7 +106,7 @@ func (h *Controller) resolveRegisterRoleName(requestedRole string) string {
 		return constant.RoleKaryawan
 	}
 	if h.appEnv == "production" {
-		log.Printf("auth: percobaan self-register dengan role '%s' ditolak (APP_ENV=production), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
+		log.Printf("auth: percobaan selfregister dengan role '%s' ditolak (APP_ENV=production), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
 		return constant.RoleKaryawan
 	}
 	return requestedRole
@@ -117,7 +118,7 @@ func (h *Controller) CheckUsernameAvailability(c *fiber.Ctx) error {
 		return utils.OK(c, "username terlalu pendek", fiber.Map{"available": false})
 	}
 	_, err := h.userRepo.FindByUsername(username)
-	available := err != nil // error (tidak ketemu) berarti TERSEDIA
+	available := err != nil
 	return utils.OK(c, "berhasil cek ketersediaan username", fiber.Map{"available": available})
 }
 
@@ -402,7 +403,7 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 
 	userID := utils.ParseUintSubject(claims.Subject)
 	if _, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(req.RefreshToken)); err != nil {
-		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah di-revoke", nil)
+		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah direvoke", nil)
 	}
 
 	u, err := h.userRepo.FindByID(userID)

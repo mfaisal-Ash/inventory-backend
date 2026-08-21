@@ -1,16 +1,15 @@
 package barang_masuk
 
 import (
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Filter struct {
 	Status          string
 	GudangID        uint
 	PurchaseOrderID uint
-	// KategoriID memfilter berdasarkan kategori barang di dalam item-item
-	// dokumen barang masuk (join lewat barang_masuk_items -> barang).
+
 	KategoriID uint
 }
 

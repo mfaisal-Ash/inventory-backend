@@ -1,6 +1,6 @@
 package humancheck
 
-import "github.com/inventory-backend/pkg/humancheck"
+import "github.com/mfaisal-Ash/inventory-backend/pkg/humancheck"
 
 type Controller struct {
 	svc *humancheck.Service

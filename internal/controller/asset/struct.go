@@ -3,15 +3,15 @@ package assetgudang
 import (
 	"time"
 
-	assetRepo "github.com/inventory-backend/internal/repositories/asset"
-	assetHistoryRepo "github.com/inventory-backend/internal/repositories/asset_history"
-	assetPortRepo "github.com/inventory-backend/internal/repositories/asset_port"
-	gudangRepo "github.com/inventory-backend/internal/repositories/gudang"
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	"github.com/inventory-backend/internal/repositories/role"
-	usersRepo "github.com/inventory-backend/internal/repositories/users"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
+	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
+	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	notifikasiRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleAsetGudang

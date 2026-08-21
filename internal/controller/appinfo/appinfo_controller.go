@@ -3,7 +3,12 @@ package appinfo
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/config"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const CurrentVersion = "v1.3.0"
@@ -65,9 +70,26 @@ var changelogData = []VersionEntry{
 	},
 }
 
-type Controller struct{}
+type Controller struct {
+	cfg             *config.Config
+	jwtSvc          *utils.JWTService
+	maintenanceRepo maintenanceRepo.Repository
+	notifRepo       notificationRepo.Repository
+}
 
-func New() *Controller { return &Controller{} }
+func New(
+	cfg *config.Config,
+	jwtSvc *utils.JWTService,
+	maintenanceRepo maintenanceRepo.Repository,
+	notifRepo notificationRepo.Repository,
+) *Controller {
+	return &Controller{
+		cfg:             cfg,
+		jwtSvc:          jwtSvc,
+		maintenanceRepo: maintenanceRepo,
+		notifRepo:       notifRepo,
+	}
+}
 
 type VersionResponse struct {
 	Version     string `json:"version"`
@@ -79,7 +101,7 @@ type VersionResponse struct {
 func (h *Controller) Version(c *fiber.Ctx) error {
 	return utils.OK(c, "versi aplikasi berhasil diambil", VersionResponse{
 		Version:     CurrentVersion,
-		AppName:     "WMS - RSD",
+		AppName:     "WMS RSD",
 		Description: "WMS-RSD merupakan pelayanan gudang serta inventaris produk dalam perusahaan — mengelola stok, pengiriman, aset gudang (tiang/ODC/ONT/ODP/OLT/transportasi), hingga laporan operasional dalam satu sistem.",
 		Developer:   "Tim Internal RSD",
 	})
@@ -93,4 +115,8 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/app")
 	g.Get("/version", h.Version)
 	g.Get("/changelog", h.Changelog)
+
+	g.Get("/check-update", middleware.JWTAuth(h.jwtSvc), h.CheckUpdate)
+	g.Get("/update-status", middleware.JWTAuth(h.jwtSvc), h.UpdateStatus)
+	g.Post("/update", middleware.JWTAuth(h.jwtSvc), middleware.RequireRole(constant.RoleSuperAdmin), h.TriggerUpdate)
 }

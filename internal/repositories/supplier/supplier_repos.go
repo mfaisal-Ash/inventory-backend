@@ -1,12 +1,10 @@
 package supplier
 
 import (
-	"strings"
-
 	"gorm.io/gorm"
 
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
@@ -61,23 +59,6 @@ func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.Supplier{}, id).Error
 }
 
-// InUse — lihat dokumentasi di interfaces.go. Cukup satu baris ditemukan
-// di salah satu tabel untuk dianggap "masih dipakai".
-func (r *repository) InUse(id uint) (bool, error) {
-	var poCount int64
-	if err := r.db.Model(&model.PurchaseOrder{}).Where("supplier_id = ?", id).Count(&poCount).Error; err != nil {
-		return false, err
-	}
-	if poCount > 0 {
-		return true, nil
-	}
-	var bmCount int64
-	if err := r.db.Model(&model.BarangMasuk{}).Where("supplier_id = ?", id).Count(&bmCount).Error; err != nil {
-		return false, err
-	}
-	return bmCount > 0, nil
-}
-
 func (r *repository) CountAll() (int64, error) {
 	var count int64
 	err := r.db.Model(&model.Supplier{}).Count(&count).Error
@@ -90,33 +71,19 @@ func (r *repository) CountActive() (int64, error) {
 	return count, err
 }
 
-// KurirStats lihat dokumentasi di interfaces.go. Query langsung ke tabel
-// pengiriman (model.Pengiriman) berdasarkan kecocokan NamaKurir — TANPA
-// join/foreign key formal, karena NamaKurir memang disimpan sebagai teks
-// bebas di Pengiriman (lihat catatan panjang soal ini di modules.ts
-// frontend). Kalau kurirNames kosong (supplier belum mengisi Kerjasama
-// Kurir), langsung kembalikan 0/0 tanpa query.
 func (r *repository) KurirStats(kurirNames []string) (int64, int64, error) {
 	if len(kurirNames) == 0 {
 		return 0, 0, nil
 	}
-	// LOWER(...) di kedua sisi — nama_kurir disimpan sebagai teks bebas, jadi
-	// variasi kapitalisasi ("GoSend" vs "gosend") sebelumnya bikin baris
-	// yang sebenarnya cocok tidak ikut terhitung (Total Order/Rating jadi
-	// 0 padahal datanya ada).
-	lowerNames := make([]string, len(kurirNames))
-	for i, n := range kurirNames {
-		lowerNames[i] = strings.ToLower(strings.TrimSpace(n))
-	}
 	var totalOrder int64
 	if err := r.db.Model(&model.Pengiriman{}).
-		Where("LOWER(nama_kurir) IN ? AND status NOT IN ?", lowerNames, []string{"draft", "dibatalkan"}).
+		Where("nama_kurir IN ? AND status NOT IN ?", kurirNames, []string{"draft", "dibatalkan"}).
 		Count(&totalOrder).Error; err != nil {
 		return 0, 0, err
 	}
 	var terkirim int64
 	if err := r.db.Model(&model.Pengiriman{}).
-		Where("LOWER(nama_kurir) IN ? AND status = ?", lowerNames, "terkirim").
+		Where("nama_kurir IN ? AND status = ?", kurirNames, "terkirim").
 		Count(&terkirim).Error; err != nil {
 		return 0, 0, err
 	}

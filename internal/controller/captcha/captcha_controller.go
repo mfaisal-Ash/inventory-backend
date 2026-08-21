@@ -3,7 +3,7 @@ package captcha
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func (h *Controller) GenerateCaptcha(c *fiber.Ctx) error {

@@ -1,15 +1,13 @@
 package task
 
 import (
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Filter struct {
 	Status string
-	// AssignedTo: kalau diisi, hanya tampilkan tugas milik user ini —
-	// dipakai karyawan/admin (lihat task_controller.go List()) supaya
-	// mereka hanya melihat tugas mereka sendiri, bukan seluruh tim.
+
 	AssignedTo uint
 }
 

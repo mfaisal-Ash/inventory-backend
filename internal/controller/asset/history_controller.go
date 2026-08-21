@@ -3,9 +3,9 @@ package assetgudang
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/model"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func (h *Controller) logHistory(c *fiber.Ctx, assetID uint, eventType, fieldLama, fieldBaru, catatan string) {

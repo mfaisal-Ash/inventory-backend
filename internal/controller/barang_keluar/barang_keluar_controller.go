@@ -8,12 +8,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notifikasi "github.com/inventory-backend/internal/controller/notifikasi"
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	bkRepo "github.com/inventory-backend/internal/repositories/barang_keluar"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	bkRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 const Module = constant.ModuleBarangKeluar
@@ -32,11 +32,6 @@ func generateNomorBK() string {
 	return fmt.Sprintf("BK-%d-%d", time.Now().Year(), time.Now().UnixNano()%100000)
 }
 
-// validateItems memastikan tiap barang_id & rak_id (bila diisi) memang ada.
-// Validasi KECUKUPAN stok/rak sengaja TIDAK dilakukan di sini — itu
-// dilakukan atomik di dalam transaksi repository saat Complete, supaya
-// tidak ada celah waktu (TOCTOU) antara pengecekan dan pengurangan stok
-// jika ada dua pengeluaran barang yang sama diproses hampir bersamaan.
 func (h *Controller) validateItems(items []ItemRequest) error {
 	for _, it := range items {
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
@@ -72,7 +67,6 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "daftar barang keluar berhasil diambil", list, utils.BuildPaginationMeta(p, total))
 }
 
-// Detail GET /barang-keluar/:id
 func (h *Controller) Detail(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -113,7 +107,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if err := h.repo.Create(bk); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat dokumen barang keluar", nil)
 	}
-	notifikasi.Notify(h.notifRepo, "out",
+	notification.Notify(h.notifRepo, "out",
 		"Barang Keluar Baru",
 		bk.NomorPengeluaran+" dicatat.",
 		"/home/barang-keluar", nil, "all")
@@ -134,7 +128,7 @@ func (h *Controller) requireDraft(id uint) (*model.BarangKeluar, error) {
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
 	}
 	bk, err := h.requireDraft(id)
 	if err != nil {
@@ -169,7 +163,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
 	}
 	if _, err := h.requireDraft(id); err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
@@ -183,7 +177,7 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 func (h *Controller) Complete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
 	}
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
 
@@ -195,18 +189,6 @@ func (h *Controller) Complete(c *fiber.Ctx) error {
 	return utils.OK(c, "barang keluar berhasil diselesaikan, stok & rak telah diperbarui", bk)
 }
 
-// notifyLowStock — kirim SATU notifikasi broadcast ("all") per barang yang
-// stoknya BARU SAJA turun ke/di bawah stok_minimum akibat dokumen barang
-// keluar ini. "Baru saja" dihitung dari stok SEBELUM dipotong (Stok saat
-// ini + Qty yang baru dikeluarkan) dibandingkan stok SESUDAH — supaya
-// TIDAK spam notifikasi berulang tiap ada barang keluar lain sementara
-// barang itu memang sudah lama di bawah ambang (item.Barang di sini sudah
-// mencerminkan Stok TERBARU, lihat repo.Complete -> FindByID di akhir).
-// Preferensi "Peringatan Stok Minimum" ON/OFF di Settings -> Notifikasi
-// SENGAJA tidak dicek di sini — itu preferensi TAMPILAN per user/device
-// (lihat NotificationBell.tsx), bukan penentu apakah notifikasi ini boleh
-// dibuat sama sekali (kalau tidak dibuat sama sekali, user yang preferensinya
-// ON tidak akan pernah melihatnya juga).
 func (h *Controller) notifyLowStock(items []model.BarangKeluarItem) {
 	for _, item := range items {
 		if item.Barang == nil || item.Barang.StokMinimum <= 0 {
@@ -217,7 +199,7 @@ func (h *Controller) notifyLowStock(items []model.BarangKeluarItem) {
 		if !justCrossed {
 			continue
 		}
-		notifikasi.Notify(h.notifRepo, "stok_menipis",
+		notification.Notify(h.notifRepo, "stok_menipis",
 			"Stok Menipis",
 			item.Barang.Nama+" tersisa "+strconv.Itoa(item.Barang.Stok)+" (ambang minimum "+strconv.Itoa(item.Barang.StokMinimum)+").",
 			"/home/kelola-barang", nil, "all")
@@ -227,7 +209,7 @@ func (h *Controller) notifyLowStock(items []model.BarangKeluarItem) {
 func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
+		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
 	}
 	bk, err := h.repo.Batalkan(id)
 	if err != nil {
@@ -236,7 +218,6 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen barang keluar berhasil dibatalkan", bk)
 }
 
-// Summary GET /barang-keluar/summary
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	total, err := h.repo.CountByStatus("")
 	draft, err2 := h.repo.CountByStatus(constant.StatusBKDraft)
@@ -249,7 +230,6 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	})
 }
 
-// RegisterRoutes mendaftarkan endpoint modul "Barang Keluar".
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/barang-keluar", middleware.JWTAuth(h.jwtSvc))
 

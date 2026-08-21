@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 )
 
 const singletonID = 1

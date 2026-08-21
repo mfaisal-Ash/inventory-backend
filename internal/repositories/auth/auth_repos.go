@@ -3,7 +3,7 @@ package auth
 import (
 	"time"
 
-	"github.com/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"gorm.io/gorm"
 )
 

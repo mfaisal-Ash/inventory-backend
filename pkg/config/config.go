@@ -9,7 +9,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config merepresentasikan seluruh konfigurasi aplikasi.
 type Config struct {
 	App           AppConfig
 	DB            DBConfig
@@ -26,6 +25,7 @@ type Config struct {
 	PasswordReset PasswordResetConfig
 	GeoIP         GeoIPConfig
 	Swagger       SwaggerConfig
+	SelfUpdate    SelfUpdateConfig
 }
 
 type AppConfig struct {
@@ -79,8 +79,6 @@ type CaptchaConfig struct {
 	TTLMinutes int
 }
 
-// HumanCheckConfig konfigurasi verifikasi "verify you are human" ala
-// Cloudflare Turnstile (lihat pkg/humancheck) yang dipakai ResetPassword.
 type HumanCheckConfig struct {
 	Secret          string
 	TTLMinutes      int
@@ -128,6 +126,21 @@ type SwaggerConfig struct {
 	BasicAuthPass string
 }
 
+// SelfUpdateConfig — fitur "Cek Update / Update Sekarang" (Settings >
+// Sistem), lihat docs/self-update-setup.md & internal/controller/appinfo.
+// Enabled=false (default) berarti GET /app/check-update & /app/update-status
+// tetap jalan (murni baca), tapi POST /app/update ditolak — aman dibiarkan
+// false sampai server benar-benar disiapkan sesuai panduan di docs.
+type SelfUpdateConfig struct {
+	Enabled     bool
+	GitHubOwner string
+	GitHubRepo  string
+	ScriptPath  string
+	WorkDir     string
+	ServiceName string
+	StatusPath  string
+}
+
 func Load() *Config {
 	_ = godotenv.Load()
 
@@ -154,7 +167,7 @@ func Load() *Config {
 			RefreshExpiryDays:   getEnvAsInt("JWT_REFRESH_EXPIRY_DAYS", 7),
 		},
 		TOTP: TOTPConfig{
-			Issuer: getEnv("TOTP_ISSUER", "WMS - RSD"),
+			Issuer: getEnv("TOTP_ISSUER", "WMS RSD"),
 		},
 		CORS: CORSConfig{
 
@@ -205,6 +218,15 @@ func Load() *Config {
 			Enabled:       getEnvAsBool("SWAGGER_ENABLED", getEnv("APP_ENV", "development") != "production"),
 			BasicAuthUser: getEnv("SWAGGER_BASIC_AUTH_USER", ""),
 			BasicAuthPass: getEnv("SWAGGER_BASIC_AUTH_PASS", ""),
+		},
+		SelfUpdate: SelfUpdateConfig{
+			Enabled:     getEnvAsBool("AUTO_UPDATE_ENABLED", false),
+			GitHubOwner: getEnv("AUTO_UPDATE_GITHUB_OWNER", ""),
+			GitHubRepo:  getEnv("AUTO_UPDATE_GITHUB_REPO", ""),
+			ScriptPath:  getEnv("AUTO_UPDATE_SCRIPT_PATH", "./deploy/scripts/self-update.sh"),
+			WorkDir:     getEnv("AUTO_UPDATE_WORKDIR", "."),
+			ServiceName: getEnv("AUTO_UPDATE_SERVICE_NAME", ""),
+			StatusPath:  getEnv("AUTO_UPDATE_STATUS_PATH", "./var/run/self-update-status.json"),
 		},
 	}
 

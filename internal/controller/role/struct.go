@@ -1,8 +1,8 @@
 package role
 
 import (
-	roleRepo "github.com/inventory-backend/internal/repositories/role"
-	"github.com/inventory-backend/pkg/utils"
+	roleRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {

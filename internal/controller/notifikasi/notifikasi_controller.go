@@ -1,23 +1,23 @@
-package notifikasi
+package notification
 
 import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
-	repo   notifikasiRepo.Repository
+	repo   notificationRepo.Repository
 	jwtSvc *utils.JWTService
 }
 
-func New(repo notifikasiRepo.Repository, jwtSvc *utils.JWTService) *Controller {
+func New(repo notificationRepo.Repository, jwtSvc *utils.JWTService) *Controller {
 	return &Controller{repo: repo, jwtSvc: jwtSvc}
 }
 
@@ -87,7 +87,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Delete("/:id", h.Delete)
 }
 
-func Notify(repo notifikasiRepo.Repository, notifType, title, message, linkHref string, userID *uint, roleTarget string) {
+func Notify(repo notificationRepo.Repository, notifType, title, message, linkHref string, userID *uint, roleTarget string) {
 	_ = repo.Create(&model.Notification{
 		UserID: userID, RoleTarget: roleTarget,
 		Type: notifType, Title: title, Message: message, LinkHref: linkHref,

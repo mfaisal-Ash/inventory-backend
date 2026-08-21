@@ -1,5 +1,3 @@
-// Package middleware berisi seluruh middleware Fiber: autentikasi JWT dan
-// otorisasi RBAC per-modul, dipakai oleh internal/routes/router.go.
 package middleware
 
 import (
@@ -7,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {

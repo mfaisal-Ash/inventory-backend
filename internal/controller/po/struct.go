@@ -3,11 +3,11 @@ package purchase_order
 import (
 	"time"
 
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	poRepo "github.com/inventory-backend/internal/repositories/po"
-	"github.com/inventory-backend/internal/repositories/role"
-	supplierRepo "github.com/inventory-backend/internal/repositories/supplier"
-	"github.com/inventory-backend/pkg/utils"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
@@ -15,14 +15,12 @@ type Controller struct {
 	supplierRepo supplierRepo.Repository
 	roleRepo     role.Repository
 	jwtSvc       *utils.JWTService
-	notifRepo    notifikasiRepo.Repository
+	notifRepo    notificationRepo.Repository
 }
 
-func New(repo poRepo.Repository, supplierRepo supplierRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notifikasiRepo.Repository) *Controller {
+func New(repo poRepo.Repository, supplierRepo supplierRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
 	return &Controller{repo: repo, supplierRepo: supplierRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
-
-// ---- DTO ----
 
 type ItemRequest struct {
 	BarangID    uint  `json:"barang_id" validate:"required"`
@@ -32,8 +30,7 @@ type ItemRequest struct {
 
 type PORequest struct {
 	SupplierID uint `json:"supplier_id" validate:"required"`
-	// TanggalPO: string "YYYY-MM-DD" — lihat catatan lengkap di
-	// internal/controller/barang_masuk/struct.go BMRequest.Tanggal.
+
 	TanggalPO        string        `json:"tanggal_po" validate:"required"`
 	CatatanPengajuan string        `json:"catatan_pengajuan" validate:"max=255"`
 	Items            []ItemRequest `json:"items" validate:"required,min=1,dive"`
@@ -48,8 +45,6 @@ type SetujuiTolakRequest struct {
 	Catatan string `json:"catatan" validate:"max=255"`
 }
 
-// ProtectRequest — form aksi "Protect" di action bar tabel (khusus
-// super_admin). Sama pola dengan Gudang/Barang/Supplier.
 type ProtectRequest struct {
 	IsProtected *bool `json:"is_protected" validate:"required"`
 }

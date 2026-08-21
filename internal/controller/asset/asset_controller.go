@@ -7,11 +7,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/inventory-backend/internal/middleware"
-	"github.com/inventory-backend/internal/model"
-	assetRepo "github.com/inventory-backend/internal/repositories/asset"
-	"github.com/inventory-backend/pkg/constant"
-	"github.com/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 var (
@@ -40,8 +40,6 @@ func parentErrorResponse(c *fiber.Ctx, err error) error {
 	return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
 }
 
-// findValidParent memastikan parentID ada dan hierarki jenis aset (anak ->
-// induk) sesuai urutan jaringan yang diizinkan.
 func (h *Controller) findValidParent(childJenis string, parentID uint) (*model.Asset, error) {
 	parent, err := h.repo.FindByID(parentID)
 	if err != nil {
@@ -53,8 +51,6 @@ func (h *Controller) findValidParent(childJenis string, parentID uint) (*model.A
 	return parent, nil
 }
 
-// assignAssetIdentifiers mengisi label RSD+koordinat (aset berkoordinat)
-// atau kode BA (aset transportasi) pada aset baru.
 func (h *Controller) assignAssetIdentifiers(req AssetRequest, gudang *model.Gudang, a *model.Asset) error {
 	if !model.JenisAsetPunyaKoordinat(req.JenisAset) {
 		nomor, err := h.repo.NextBANumber()
@@ -81,8 +77,6 @@ func (h *Controller) assignAssetIdentifiers(req AssetRequest, gudang *model.Guda
 	return nil
 }
 
-// logAssetChanges mencatat riwayat perubahan induk & lokasi setelah update,
-// hanya jika nilainya benar-benar berubah.
 func (h *Controller) logAssetChanges(c *fiber.Ctx, a *model.Asset, oldParentID *uint, oldLat, oldLng *float64) {
 	if !samePtrUint(oldParentID, a.ParentAssetID) {
 		h.logHistory(c, a.ID, "induk", ptrUintLabel(oldParentID), ptrUintLabel(a.ParentAssetID), "Aset induk (hierarki jaringan) diubah")

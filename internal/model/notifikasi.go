@@ -8,9 +8,10 @@ type Notification struct {
 	UserID     *uint  `json:"user_id" gorm:"index"`
 	RoleTarget string `json:"role_target" gorm:"size:20;index"`
 
-	Type     string `json:"type" gorm:"size:30;not null"`
-	Title    string `json:"title" gorm:"size:150;not null"`
-	Message  string `json:"message" gorm:"size:500"`
+	Type    string `json:"type" gorm:"size:30;not null"`
+	Title   string `json:"title" gorm:"size:150;not null"`
+	Message string `json:"message" gorm:"size:500"`
+
 	LinkHref string `json:"link_href" gorm:"size:255"`
 
 	CreatedAt time.Time `json:"created_at"`

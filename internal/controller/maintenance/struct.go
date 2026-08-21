@@ -3,18 +3,18 @@ package maintenance
 import (
 	"time"
 
-	maintenanceRepo "github.com/inventory-backend/internal/repositories/maintenance"
-	notifikasiRepo "github.com/inventory-backend/internal/repositories/notifikasi"
-	"github.com/inventory-backend/pkg/utils"
+	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
 	repo      maintenanceRepo.Repository
 	jwtSvc    *utils.JWTService
-	notifRepo notifikasiRepo.Repository
+	notifRepo notificationRepo.Repository
 }
 
-func New(repo maintenanceRepo.Repository, jwtSvc *utils.JWTService, notifRepo notifikasiRepo.Repository) *Controller {
+func New(repo maintenanceRepo.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
 	return &Controller{repo: repo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
