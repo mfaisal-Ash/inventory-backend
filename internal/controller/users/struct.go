@@ -40,18 +40,21 @@ func New(p Params) *Controller {
 }
 
 type CreateUserRequest struct {
-	Username string `json:"username" validate:"required,min=4,max=50"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-	FullName string `json:"full_name" validate:"required"`
-	RoleID   uint   `json:"role_id" validate:"required"`
+	Username    string `json:"username" validate:"required,min=4,max=50"`
+	Email       string `json:"email" validate:"required,email"`
+	Password    string `json:"password" validate:"required,min=8"`
+	FullName    string `json:"full_name" validate:"required"`
+	PhoneNumber string `json:"phone_number" validate:"omitempty,max=20"`
+	RoleID      uint   `json:"role_id" validate:"required"`
 }
 
 type UpdateUserRequest struct {
 	Email    string `json:"email" validate:"omitempty,email"`
 	FullName string `json:"full_name"`
-	RoleID   uint   `json:"role_id"`
-	IsActive *bool  `json:"is_active"`
+
+	PhoneNumber *string `json:"phone_number" validate:"omitempty"`
+	RoleID      uint    `json:"role_id"`
+	IsActive    *bool   `json:"is_active"`
 }
 
 type ChangePasswordRequest struct {
@@ -74,4 +77,20 @@ type Response struct {
 	IsOnline     bool       `json:"is_online"`
 	Is2FAEnabled bool       `json:"is_2fa_enabled"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
+}
+
+type SessionResponse struct {
+	ID             uint   `json:"id"`
+	Browser        string `json:"browser"`
+	BrowserVersion string `json:"browser_version"`
+	OS             string `json:"os"`
+	OSVersion      string `json:"os_version"`
+	DeviceType     string `json:"device_type"`
+	IPAddress      string `json:"ip_address"`
+	Location       string `json:"location"`
+	CreatedAt      string `json:"created_at"`
+}
+
+type SessionListResponse struct {
+	Sessions []SessionResponse `json:"sessions"`
 }

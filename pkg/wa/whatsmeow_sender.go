@@ -72,7 +72,7 @@ func buildOTPMessage(code string) *waE2E.Message {
 
 func (s *WhatsmeowSender) SendOTP(phoneNumber, code string) error {
 	if s.client == nil || !s.client.IsConnected() {
-		return errors.New("wa: sesi whatsmeow belum terhubung — cek apakah device masih terlink (WhatsApp di HP -> Perangkat Tertaut)")
+		return errors.New("wa: sesi whatsmeow belum terhubung — cek apakah device masih ter-link (WhatsApp di HP -> Perangkat Tertaut)")
 	}
 	jid, err := normalizePhoneToJID(phoneNumber)
 	if err != nil {

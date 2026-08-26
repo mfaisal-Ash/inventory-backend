@@ -5,10 +5,6 @@ import "time"
 type BarangMasuk struct {
 	ID              uint              `json:"id" gorm:"primaryKey"`
 	NomorPenerimaan string            `json:"nomor_penerimaan" gorm:"size:30;uniqueIndex;not null"`
-	PurchaseOrderID *uint             `json:"purchase_order_id" gorm:"index"`
-	PurchaseOrder   *PurchaseOrder    `json:"purchase_order,omitempty" gorm:"foreignKey:PurchaseOrderID"`
-	SupplierID      *uint             `json:"supplier_id" gorm:"index"`
-	Supplier        *Supplier         `json:"supplier,omitempty" gorm:"foreignKey:SupplierID"`
 	GudangID        uint              `json:"gudang_id" gorm:"not null;index"`
 	Gudang          *Gudang           `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
 	Status          string            `json:"status" gorm:"size:20;not null;default:'draft';index"`
@@ -28,8 +24,6 @@ type BarangMasukItem struct {
 	BarangMasukID uint    `json:"barang_masuk_id" gorm:"not null;index"`
 	BarangID      uint    `json:"barang_id" gorm:"not null;index"`
 	Barang        *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
-	RakID         *uint   `json:"rak_id" gorm:"index"`
-	Rak           *Rak    `json:"rak,omitempty" gorm:"foreignKey:RakID"`
 	Qty           int     `json:"qty" gorm:"not null"`
 	HargaSatuan   int64   `json:"harga_satuan" gorm:"not null;default:0"`
 }

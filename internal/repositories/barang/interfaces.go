@@ -26,6 +26,10 @@ type Repository interface {
 
 	AdjustStok(id uint, delta int) (*model.Barang, error)
 
+	SetStokGudangAwal(barangID, gudangID uint, stok int) error
+
+	NextSKUNumber(prefix string) (int, error)
+
 	CountAll() (int64, error)
 	CountStokMenipis() (int64, error)
 	SumNilaiInventaris() (int64, error)

@@ -12,7 +12,6 @@ type Filter struct {
 
 type ItemInput struct {
 	BarangID  uint
-	RakID     *uint
 	StokFisik int
 	Catatan   string
 }

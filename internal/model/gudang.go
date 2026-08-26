@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
@@ -44,34 +45,24 @@ type Gudang struct {
 	IsProtected bool      `json:"is_protected" gorm:"not null;default:false"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-	Raks        []Rak     `json:"raks,omitempty" gorm:"foreignKey:GudangID"`
 
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+
+	UnitTersedia int64 `json:"-" gorm:"-"`
+	SkuTersedia  int64 `json:"-" gorm:"-"`
 }
 
 func (Gudang) TableName() string { return "gudangs" }
 
-type Rak struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	KodeRak   string    `json:"kode_rak" gorm:"size:20;uniqueIndex;not null"`
-	GudangID  uint      `json:"gudang_id" gorm:"not null;index"`
-	Gudang    *Gudang   `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
-	Kapasitas int       `json:"kapasitas" gorm:"not null;default:0"`
-	Terisi    int       `json:"terisi" gorm:"not null;default:0"`
-	Status    string    `json:"status" gorm:"size:20;default:'kosong'"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-func (Rak) TableName() string { return "raks" }
-
-func (r *Rak) RecalculateStatus() {
-	switch {
-	case r.Terisi <= 0:
-		r.Status = "kosong"
-	case r.Terisi >= r.Kapasitas:
-		r.Status = "penuh"
-	default:
-		r.Status = "terisi_sebagian"
-	}
+func (g Gudang) MarshalJSON() ([]byte, error) {
+	type Alias Gudang
+	return json.Marshal(struct {
+		Alias
+		UnitTersedia int64 `json:"unit_tersedia"`
+		SkuTersedia  int64 `json:"sku_tersedia"`
+	}{
+		Alias:        Alias(g),
+		UnitTersedia: g.UnitTersedia,
+		SkuTersedia:  g.SkuTersedia,
+	})
 }

@@ -25,8 +25,6 @@ type BarangKeluarItem struct {
 	BarangKeluarID uint    `json:"barang_keluar_id" gorm:"not null;index"`
 	BarangID       uint    `json:"barang_id" gorm:"not null;index"`
 	Barang         *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
-	RakID          *uint   `json:"rak_id" gorm:"index"`
-	Rak            *Rak    `json:"rak,omitempty" gorm:"foreignKey:RakID"`
 	Qty            int     `json:"qty" gorm:"not null"`
 }
 

@@ -20,5 +20,7 @@ type Repository interface {
 	CountAll() (int64, error)
 	CountActive() (int64, error)
 
+	InUse(id uint) (bool, error)
+
 	KurirStats(kurirNames []string) (totalOrder int64, terkirim int64, err error)
 }

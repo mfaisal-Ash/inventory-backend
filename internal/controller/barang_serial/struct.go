@@ -27,7 +27,6 @@ type UpdateStatusRequest struct {
 type CreateRequest struct {
 	BarangID     uint   `json:"barang_id" validate:"required"`
 	GudangID     uint   `json:"gudang_id" validate:"required"`
-	RakID        *uint  `json:"rak_id"`
 	SerialNumber string `json:"serial_number" validate:"required,max=100"`
 	Catatan      string `json:"catatan" validate:"max=255"`
 }

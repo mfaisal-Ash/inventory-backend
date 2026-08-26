@@ -22,6 +22,12 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.Status != "" {
 		q = q.Where(constant.QueryStatusEq, f.Status)
 	}
+	if f.BarangMasukItemID != 0 {
+		q = q.Where("barang_masuk_item_id = ?", f.BarangMasukItemID)
+	}
+	if f.BarangKeluarItemID != 0 {
+		q = q.Where("barang_keluar_item_id = ?", f.BarangKeluarItemID)
+	}
 	return q
 }
 
@@ -37,7 +43,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangSer
 		return nil, 0, err
 	}
 	if err := p.Apply(q.Session(&gorm.Session{}).
-		Preload("Barang").Preload("Gudang").Preload("Rak").Order("id desc")).
+		Preload("Barang").Preload("Gudang").Order("id desc")).
 		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
@@ -46,7 +52,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangSer
 
 func (r *repository) FindByID(id uint) (*model.BarangSerial, error) {
 	var s model.BarangSerial
-	if err := r.db.Preload("Barang").Preload("Gudang").Preload("Rak").First(&s, id).Error; err != nil {
+	if err := r.db.Preload("Barang").Preload("Gudang").First(&s, id).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -54,7 +60,7 @@ func (r *repository) FindByID(id uint) (*model.BarangSerial, error) {
 
 func (r *repository) FindBySerial(serial string) (*model.BarangSerial, error) {
 	var s model.BarangSerial
-	err := r.db.Preload("Barang").Preload("Gudang").Preload("Rak").
+	err := r.db.Preload("Barang").Preload("Gudang").
 		Where("serial_number = ?", serial).First(&s).Error
 	if err != nil {
 		return nil, err
@@ -80,10 +86,6 @@ func (r *repository) CountByBarang(barangID uint) (int64, int64, int64, error) {
 func (r *repository) UpdateStatusManual(id uint, status string, catatan string) (*model.BarangSerial, error) {
 	updates := map[string]interface{}{"status": status, "catatan": catatan}
 
-	if status == constant.StatusSerialRusak {
-		updates["gudang_id"] = nil
-		updates["rak_id"] = nil
-	}
 	res := r.db.Model(&model.BarangSerial{}).Where("id = ?", id).Updates(updates)
 	if res.Error != nil {
 		return nil, res.Error
@@ -98,7 +100,7 @@ func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.BarangSerial{}, id).Error
 }
 
-func (r *repository) Create(barangID, gudangID uint, rakID *uint, serialNumber, catatan string) (*model.BarangSerial, error) {
+func (r *repository) Create(barangID, gudangID uint, serialNumber, catatan string) (*model.BarangSerial, error) {
 	var created model.BarangSerial
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var b model.Barang
@@ -133,7 +135,6 @@ func (r *repository) Create(barangID, gudangID uint, rakID *uint, serialNumber, 
 			SerialNumber: serialNumber,
 			Status:       constant.StatusSerialTersedia,
 			GudangID:     &gudangID,
-			RakID:        rakID,
 			Catatan:      catatan,
 		}
 		if err := tx.Create(&created).Error; err != nil {
@@ -149,7 +150,7 @@ func (r *repository) Create(barangID, gudangID uint, rakID *uint, serialNumber, 
 	return r.FindByID(created.ID)
 }
 
-func CreateUnitsTx(tx *gorm.DB, barangID, gudangID uint, rakID *uint, bmItemID uint, serials []string) error {
+func CreateUnitsTx(tx *gorm.DB, barangID, gudangID uint, bmItemID uint, serials []string) error {
 	if len(serials) == 0 {
 		return nil
 	}
@@ -173,7 +174,6 @@ func CreateUnitsTx(tx *gorm.DB, barangID, gudangID uint, rakID *uint, bmItemID u
 			SerialNumber:      sn,
 			Status:            constant.StatusSerialTersedia,
 			GudangID:          &gudangID,
-			RakID:             rakID,
 			BarangMasukItemID: &bmItemID,
 		})
 	}
@@ -210,7 +210,6 @@ func ConsumeUnitsTx(tx *gorm.DB, barangID, gudangID uint, bkItemID uint, serials
 		if err := tx.Model(&model.BarangSerial{}).Where("id = ?", unit.ID).Updates(map[string]interface{}{
 			"status":                constant.StatusSerialTerpasang,
 			"gudang_id":             nil,
-			"rak_id":                nil,
 			"barang_keluar_item_id": bkItemID,
 		}).Error; err != nil {
 			return err

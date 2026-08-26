@@ -14,6 +14,7 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/geoip"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -34,10 +35,20 @@ func (h *Controller) buildSessionInfo(c *fiber.Ctx) (device utils.DeviceInfo, ip
 	device = utils.ParseUserAgent(c.Get("User-Agent"))
 	ip = c.IP()
 
+	if ip == "" {
+		ip = c.Context().RemoteIP().String()
+	}
+
 	location, err := h.geoipSvc.Lookup(c.Context(), ip)
 	if err != nil {
 		log.Printf("auth: lookup geoip untuk IP %s gagal: %v", ip, err)
 		location = ""
+	}
+
+	if location == "" || location == "-" {
+		if tz := c.Get("X-Timezone"); tz != "" {
+			location = geoip.LocationFromTimezone(tz)
+		}
 	}
 	return device, ip, location
 }
@@ -95,7 +106,6 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 			DeviceType:     string(device.DeviceType),
 			IPAddress:      ip,
 			Location:       location,
-			CreatedAt:      session.CreatedAt.Format(time.RFC3339),
 			IsCurrent:      true,
 		},
 	}, nil
@@ -106,7 +116,7 @@ func (h *Controller) resolveRegisterRoleName(requestedRole string) string {
 		return constant.RoleKaryawan
 	}
 	if h.appEnv == "production" {
-		log.Printf("auth: percobaan selfregister dengan role '%s' ditolak (APP_ENV=production), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
+		log.Printf("auth: percobaan self-register dengan role '%s' ditolak (APP_ENV=production), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
 		return constant.RoleKaryawan
 	}
 	return requestedRole
@@ -403,7 +413,7 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 
 	userID := utils.ParseUintSubject(claims.Subject)
 	if _, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(req.RefreshToken)); err != nil {
-		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah direvoke", nil)
+		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah di-revoke", nil)
 	}
 
 	u, err := h.userRepo.FindByID(userID)

@@ -25,10 +25,14 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	barangID, _ := strconv.ParseUint(c.Query("barang_id", "0"), 10, 64)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
+	bmItemID, _ := strconv.ParseUint(c.Query("barang_masuk_item_id", "0"), 10, 64)
+	bkItemID, _ := strconv.ParseUint(c.Query("barang_keluar_item_id", "0"), 10, 64)
 	f := barangSerialRepo.Filter{
-		BarangID: uint(barangID),
-		GudangID: uint(gudangID),
-		Status:   c.Query("status", ""),
+		BarangID:           uint(barangID),
+		GudangID:           uint(gudangID),
+		Status:             c.Query("status", ""),
+		BarangMasukItemID:  uint(bmItemID),
+		BarangKeluarItemID: uint(bkItemID),
 	}
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
@@ -45,7 +49,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if _, err := h.barangRepo.FindByID(req.BarangID); err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrSerialBarangTidakAda, nil)
 	}
-	s, err := h.repo.Create(req.BarangID, req.GudangID, req.RakID, req.SerialNumber, req.Catatan)
+	s, err := h.repo.Create(req.BarangID, req.GudangID, req.SerialNumber, req.Catatan)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}

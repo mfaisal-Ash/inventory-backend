@@ -39,7 +39,7 @@ func main() {
 
 	if client.Store.ID != nil {
 		fmt.Println("Sudah ada sesi WhatsApp yang dipasangkan sebelumnya di", sessionPath)
-		fmt.Println("Kalau mau pasang ulang (mis. device diunlink dari HP), hapus dulu file tsb lalu jalankan ulang.")
+		fmt.Println("Kalau mau pasang ulang (mis. device di-unlink dari HP), hapus dulu file tsb lalu jalankan ulang.")
 		return
 	}
 

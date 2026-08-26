@@ -22,6 +22,35 @@ var (
 	footerTextColor   = [3]int{255, 255, 255}
 )
 
+var cp1252Special = map[rune]byte{
+	'\u2013': 0x96,
+	'\u2014': 0x97,
+	'\u2018': 0x91,
+	'\u2019': 0x92,
+	'\u201C': 0x93,
+	'\u201D': 0x94,
+	'\u2026': 0x85,
+}
+
+func pdfSafe(s string) string {
+	out := make([]byte, 0, len(s))
+	for _, r := range s {
+		switch {
+		case r <= 0x7F:
+			out = append(out, byte(r))
+		case r >= 0x00A0 && r <= 0x00FF:
+			out = append(out, byte(r))
+		default:
+			if b, ok := cp1252Special[r]; ok {
+				out = append(out, b)
+			} else {
+				out = append(out, '?')
+			}
+		}
+	}
+	return string(out)
+}
+
 func drawLetterhead(pdf *gofpdf.Fpdf, reportTitle string) {
 	pageWidth, _ := pdf.GetPageSize()
 
@@ -41,12 +70,12 @@ func drawLetterhead(pdf *gofpdf.Fpdf, reportTitle string) {
 	pdf.CellFormat(pageWidth-20, 8, "WMS-RSD", "", 1, "L", false, 0, "")
 	pdf.SetFont("Arial", "", 9)
 	pdf.SetX(10)
-	pdf.CellFormat(pageWidth-20, 6, "Warehouse Management System RSD", "", 1, "L", false, 0, "")
+	pdf.CellFormat(pageWidth-20, 6, "Warehouse Management System - RSD", "", 1, "L", false, 0, "")
 
 	pdf.SetTextColor(0, 0, 0)
 	pdf.SetY(26)
 	pdf.SetFont("Arial", "B", 13)
-	pdf.CellFormat(0, 8, reportTitle, "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 8, pdfSafe(reportTitle), "", 1, "L", false, 0, "")
 	pdf.SetFont("Arial", "", 8)
 	pdf.SetTextColor(90, 90, 90)
 	pdf.CellFormat(0, 5, "Dicetak: "+time.Now().Format("2 January 2006 15:04")+" WIB", "", 1, "L", false, 0, "")
@@ -62,7 +91,7 @@ func drawFooterBand(pdf *gofpdf.Fpdf) {
 	pdf.SetTextColor(footerTextColor[0], footerTextColor[1], footerTextColor[2])
 	pdf.SetFont("Arial", "", 8)
 	pdf.SetXY(10, bandY+4)
-	pdf.CellFormat(pageWidth-20, 6, "www.wms-rsd.internal Dokumen ini dihasilkan otomatis oleh sistem WMS-RSD", "", 0, "L", false, 0, "")
+	pdf.CellFormat(pageWidth-20, 6, "www.wms-rsd.internal - Dokumen ini dihasilkan otomatis oleh sistem WMS-RSD", "", 0, "L", false, 0, "")
 	pdf.SetTextColor(0, 0, 0)
 }
 
@@ -76,7 +105,8 @@ func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 	const chartHeight = 55.0
 
 	pdf.SetFont("Arial", "B", 10)
-	pdf.CellFormat(0, 7, "Analisa Data — "+chart.Title, "", 1, "L", false, 0, "")
+
+	pdf.CellFormat(0, 7, pdfSafe("Analisa Data — "+chart.Title), "", 1, "L", false, 0, "")
 
 	maxVal := 0.0
 	for _, v := range chart.Values {
@@ -135,7 +165,7 @@ func drawBarChart(pdf *gofpdf.Fpdf, chart *ChartData) {
 		}
 		x := plotX + float64(i)*(barWidth+gap)
 		pdf.SetXY(x-5, startY+chartHeight+1)
-		pdf.CellFormat(barWidth+10, 4, label, "", 0, "C", false, 0, "")
+		pdf.CellFormat(barWidth+10, 4, pdfSafe(label), "", 0, "C", false, 0, "")
 	}
 	pdf.SetTextColor(0, 0, 0)
 	pdf.SetY(startY + chartHeight + 8)
@@ -148,7 +178,7 @@ func trimFloatPdf(f float64) string {
 
 func ToPDF(title string, summary [][2]string, headers []string, rows [][]string, chart *ChartData) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetTitle(title, false)
+	pdf.SetTitle(pdfSafe(title), false)
 	pdf.SetAutoPageBreak(true, 22)
 	pdf.SetHeaderFunc(func() { drawLetterhead(pdf, title) })
 	pdf.SetFooterFunc(func() { drawFooterBand(pdf) })
@@ -160,9 +190,9 @@ func ToPDF(title string, summary [][2]string, headers []string, rows [][]string,
 		pdf.SetFont("Arial", "", 9)
 		for _, kv := range summary {
 			pdf.SetFont("Arial", "B", 9)
-			pdf.CellFormat(45, 6, kv[0], "", 0, "L", false, 0, "")
+			pdf.CellFormat(45, 6, pdfSafe(kv[0]), "", 0, "L", false, 0, "")
 			pdf.SetFont("Arial", "", 9)
-			pdf.CellFormat(0, 6, kv[1], "", 1, "L", false, 0, "")
+			pdf.CellFormat(0, 6, pdfSafe(kv[1]), "", 1, "L", false, 0, "")
 		}
 		pdf.Ln(3)
 	}
@@ -180,14 +210,14 @@ func ToPDF(title string, summary [][2]string, headers []string, rows [][]string,
 	pdf.SetFont("Arial", "B", 8)
 	pdf.SetFillColor(230, 230, 230)
 	for _, h := range headers {
-		pdf.CellFormat(colWidth, 8, h, "1", 0, "C", true, 0, "")
+		pdf.CellFormat(colWidth, 8, pdfSafe(h), "1", 0, "C", true, 0, "")
 	}
 	pdf.Ln(-1)
 
 	pdf.SetFont("Arial", "", 7.5)
 	for _, row := range rows {
 		for _, val := range row {
-			pdf.CellFormat(colWidth, 7, val, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(colWidth, 7, pdfSafe(val), "1", 0, "L", false, 0, "")
 		}
 		pdf.Ln(-1)
 	}

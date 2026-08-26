@@ -28,7 +28,7 @@ func NewDatabase(cfg *Config) *gorm.DB {
 }
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&model.Role{},
 		&model.Permission{},
 		&model.RolePermission{},
@@ -38,23 +38,17 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Kategori{},
 		&model.Satuan{},
 		&model.Gudang{},
-		&model.Rak{},
 
 		&model.Barang{},
-		&model.Supplier{},
-		&model.PurchaseOrder{},
-		&model.PurchaseOrderItem{},
 		&model.BarangMasuk{},
 		&model.BarangMasukItem{},
 		&model.BarangKeluar{},
 		&model.BarangKeluarItem{},
+		&model.BarangSerial{},
+		&model.BarangStokGudang{},
 		&model.StockOpname{},
 		&model.StockOpnameItem{},
-		&model.Pengiriman{},
-		&model.PengirimanTrackingPoint{},
-		&model.CodTransaction{},
 		&model.Asset{},
-		&model.AssetType{},
 		&model.AssetPort{},
 		&model.AssetHistory{},
 		&model.BarangRusak{},
@@ -62,35 +56,58 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Notification{},
 		&model.NotificationRead{},
 		&model.NotificationDismissed{},
-	)
+	); err != nil {
+		return err
+	}
+	if err := ensureAssetPartialUniqueIndexes(db); err != nil {
+		return err
+	}
+	return ensureUsersEmailNotUnique(db)
 }
 
-func SeedDefaultAssetTypes(db *gorm.DB) error {
-	defaults := []model.AssetType{
-		{Kode: "tiang", Label: "Tiang", Color: "#78350f", Abbr: "TG", HasKoordinat: true, HasPort: false, IsSystem: true, Urutan: 1},
-		{Kode: "odc", Label: "ODC", Color: "#b5451b", Abbr: "ODC", HasKoordinat: true, HasPort: true, IsSystem: true, Urutan: 2},
-		{Kode: "ont", Label: "ONT", Color: "#2563eb", Abbr: "ONT", HasKoordinat: true, HasPort: false, IsSystem: true, Urutan: 3},
-		{Kode: "odp", Label: "ODP", Color: "#059669", Abbr: "ODP", HasKoordinat: true, HasPort: true, IsSystem: true, Urutan: 4},
-		{Kode: "olt", Label: "OLT", Color: "#7c3aed", Abbr: "OLT", HasKoordinat: true, HasPort: true, IsSystem: true, Urutan: 5},
-		{Kode: "modem", Label: "Modem", Color: "#d97706", Abbr: "MDM", HasKoordinat: true, HasPort: false, IsSystem: true, Urutan: 6},
-		{Kode: "transportasi", Label: "Transportasi", Color: "#6b7280", Abbr: "TR", HasKoordinat: false, HasPort: false, IsSystem: true, Urutan: 7},
-	}
+func ensureUsersEmailNotUnique(db *gorm.DB) error {
+	stmt := `DO $$
+	DECLARE r record;
+	BEGIN
+		FOR r IN
+			SELECT indexname FROM pg_indexes
+			WHERE tablename = 'users'
+			  AND indexdef ILIKE '%UNIQUE INDEX%'
+			  AND indexdef ILIKE '%(email)%'
+		LOOP
+			EXECUTE 'DROP INDEX IF EXISTS ' || quote_ident(r.indexname);
+		END LOOP;
+	END $$;`
+	return db.Exec(stmt).Error
+}
 
-	for _, t := range defaults {
-		var existing model.AssetType
-		err := db.Where("kode = ?", t.Kode).First(&existing).Error
-		if err == nil {
-			continue
-		}
-		if err != gorm.ErrRecordNotFound {
-			return err
-		}
-		if err := db.Create(&t).Error; err != nil {
+func ensureAssetPartialUniqueIndexes(db *gorm.DB) error {
+	stmts := []string{
+
+		`DO $$
+		DECLARE r record;
+		BEGIN
+			FOR r IN
+				SELECT indexname FROM pg_indexes
+				WHERE tablename = 'assets'
+				  AND indexdef ILIKE '%UNIQUE INDEX%'
+				  AND indexdef NOT ILIKE '% WHERE %'
+				  AND (indexdef ILIKE '%(label_rsd)%' OR indexdef ILIKE '%(kode_ba)%')
+			LOOP
+				EXECUTE 'DROP INDEX IF EXISTS ' || quote_ident(r.indexname);
+			END LOOP;
+		END $$;`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_label_rsd_unique ON assets (label_rsd) WHERE label_rsd <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_kode_ba_unique ON assets (kode_ba) WHERE kode_ba <> ''`,
+	}
+	for _, s := range stmts {
+		if err := db.Exec(s).Error; err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
 func SeedDefaultRoles(db *gorm.DB) error {
 	defaults := []model.Role{
 		{Name: constant.RoleSuperAdmin, Description: "Akses penuh seluruh modul sistem", IsSystem: true},

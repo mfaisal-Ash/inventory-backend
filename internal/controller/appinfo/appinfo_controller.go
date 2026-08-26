@@ -4,9 +4,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
-	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
-	"github.com/mfaisal-Ash/inventory-backend/pkg/config"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
@@ -70,27 +67,6 @@ var changelogData = []VersionEntry{
 	},
 }
 
-type Controller struct {
-	cfg             *config.Config
-	jwtSvc          *utils.JWTService
-	maintenanceRepo maintenanceRepo.Repository
-	notifRepo       notificationRepo.Repository
-}
-
-func New(
-	cfg *config.Config,
-	jwtSvc *utils.JWTService,
-	maintenanceRepo maintenanceRepo.Repository,
-	notifRepo notificationRepo.Repository,
-) *Controller {
-	return &Controller{
-		cfg:             cfg,
-		jwtSvc:          jwtSvc,
-		maintenanceRepo: maintenanceRepo,
-		notifRepo:       notifRepo,
-	}
-}
-
 type VersionResponse struct {
 	Version     string `json:"version"`
 	AppName     string `json:"app_name"`
@@ -101,8 +77,8 @@ type VersionResponse struct {
 func (h *Controller) Version(c *fiber.Ctx) error {
 	return utils.OK(c, "versi aplikasi berhasil diambil", VersionResponse{
 		Version:     CurrentVersion,
-		AppName:     "WMS RSD",
-		Description: "WMS-RSD merupakan pelayanan gudang serta inventaris produk dalam perusahaan — mengelola stok, pengiriman, aset gudang (tiang/ODC/ONT/ODP/OLT/transportasi), hingga laporan operasional dalam satu sistem.",
+		AppName:     "WMS - RSD",
+		Description: "WMS-RSD merupakan pelayanan gudang serta inventaris produk dalam perusahaan — mengelola stok, barang masuk/keluar, aset gudang (tiang/ODC/ONT/ODP/OLT/transportasi) beserta tracking-nya, hingga laporan operasional dalam satu sistem.",
 		Developer:   "Tim Internal RSD",
 	})
 }

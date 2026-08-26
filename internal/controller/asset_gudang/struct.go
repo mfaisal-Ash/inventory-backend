@@ -6,9 +6,9 @@ import (
 	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
 	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
 	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
-	assetTypeRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_type"
+	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
@@ -18,62 +18,51 @@ import (
 const Module = constant.ModuleAsetGudang
 
 type Controller struct {
-	repo          assetRepo.Repository
-	gudangRepo    gudangRepo.Repository
-	portRepo      assetPortRepo.Repository
-	historyRepo   assetHistoryRepo.Repository
-	usersRepo     usersRepo.Repository
-	roleRepo      role.Repository
-	jwtSvc        *utils.JWTService
-	notifRepo     notificationRepo.Repository
-	assetTypeRepo assetTypeRepo.Repository
+	repo        assetRepo.Repository
+	gudangRepo  gudangRepo.Repository
+	portRepo    assetPortRepo.Repository
+	historyRepo assetHistoryRepo.Repository
+	usersRepo   usersRepo.Repository
+	roleRepo    role.Repository
+	barangRepo  barangRepo.Repository
+	jwtSvc      *utils.JWTService
+	notifRepo   notificationRepo.Repository
 }
 
-func New(repo assetRepo.Repository, gudangRepo gudangRepo.Repository, portRepo assetPortRepo.Repository, historyRepo assetHistoryRepo.Repository, usersRepo usersRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository, assetTypeRepo assetTypeRepo.Repository) *Controller {
-	return &Controller{repo: repo, gudangRepo: gudangRepo, portRepo: portRepo, historyRepo: historyRepo, usersRepo: usersRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo, assetTypeRepo: assetTypeRepo}
+func New(repo assetRepo.Repository, gudangRepo gudangRepo.Repository, portRepo assetPortRepo.Repository, historyRepo assetHistoryRepo.Repository, usersRepo usersRepo.Repository, roleRepo role.Repository, barangRepo barangRepo.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
+	return &Controller{repo: repo, gudangRepo: gudangRepo, portRepo: portRepo, historyRepo: historyRepo, usersRepo: usersRepo, roleRepo: roleRepo, barangRepo: barangRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
 type AssetRequest struct {
 	Nama      string   `json:"nama" validate:"required,max=150"`
-	JenisAset string   `json:"jenis_aset" validate:"required,max=30"`
+	JenisAset string   `json:"jenis_aset" validate:"required,oneof=tiang odc olt ont odp modem transportasi"`
 	GudangID  uint     `json:"gudang_id" validate:"required"`
 	Latitude  *float64 `json:"latitude" validate:"omitempty,min=-90,max=90"`
 	Longitude *float64 `json:"longitude" validate:"omitempty,min=-180,max=180"`
 
-	IPAddress string `json:"ip_address" validate:"omitempty,ip"`
-
 	ParentAssetID *uint `json:"parent_asset_id"`
 
 	JumlahPort int    `json:"jumlah_port" validate:"omitempty,min=0,max=512"`
-	Keterangan string `json:"keterangan" validate:"max=500"`
-}
+	Merek      string `json:"merek" validate:"max=100"`
+	Tipe       string `json:"tipe" validate:"max=100"`
 
-type PingResponse struct {
-	ID         uint       `json:"id"`
-	IPAddress  string     `json:"ip_address"`
-	PingStatus string     `json:"ping_status"`
-	LastPingAt *time.Time `json:"last_ping_at"`
-	RTTMs      int64      `json:"rtt_ms,omitempty"`
+	BarangID   *uint  `json:"barang_id"`
+	Keterangan string `json:"keterangan" validate:"max=500"`
 }
 
 type UpdateStatusRequest struct {
 	Status string `json:"status" validate:"required,oneof=aktif rusak nonaktif"`
 }
 
-// SummaryItem: hitungan aset per jenis — dinamis mengikuti jenis aset yang
-// terdaftar di tabel asset_types (termasuk jenis buatan user), bukan
-// daftar tetap lagi.
-type SummaryItem struct {
-	Kode  string `json:"kode"`
-	Label string `json:"label"`
-	Color string `json:"color"`
-	Abbr  string `json:"abbr"`
-	Count int64  `json:"count"`
-}
-
 type SummaryResponse struct {
-	Items []SummaryItem `json:"items"`
-	Total int64         `json:"total"`
+	Tiang        int64 `json:"tiang"`
+	Odc          int64 `json:"odc"`
+	Olt          int64 `json:"olt"`
+	Ont          int64 `json:"ont"`
+	Odp          int64 `json:"odp"`
+	Modem        int64 `json:"modem"`
+	Transportasi int64 `json:"transportasi"`
+	Total        int64 `json:"total"`
 }
 
 type MapPoint struct {
@@ -84,8 +73,6 @@ type MapPoint struct {
 	Latitude   float64 `json:"latitude"`
 	Longitude  float64 `json:"longitude"`
 	Status     string  `json:"status"`
-	IPAddress  string  `json:"ip_address"`
-	PingStatus string  `json:"ping_status"`
 	GudangID   uint    `json:"gudang_id"`
 	GudangNama string  `json:"gudang_nama"`
 	GudangKode string  `json:"gudang_kode"`
@@ -99,6 +86,10 @@ type MapPoint struct {
 	ParentLongitude *float64 `json:"parent_longitude"`
 	JumlahPort      int      `json:"jumlah_port"`
 	PortTerisi      int64    `json:"port_terisi"`
+
+	Merek      string `json:"merek,omitempty"`
+	Tipe       string `json:"tipe,omitempty"`
+	KodeBarang string `json:"kode_barang,omitempty"`
 }
 
 type AssetPortRequest struct {

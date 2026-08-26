@@ -248,7 +248,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "refresh token tidak valid/kedaluwarsa/direvoke",
+                        "description": "refresh token tidak valid/kedaluwarsa/di-revoke",
                         "schema": {
                             "$ref": "#/definitions/utils.Envelope"
                         }

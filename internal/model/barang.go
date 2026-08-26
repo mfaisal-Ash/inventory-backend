@@ -18,15 +18,22 @@ type Barang struct {
 	StokMinimum int       `json:"stok_minimum" gorm:"not null;default:0"`
 	Stok        int       `json:"stok" gorm:"not null;default:0"`
 
-	BeratGram    *int   `json:"berat_gram"`
-	IsActive     bool   `json:"is_active" gorm:"not null;default:true"`
-	IsProtected  bool   `json:"is_protected" gorm:"not null;default:false"`
-	IsSerialized bool   `json:"is_serialized" gorm:"not null;default:false"`
-	Deskripsi    string `json:"deskripsi" gorm:"size:255"`
+	BeratGram   *int   `json:"berat_gram"`
+	IsActive    bool   `json:"is_active" gorm:"not null;default:true"`
+	IsProtected bool   `json:"is_protected" gorm:"not null;default:false"`
+	Deskripsi   string `json:"deskripsi" gorm:"size:255"`
 
-	ApprovalStatus  string     `json:"approval_status" gorm:"size:20;not null;default:'disetujui';index"`
-	DiajukanOleh    *uint      `json:"diajukan_oleh"`
-	DisetujuiOleh   *uint      `json:"disetujui_oleh"`
+	Merek string `json:"merek" gorm:"size:100"`
+	Tipe  string `json:"tipe" gorm:"size:100"`
+
+	IsSerialized bool `json:"is_serialized" gorm:"not null;default:false"`
+
+	ApprovalStatus string `json:"approval_status" gorm:"size:20;not null;default:'disetujui';index"`
+	DiajukanOleh   *uint  `json:"diajukan_oleh"`
+	DisetujuiOleh  *uint  `json:"disetujui_oleh"`
+
+	DidelegasikanKe *uint      `json:"didelegasikan_ke"`
+	Didelegasikan   *User      `json:"didelegasikan,omitempty" gorm:"foreignKey:DidelegasikanKe"`
 	CatatanApproval string     `json:"catatan_approval" gorm:"size:255"`
 	DireviewPada    *time.Time `json:"direview_pada"`
 

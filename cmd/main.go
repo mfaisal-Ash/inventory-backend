@@ -12,7 +12,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	docs.SwaggerInfo.BasePath = "/stockrsd"
+	docs.SwaggerInfo.BasePath = "/wms-rsd"
 	docs.SwaggerInfo.Title = cfg.App.Name
 	docs.SwaggerInfo.Version = appinfo.CurrentVersion
 
@@ -25,9 +25,6 @@ func main() {
 	}
 	if err := config.SeedDefaultPermissions(db); err != nil {
 		log.Fatalf("gagal seed izin default: %v", err)
-	}
-	if err := config.SeedDefaultAssetTypes(db); err != nil {
-		log.Fatalf("gagal seed jenis aset default: %v", err)
 	}
 
 	deps := routes.New(db, cfg)

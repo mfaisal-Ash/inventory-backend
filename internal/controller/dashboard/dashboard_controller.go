@@ -21,21 +21,7 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	}
 
 	totalGudang, _ := h.gudangRepo.CountGudang()
-	totalRak, _ := h.gudangRepo.CountRakAll()
-	rakPenuh, _ := h.gudangRepo.CountRakByStatus("penuh")
-	rakKosong, _ := h.gudangRepo.CountRakByStatus("kosong")
-	res.Gudang = GudangSummary{TotalGudang: totalGudang, TotalRak: totalRak, RakPenuh: rakPenuh, RakKosong: rakKosong}
-
-	totalSupplier, _ := h.supplierRepo.CountAll()
-	supplierAktif, _ := h.supplierRepo.CountActive()
-	res.Supplier = SupplierSummary{TotalSupplier: totalSupplier, SupplierAktif: supplierAktif}
-
-	totalPO, _ := h.poRepo.CountByStatus("")
-	menungguPO, _ := h.poRepo.CountByStatus(constant.StatusPODiajukan)
-	disetujuiPO, _ := h.poRepo.CountByStatus(constant.StatusPODisetujui)
-	res.PurchaseOrder = PurchaseOrderSummary{
-		TotalPO: totalPO, MenungguPersetujuan: menungguPO, Disetujui: disetujuiPO,
-	}
+	res.Gudang = GudangSummary{TotalGudang: totalGudang}
 
 	bmDraft, _ := h.barangMasukRepo.CountByStatus(constant.StatusBMDraft)
 	bmSelesai, _ := h.barangMasukRepo.CountByStatus(constant.StatusBMSelesai)
@@ -49,10 +35,6 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	soSelesai, _ := h.stockOpnameRepo.CountByStatus(constant.StatusSOSelesai)
 	res.StockOpname = DokumenSummary{Draft: soDraft, Selesai: soSelesai}
 
-	pgJalan, _ := h.pengirimanRepo.CountByStatus(constant.StatusPGDalamPerjalanan)
-	pgTerkirim, _ := h.pengirimanRepo.CountByStatus(constant.StatusPGTerkirim)
-	res.Pengiriman = PengirimanSummary{DalamPerjalanan: pgJalan, Terkirim: pgTerkirim}
-
 	return utils.OK(c, "ringkasan dashboard berhasil diambil", res)
 }
 
@@ -64,8 +46,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/activity", view, h.Activity)
 	g.Get("/analisa", view, h.Analisa)
 	g.Get("/notifications", view, h.Notifications)
-	g.Get("/courier-performance", view, h.CourierPerformance)
-	g.Get("/gudang/beban", view, h.GudangBeban)
 
 	lg := router.Group("/laporan", middleware.JWTAuth(h.jwtSvc))
 	lg.Get("/:jenis/preview", view, h.ReportPreview)

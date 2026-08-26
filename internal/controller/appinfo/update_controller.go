@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notification"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/selfupdate"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"

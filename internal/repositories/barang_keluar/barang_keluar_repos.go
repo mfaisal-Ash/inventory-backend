@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	barangSerial "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
@@ -39,7 +41,11 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangKel
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := p.Apply(q.Session(&gorm.Session{}).Preload("Gudang").Order("id desc")).Find(&list).Error; err != nil {
+	if err := p.Apply(q.Session(&gorm.Session{}).
+		Preload("Gudang").Preload("Items").
+		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Order("id desc")).
+		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
 	return list, total, nil
@@ -47,7 +53,9 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangKel
 
 func (r *repository) FindByID(id uint) (*model.BarangKeluar, error) {
 	var bk model.BarangKeluar
-	err := r.db.Preload("Gudang").Preload("Items").Preload("Items.Barang").Preload("Items.Rak").First(&bk, id).Error
+	err := r.db.Preload("Gudang").Preload("Items").
+		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		First(&bk, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +101,7 @@ func (r *repository) Delete(id uint) error {
 	})
 }
 
-func (r *repository) Complete(id uint, userID uint) (*model.BarangKeluar, error) {
+func (r *repository) Complete(id uint, userID uint, serials map[uint][]string) (*model.BarangKeluar, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var bk model.BarangKeluar
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Preload("Items").First(&bk, id).Error; err != nil {
@@ -103,36 +111,45 @@ func (r *repository) Complete(id uint, userID uint) (*model.BarangKeluar, error)
 			return errors.New(constant.ErrBKBukanDraft)
 		}
 
+		barangByID := make(map[uint]model.Barang, len(bk.Items))
 		for _, item := range bk.Items {
 			var b model.Barang
 			if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {
 				return err
 			}
-			if b.Stok < item.Qty {
-				return fmt.Errorf("%s (barang: %s, tersedia: %d, diminta: %d)",
-					constant.ErrBKStokTidakCukup, b.Nama, b.Stok, item.Qty)
+			barangByID[item.BarangID] = b
+
+			stokGudang, err := barangstokgudang.GetStokGudangTx(tx, item.BarangID, bk.GudangID)
+			if err != nil {
+				return err
 			}
-			if item.RakID != nil {
-				var rak model.Rak
-				if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&rak, *item.RakID).Error; err != nil {
-					return err
-				}
-				if rak.Terisi < item.Qty {
-					return fmt.Errorf("%s (rak: %s, terisi: %d, diminta: %d)",
-						constant.ErrBKRakTidakCukup, rak.KodeRak, rak.Terisi, item.Qty)
+			if stokGudang < item.Qty {
+				return fmt.Errorf("%s (barang: %s, tersedia di gudang ini: %d, diminta: %d)",
+					constant.ErrBKStokTidakCukup, b.Nama, stokGudang, item.Qty)
+			}
+
+			if b.IsSerialized {
+				sn := serials[item.ID]
+				if len(sn) != item.Qty {
+					return fmt.Errorf("%s (barang: %s, qty: %d, sn dipilih: %d)",
+						constant.ErrSerialJumlahTidakSesuai, b.Nama, item.Qty, len(sn))
 				}
 			}
 		}
 
 		for _, item := range bk.Items {
+			if barangByID[item.BarangID].IsSerialized {
+				if err := barangSerial.ConsumeUnitsTx(tx, item.BarangID, bk.GudangID, item.ID, serials[item.ID]); err != nil {
+					return err
+				}
+			}
 			if err := tx.Model(&model.Barang{}).Where("id = ?", item.BarangID).
 				Update("stok", gorm.Expr("stok - ?", item.Qty)).Error; err != nil {
 				return err
 			}
-			if item.RakID != nil {
-				if err := adjustRak(tx, *item.RakID, -item.Qty); err != nil {
-					return err
-				}
+
+			if err := barangstokgudang.AdjustStokGudangTx(tx, item.BarangID, bk.GudangID, -item.Qty); err != nil {
+				return err
 			}
 		}
 
@@ -147,19 +164,6 @@ func (r *repository) Complete(id uint, userID uint) (*model.BarangKeluar, error)
 		return nil, err
 	}
 	return r.FindByID(id)
-}
-
-func adjustRak(tx *gorm.DB, rakID uint, delta int) error {
-	var rak model.Rak
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&rak, rakID).Error; err != nil {
-		return err
-	}
-	rak.Terisi += delta
-	if rak.Terisi < 0 {
-		rak.Terisi = 0
-	}
-	rak.RecalculateStatus()
-	return tx.Save(&rak).Error
 }
 
 func (r *repository) Batalkan(id uint) (*model.BarangKeluar, error) {

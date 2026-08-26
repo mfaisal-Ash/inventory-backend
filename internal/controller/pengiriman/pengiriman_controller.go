@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	pgRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengiriman"

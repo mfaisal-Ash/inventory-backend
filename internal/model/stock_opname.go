@@ -24,8 +24,6 @@ type StockOpnameItem struct {
 	StockOpnameID uint    `json:"stock_opname_id" gorm:"not null;index"`
 	BarangID      uint    `json:"barang_id" gorm:"not null;index"`
 	Barang        *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
-	RakID         *uint   `json:"rak_id" gorm:"index"`
-	Rak           *Rak    `json:"rak,omitempty" gorm:"foreignKey:RakID"`
 	StokSistem    int     `json:"stok_sistem" gorm:"not null;default:0"`
 	StokFisik     int     `json:"stok_fisik" gorm:"not null;default:0"`
 	Selisih       int     `json:"selisih" gorm:"not null;default:0"`

@@ -6,7 +6,7 @@ import (
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	bkRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
@@ -26,9 +26,8 @@ func New(repo bkRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gu
 }
 
 type ItemRequest struct {
-	BarangID uint  `json:"barang_id" validate:"required"`
-	RakID    *uint `json:"rak_id"`
-	Qty      int   `json:"qty" validate:"required,min=1"`
+	BarangID uint `json:"barang_id" validate:"required"`
+	Qty      int  `json:"qty" validate:"required,min=1"`
 }
 
 type BKRequest struct {
@@ -42,6 +41,15 @@ type BKRequest struct {
 
 func parseTanggalHarian(raw string) (time.Time, error) {
 	return time.Parse("2006-01-02", raw)
+}
+
+type CompleteBKRequest struct {
+	Items []ItemSerialInput `json:"items"`
+}
+
+type ItemSerialInput struct {
+	BarangKeluarItemID uint     `json:"barang_keluar_item_id" validate:"required"`
+	SerialNumbers      []string `json:"serial_numbers"`
 }
 
 type SummaryResponse struct {

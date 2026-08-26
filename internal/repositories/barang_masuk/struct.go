@@ -2,15 +2,12 @@ package barang_masuk
 
 import (
 	"gorm.io/gorm"
-
-	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
 )
 
 type repository struct {
-	db     *gorm.DB
-	poRepo poRepo.Repository
+	db *gorm.DB
 }
 
-func New(db *gorm.DB, poRepo poRepo.Repository) Repository {
-	return &repository{db: db, poRepo: poRepo}
+func New(db *gorm.DB) Repository {
+	return &repository{db: db}
 }

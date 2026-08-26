@@ -126,11 +126,6 @@ type SwaggerConfig struct {
 	BasicAuthPass string
 }
 
-// SelfUpdateConfig — fitur "Cek Update / Update Sekarang" (Settings >
-// Sistem), lihat docs/self-update-setup.md & internal/controller/appinfo.
-// Enabled=false (default) berarti GET /app/check-update & /app/update-status
-// tetap jalan (murni baca), tapi POST /app/update ditolak — aman dibiarkan
-// false sampai server benar-benar disiapkan sesuai panduan di docs.
 type SelfUpdateConfig struct {
 	Enabled     bool
 	GitHubOwner string
@@ -146,7 +141,7 @@ func Load() *Config {
 
 	cfg := &Config{
 		App: AppConfig{
-			Name:           getEnv("APP_NAME", "WMS-RSD"),
+			Name:           getEnv("APP_NAME", "stockrsd"),
 			Env:            getEnv("APP_ENV", "development"),
 			Host:           getEnv("APP_HOST", ""),
 			Port:           getEnv("APP_PORT", "8080"),
@@ -167,7 +162,7 @@ func Load() *Config {
 			RefreshExpiryDays:   getEnvAsInt("JWT_REFRESH_EXPIRY_DAYS", 7),
 		},
 		TOTP: TOTPConfig{
-			Issuer: getEnv("TOTP_ISSUER", "WMS RSD"),
+			Issuer: getEnv("TOTP_ISSUER", "WMS - RSD"),
 		},
 		CORS: CORSConfig{
 
@@ -194,7 +189,7 @@ func Load() *Config {
 			Driver:      getEnv("WHATSAPP_DRIVER", "gateway"),
 			APIURL:      getEnv("WHATSAPP_API_URL", ""),
 			APIKey:      getEnv("WHATSAPP_API_KEY", ""),
-			Sender:      getEnv("WHATSAPP_SENDER", "wms-RSD"),
+			Sender:      getEnv("WHATSAPP_SENDER", "stockrsd"),
 			SessionPath: getEnv("WHATSMEOW_SESSION_PATH", "./var/whatsmeow-session.db"),
 		},
 		WAOTP: WAOTPConfig{
@@ -204,7 +199,7 @@ func Load() *Config {
 		SMS: SMSConfig{
 			APIURL: getEnv("SMS_API_URL", ""),
 			APIKey: getEnv("SMS_API_KEY", ""),
-			Sender: getEnv("SMS_SENDER", "wms-RSD"),
+			Sender: getEnv("SMS_SENDER", "stockrsd"),
 		},
 		PasswordReset: PasswordResetConfig{
 			Secret:     getEnv("PASSWORD_RESET_SECRET", "change-me-password-reset-secret"),
@@ -221,11 +216,11 @@ func Load() *Config {
 		},
 		SelfUpdate: SelfUpdateConfig{
 			Enabled:     getEnvAsBool("AUTO_UPDATE_ENABLED", false),
-			GitHubOwner: getEnv("AUTO_UPDATE_GITHUB_OWNER", ""),
-			GitHubRepo:  getEnv("AUTO_UPDATE_GITHUB_REPO", ""),
+			GitHubOwner: getEnv("AUTO_UPDATE_GITHUB_OWNER", "projsonal"),
+			GitHubRepo:  getEnv("AUTO_UPDATE_GITHUB_REPO", "gowms"),
 			ScriptPath:  getEnv("AUTO_UPDATE_SCRIPT_PATH", "./deploy/scripts/self-update.sh"),
 			WorkDir:     getEnv("AUTO_UPDATE_WORKDIR", "."),
-			ServiceName: getEnv("AUTO_UPDATE_SERVICE_NAME", ""),
+			ServiceName: getEnv("AUTO_UPDATE_SERVICE_NAME", "gowms-backend"),
 			StatusPath:  getEnv("AUTO_UPDATE_STATUS_PATH", "./var/run/self-update-status.json"),
 		},
 	}

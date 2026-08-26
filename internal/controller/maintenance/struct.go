@@ -4,7 +4,7 @@ import (
 	"time"
 
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 

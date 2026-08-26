@@ -6,45 +6,38 @@ import (
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	bmRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
-	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
-	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 type Controller struct {
-	repo         bmRepo.Repository
-	barangRepo   barangRepo.Repository
-	gudangRepo   gudangRepo.Repository
-	poRepo       poRepo.Repository
-	supplierRepo supplierRepo.Repository
-	roleRepo     role.Repository
-	jwtSvc       *utils.JWTService
-	notifRepo    notificationRepo.Repository
+	repo       bmRepo.Repository
+	barangRepo barangRepo.Repository
+	gudangRepo gudangRepo.Repository
+	roleRepo   role.Repository
+	jwtSvc     *utils.JWTService
+	notifRepo  notificationRepo.Repository
 }
 
 func New(repo bmRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gudangRepo.Repository,
-	poRepo poRepo.Repository, supplierRepo supplierRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService,
+	roleRepo role.Repository, jwtSvc *utils.JWTService,
 	notifRepo notificationRepo.Repository) *Controller {
 	return &Controller{
 		repo: repo, barangRepo: barangRepo, gudangRepo: gudangRepo,
-		poRepo: poRepo, supplierRepo: supplierRepo, roleRepo: roleRepo, jwtSvc: jwtSvc,
+		roleRepo: roleRepo, jwtSvc: jwtSvc,
 		notifRepo: notifRepo,
 	}
 }
 
 type ItemRequest struct {
 	BarangID    uint  `json:"barang_id" validate:"required"`
-	RakID       *uint `json:"rak_id"`
 	Qty         int   `json:"qty" validate:"required,min=1"`
 	HargaSatuan int64 `json:"harga_satuan" validate:"min=0"`
 }
 
 type BMRequest struct {
-	PurchaseOrderID *uint `json:"purchase_order_id"`
-	SupplierID      *uint `json:"supplier_id"`
-	GudangID        uint  `json:"gudang_id" validate:"required"`
+	GudangID uint `json:"gudang_id" validate:"required"`
 
 	Tanggal string        `json:"tanggal" validate:"required"`
 	Catatan string        `json:"catatan" validate:"max=255"`
@@ -53,6 +46,15 @@ type BMRequest struct {
 
 func parseTanggalHarian(raw string) (time.Time, error) {
 	return time.Parse("2006-01-02", raw)
+}
+
+type CompleteBMRequest struct {
+	Items []ItemSerialInput `json:"items"`
+}
+
+type ItemSerialInput struct {
+	BarangMasukItemID uint     `json:"barang_masuk_item_id" validate:"required"`
+	SerialNumbers     []string `json:"serial_numbers"`
 }
 
 type SummaryResponse struct {

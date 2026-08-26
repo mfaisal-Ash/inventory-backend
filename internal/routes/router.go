@@ -15,14 +15,12 @@ import (
 
 func SetupRouter(deps *Dependencies) *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName:      deps.Cfg.App.Name,
-		ErrorHandler: globalErrorHandler,
-
-		BodyLimit:    4 * 1024 * 1024,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-
+		AppName:                 deps.Cfg.App.Name,
+		ErrorHandler:            globalErrorHandler,
+		BodyLimit:               4 * 1024 * 1024,
+		ReadTimeout:             15 * time.Second,
+		WriteTimeout:            15 * time.Second,
+		IdleTimeout:             60 * time.Second,
 		EnableTrustedProxyCheck: true,
 		TrustedProxies:          deps.Cfg.App.TrustedProxies,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
@@ -54,7 +52,6 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	deps.HumanCheckController.RegisterRoutes(api)
 	deps.SecurityController.RegisterRoutes(api)
 	deps.AppInfoController.RegisterRoutes(api)
-	deps.AssetTypeController.RegisterRoutes(api)
 	deps.TrashController.RegisterRoutes(api)
 	deps.NotificationController.RegisterRoutes(api)
 
@@ -79,13 +76,10 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	operationalRegistrars := []controller.RouteRegistrar{
 		deps.GudangController,
 		deps.BarangController,
-		deps.SupplierController,
-		deps.PurchaseOrderController,
 		deps.BarangMasukController,
 		deps.BarangKeluarController,
+		deps.BarangSerialController,
 		deps.StockOpnameController,
-		deps.PengirimanController,
-		deps.CodController,
 		deps.AssetController,
 		deps.BarangRusakController,
 		deps.TaskController,

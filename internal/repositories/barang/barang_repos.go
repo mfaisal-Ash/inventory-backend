@@ -1,9 +1,13 @@
 package barang
 
 import (
+	"strconv"
+	"strings"
+
 	"gorm.io/gorm"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -41,7 +45,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.Barang, i
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := p.Apply(q.Session(&gorm.Session{}).Preload("Kategori").Preload("Satuan").Order("nama asc")).Find(&list).Error; err != nil {
+	if err := p.Apply(q.Session(&gorm.Session{}).Preload("Kategori").Preload("Satuan").Preload("Didelegasikan").Order("nama asc")).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
 	return list, total, nil
@@ -49,7 +53,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.Barang, i
 
 func (r *repository) FindByID(id uint) (*model.Barang, error) {
 	var b model.Barang
-	if err := r.db.Preload("Kategori").Preload("Satuan").First(&b, id).Error; err != nil {
+	if err := r.db.Preload("Kategori").Preload("Satuan").Preload("Didelegasikan").First(&b, id).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -69,6 +73,12 @@ func (r *repository) Create(b *model.Barang) error {
 
 func (r *repository) Update(b *model.Barang) error {
 	return r.db.Save(b).Error
+}
+
+func (r *repository) SetStokGudangAwal(barangID, gudangID uint, stok int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return barangstokgudang.SetStokGudangTx(tx, barangID, gudangID, stok)
+	})
 }
 
 func (r *repository) Delete(id uint) error {
@@ -91,6 +101,36 @@ func (r *repository) AdjustStok(id uint, delta int) (*model.Barang, error) {
 		return nil, err
 	}
 	return &b, nil
+}
+
+func (r *repository) NextSKUNumber(prefix string) (int, error) {
+	var codes []string
+	err := r.db.Unscoped().Model(&model.Barang{}).
+		Where("kode_barang LIKE ?", prefix+"-%").
+		Pluck("kode_barang", &codes).Error
+	if err != nil {
+		return 0, err
+	}
+	return maxSuffixNumber(codes, prefix+"-") + 1, nil
+}
+
+func maxSuffixNumber(values []string, sep string) int {
+	max := 0
+	for _, v := range values {
+		idx := strings.LastIndex(v, sep)
+		if idx == -1 {
+			continue
+		}
+		suffix := v[idx+len(sep):]
+		n, err := strconv.Atoi(suffix)
+		if err != nil {
+			continue
+		}
+		if n > max {
+			max = n
+		}
+	}
+	return max
 }
 
 func (r *repository) CountAll() (int64, error) {

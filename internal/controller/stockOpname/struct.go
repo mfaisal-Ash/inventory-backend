@@ -5,7 +5,7 @@ import (
 
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	soRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -27,7 +27,6 @@ func New(repo soRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gu
 
 type ItemRequest struct {
 	BarangID  uint   `json:"barang_id" validate:"required"`
-	RakID     *uint  `json:"rak_id"`
 	StokFisik int    `json:"stok_fisik" validate:"min=0"`
 	Catatan   string `json:"catatan" validate:"max=255"`
 }

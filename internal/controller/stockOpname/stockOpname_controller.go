@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	soRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
@@ -35,11 +35,6 @@ func (h *Controller) validateItems(items []ItemRequest) error {
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
 			return fmt.Errorf("barang id %d tidak ditemukan", it.BarangID)
 		}
-		if it.RakID != nil {
-			if _, err := h.gudangRepo.FindRakByID(*it.RakID); err != nil {
-				return fmt.Errorf("rak id %d tidak ditemukan", *it.RakID)
-			}
-		}
 	}
 	return nil
 }
@@ -48,7 +43,7 @@ func toItemInputs(items []ItemRequest) []soRepo.ItemInput {
 	out := make([]soRepo.ItemInput, 0, len(items))
 	for _, it := range items {
 		out = append(out, soRepo.ItemInput{
-			BarangID: it.BarangID, RakID: it.RakID, StokFisik: it.StokFisik, Catatan: it.Catatan,
+			BarangID: it.BarangID, StokFisik: it.StokFisik, Catatan: it.Catatan,
 		})
 	}
 	return out

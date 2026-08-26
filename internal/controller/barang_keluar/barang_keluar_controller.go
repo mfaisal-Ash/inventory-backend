@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	bkRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
@@ -37,11 +37,6 @@ func (h *Controller) validateItems(items []ItemRequest) error {
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
 			return fmt.Errorf("barang id %d tidak ditemukan", it.BarangID)
 		}
-		if it.RakID != nil {
-			if _, err := h.gudangRepo.FindRakByID(*it.RakID); err != nil {
-				return fmt.Errorf("rak id %d tidak ditemukan", *it.RakID)
-			}
-		}
 	}
 	return nil
 }
@@ -49,7 +44,7 @@ func (h *Controller) validateItems(items []ItemRequest) error {
 func toItemModels(items []ItemRequest) []model.BarangKeluarItem {
 	out := make([]model.BarangKeluarItem, 0, len(items))
 	for _, it := range items {
-		out = append(out, model.BarangKeluarItem{BarangID: it.BarangID, RakID: it.RakID, Qty: it.Qty})
+		out = append(out, model.BarangKeluarItem{BarangID: it.BarangID, Qty: it.Qty})
 	}
 	return out
 }
@@ -128,7 +123,7 @@ func (h *Controller) requireDraft(id uint) (*model.BarangKeluar, error) {
 func (h *Controller) Update(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
 	bk, err := h.requireDraft(id)
 	if err != nil {
@@ -163,7 +158,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
 	if _, err := h.requireDraft(id); err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
@@ -177,11 +172,18 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 func (h *Controller) Complete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
 
-	bk, err := h.repo.Complete(id, userID)
+	var req CompleteBKRequest
+	_ = c.BodyParser(&req)
+	serials := make(map[uint][]string, len(req.Items))
+	for _, it := range req.Items {
+		serials[it.BarangKeluarItemID] = it.SerialNumbers
+	}
+
+	bk, err := h.repo.Complete(id, userID, serials)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}
@@ -209,7 +211,7 @@ func (h *Controller) notifyLowStock(items []model.BarangKeluarItem) {
 func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
 	bk, err := h.repo.Batalkan(id)
 	if err != nil {

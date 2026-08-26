@@ -1,6 +1,8 @@
 package supplier
 
 import (
+	"strings"
+
 	"gorm.io/gorm"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
@@ -59,6 +61,21 @@ func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.Supplier{}, id).Error
 }
 
+func (r *repository) InUse(id uint) (bool, error) {
+	var poCount int64
+	if err := r.db.Model(&model.PurchaseOrder{}).Where("supplier_id = ?", id).Count(&poCount).Error; err != nil {
+		return false, err
+	}
+	if poCount > 0 {
+		return true, nil
+	}
+	var bmCount int64
+	if err := r.db.Model(&model.BarangMasuk{}).Where("supplier_id = ?", id).Count(&bmCount).Error; err != nil {
+		return false, err
+	}
+	return bmCount > 0, nil
+}
+
 func (r *repository) CountAll() (int64, error) {
 	var count int64
 	err := r.db.Model(&model.Supplier{}).Count(&count).Error
@@ -75,15 +92,20 @@ func (r *repository) KurirStats(kurirNames []string) (int64, int64, error) {
 	if len(kurirNames) == 0 {
 		return 0, 0, nil
 	}
+
+	lowerNames := make([]string, len(kurirNames))
+	for i, n := range kurirNames {
+		lowerNames[i] = strings.ToLower(strings.TrimSpace(n))
+	}
 	var totalOrder int64
 	if err := r.db.Model(&model.Pengiriman{}).
-		Where("nama_kurir IN ? AND status NOT IN ?", kurirNames, []string{"draft", "dibatalkan"}).
+		Where("LOWER(nama_kurir) IN ? AND status NOT IN ?", lowerNames, []string{"draft", "dibatalkan"}).
 		Count(&totalOrder).Error; err != nil {
 		return 0, 0, err
 	}
 	var terkirim int64
 	if err := r.db.Model(&model.Pengiriman{}).
-		Where("nama_kurir IN ? AND status = ?", kurirNames, "terkirim").
+		Where("LOWER(nama_kurir) IN ? AND status = ?", lowerNames, "terkirim").
 		Count(&terkirim).Error; err != nil {
 		return 0, 0, err
 	}

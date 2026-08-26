@@ -27,7 +27,7 @@ func BotCheck(svc *botcheck.Service) fiber.Handler {
 		token := c.Get(BotTokenHeader)
 		if token == "" || !svc.Verify(token) {
 			return utils.Fail(c, fiber.StatusPreconditionRequired,
-				"verifikasi bukanbot diperlukan (sesi baru atau idle terlalu lama), selesaikan captcha lewat /security/challenge", nil)
+				"verifikasi bukan-bot diperlukan (sesi baru atau idle terlalu lama), selesaikan captcha lewat /security/challenge", nil)
 		}
 
 		fresh, err := svc.Issue()

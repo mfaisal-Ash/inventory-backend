@@ -17,10 +17,6 @@ const (
 	geoPath               = "/json/"
 	geoFields             = "status,city,country,timezone"
 	statusSuccess         = "success"
-
-	fallbackCity     = "Bandung"
-	fallbackCountry  = "Indonesia"
-	fallbackTimezone = "Asia/Jakarta"
 )
 
 type Resolver interface {
@@ -30,7 +26,7 @@ type Resolver interface {
 type NoopResolver struct{}
 
 func (NoopResolver) Lookup(context.Context, string) (string, error) {
-	return formatLocation(fallbackCity, fallbackCountry, fallbackTimezone), nil
+	return unknownLocation, nil
 }
 
 type httpResolver struct {
@@ -58,7 +54,7 @@ type ipAPIResponse struct {
 
 func (r *httpResolver) Lookup(ctx context.Context, ip string) (string, error) {
 	if !isPublicIP(ip) {
-		return formatLocation(fallbackCity, fallbackCountry, fallbackTimezone), nil
+		return unknownLocation, nil
 	}
 
 	requestURL := r.buildURL(ip)

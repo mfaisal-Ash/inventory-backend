@@ -42,24 +42,3 @@ type GudangRequest struct {
 type ProtectRequest struct {
 	IsProtected *bool `json:"is_protected" validate:"required"`
 }
-
-type RakRequest struct {
-	KodeRak   string `json:"kode_rak" validate:"required,max=20"`
-	GudangID  uint   `json:"gudang_id" validate:"required"`
-	Kapasitas int    `json:"kapasitas" validate:"required,min=1"`
-}
-
-type UpdateRakRequest struct {
-	Kapasitas *int `json:"kapasitas" validate:"omitempty,min=1"`
-}
-
-type AdjustRakRequest struct {
-	Delta int `json:"delta" validate:"required"`
-}
-
-type RakSummaryResponse struct {
-	TotalGudang    int64 `json:"total_gudang"`
-	TotalRak       int64 `json:"total_rak"`
-	RakTerisiPenuh int64 `json:"rak_terisi_penuh"`
-	RakKosong      int64 `json:"rak_kosong"`
-}

@@ -19,8 +19,6 @@ type MapRow struct {
 	Latitude        float64
 	Longitude       float64
 	Status          string
-	IPAddress       string
-	PingStatus      string
 	GudangID        uint
 	GudangNama      string
 	GudangKode      string
@@ -32,6 +30,11 @@ type MapRow struct {
 	ParentLongitude *float64
 	JumlahPort      int
 	PortTerisi      int64
+
+	Merek string
+	Tipe  string
+
+	KodeBarang string
 }
 
 type Repository interface {

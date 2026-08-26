@@ -20,7 +20,7 @@ type Repository interface {
 	Update(bk *model.BarangKeluar, items []model.BarangKeluarItem) error
 	Delete(id uint) error
 
-	Complete(id uint, userID uint) (*model.BarangKeluar, error)
+	Complete(id uint, userID uint, serials map[uint][]string) (*model.BarangKeluar, error)
 	Batalkan(id uint) (*model.BarangKeluar, error)
 
 	CountByStatus(status string) (int64, error)

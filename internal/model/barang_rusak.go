@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -14,9 +16,12 @@ type BarangRusak struct {
 
 	LabelBarang string `json:"label_barang" gorm:"size:60;not null;index"`
 	NamaBarang  string `json:"nama_barang" gorm:"size:150;not null"`
-	Keterangan  string `json:"keterangan" gorm:"size:500"`
 
-	FotoURL string `json:"foto_url" gorm:"size:255"`
+	SerialNumber string `json:"serial_number" gorm:"size:100"`
+	Keterangan   string `json:"keterangan" gorm:"size:500"`
+
+	FotoData        []byte `json:"-" gorm:"type:bytea"`
+	FotoContentType string `json:"-" gorm:"size:100"`
 
 	JenisBarang string `json:"jenis_barang" gorm:"size:10"`
 
@@ -35,3 +40,21 @@ type BarangRusak struct {
 }
 
 func (BarangRusak) TableName() string { return "barang_rusak" }
+
+func (b BarangRusak) FotoURL() string {
+	if len(b.FotoData) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("/barang-rusak/%d/foto?v=%d", b.ID, b.UpdatedAt.Unix())
+}
+
+func (b BarangRusak) MarshalJSON() ([]byte, error) {
+	type Alias BarangRusak
+	return json.Marshal(struct {
+		Alias
+		FotoURL string `json:"foto_url"`
+	}{
+		Alias:   Alias(b),
+		FotoURL: b.FotoURL(),
+	})
+}

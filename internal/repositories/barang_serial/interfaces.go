@@ -9,6 +9,9 @@ type Filter struct {
 	BarangID uint
 	GudangID uint
 	Status   string
+
+	BarangMasukItemID  uint
+	BarangKeluarItemID uint
 }
 
 type Repository interface {
@@ -18,7 +21,7 @@ type Repository interface {
 	FindBySerial(serial string) (*model.BarangSerial, error)
 	CountByBarang(barangID uint) (tersedia int64, terpasang int64, rusak int64, err error)
 
-	Create(barangID, gudangID uint, rakID *uint, serialNumber, catatan string) (*model.BarangSerial, error)
+	Create(barangID, gudangID uint, serialNumber, catatan string) (*model.BarangSerial, error)
 
 	RiwayatDokumen(s *model.BarangSerial) (nomorMasuk string, nomorKeluar string, err error)
 

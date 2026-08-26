@@ -1,9 +1,13 @@
 package barang
 
 import (
+	"gorm.io/gorm"
+
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
+	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -11,11 +15,15 @@ type Controller struct {
 	repo       barangRepo.Repository
 	gudangRepo gudangRepo.Repository
 	roleRepo   role.Repository
+	usersRepo  usersRepo.Repository
 	jwtSvc     *utils.JWTService
+
+	db        *gorm.DB
+	notifRepo notificationRepo.Repository
 }
 
-func New(repo barangRepo.Repository, gudangRepo gudangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService) *Controller {
-	return &Controller{repo: repo, gudangRepo: gudangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc}
+func New(repo barangRepo.Repository, gudangRepo gudangRepo.Repository, roleRepo role.Repository, usersRepo usersRepo.Repository, jwtSvc *utils.JWTService, db *gorm.DB, notifRepo notificationRepo.Repository) *Controller {
+	return &Controller{repo: repo, gudangRepo: gudangRepo, roleRepo: roleRepo, usersRepo: usersRepo, jwtSvc: jwtSvc, db: db, notifRepo: notifRepo}
 }
 
 type BarangRequest struct {
@@ -25,11 +33,17 @@ type BarangRequest struct {
 	SatuanID   uint   `json:"satuan_id" validate:"required"`
 	HargaBeli  int64  `json:"harga_beli" validate:"min=0"`
 
-	Stok        int `json:"stok" validate:"min=0"`
-	StokMinimum int `json:"stok_minimum" validate:"min=0"`
+	Stok int `json:"stok" validate:"min=0"`
 
-	BeratGram *int   `json:"berat_gram" validate:"omitempty,min=0"`
-	Deskripsi string `json:"deskripsi" validate:"max=255"`
+	StokGudangID uint `json:"stok_gudang_id"`
+	StokMinimum  int  `json:"stok_minimum" validate:"min=0"`
+
+	BeratGram *int `json:"berat_gram" validate:"omitempty,min=0"`
+
+	IsSerialized bool   `json:"is_serialized"`
+	Merek        string `json:"merek" validate:"max=100"`
+	Tipe         string `json:"tipe" validate:"max=100"`
+	Deskripsi    string `json:"deskripsi" validate:"max=255"`
 }
 
 type AdjustStokRequest struct {
@@ -48,8 +62,29 @@ type RejectRequest struct {
 	Catatan string `json:"catatan" validate:"required,min=3"`
 }
 
+type DelegasiRequest struct {
+	UserID uint `json:"user_id" validate:"required"`
+}
+
 type SummaryResponse struct {
 	TotalBarang          int64 `json:"total_barang"`
 	StokMenipis          int64 `json:"stok_menipis"`
 	TotalNilaiInventaris int64 `json:"total_nilai_inventaris"`
+}
+
+type RingkasanStokRow struct {
+	BarangID   uint   `json:"barang_id"`
+	KodeBarang string `json:"kode_barang"`
+	NamaBarang string `json:"nama_barang"`
+	GudangID   uint   `json:"gudang_id"`
+	NamaGudang string `json:"nama_gudang"`
+	Stok       int    `json:"stok"`
+}
+
+type NextSKUResponse struct {
+	SKU string `json:"sku"`
+}
+
+type CheckSKUResponse struct {
+	Available bool `json:"available"`
 }

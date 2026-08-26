@@ -185,6 +185,15 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusForbidden,
 			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dihapus", nil)
 	}
+
+	inUse, err := h.repo.InUse(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memeriksa riwayat transaksi supplier", nil)
+	}
+	if inUse {
+		return utils.Fail(c, fiber.StatusConflict,
+			"supplier ini masih punya riwayat Purchase Order/Barang Masuk — tidak bisa dihapus. Nonaktifkan supplier ini saja bila sudah tidak dipakai.", nil)
+	}
 	if err := h.repo.Delete(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus supplier", nil)
 	}

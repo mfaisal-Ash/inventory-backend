@@ -3,7 +3,7 @@ package purchase_order
 import (
 	"time"
 
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
 	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"

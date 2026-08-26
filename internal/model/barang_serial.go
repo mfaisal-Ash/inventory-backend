@@ -17,8 +17,6 @@ type BarangSerial struct {
 
 	GudangID *uint   `json:"gudang_id" gorm:"index"`
 	Gudang   *Gudang `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
-	RakID    *uint   `json:"rak_id" gorm:"index"`
-	Rak      *Rak    `json:"rak,omitempty" gorm:"foreignKey:RakID"`
 
 	BarangMasukItemID  *uint             `json:"barang_masuk_item_id" gorm:"index"`
 	BarangMasukItem    *BarangMasukItem  `json:"barang_masuk_item,omitempty" gorm:"foreignKey:BarangMasukItemID"`

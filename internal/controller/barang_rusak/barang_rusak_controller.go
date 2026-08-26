@@ -1,8 +1,7 @@
 package barang_rusak
 
 import (
-	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notification"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
@@ -75,6 +74,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		BarangID:       req.BarangID,
 		LabelBarang:    req.LabelBarang,
 		NamaBarang:     req.NamaBarang,
+		SerialNumber:   req.SerialNumber,
 		Keterangan:     req.Keterangan,
 		Status:         constant.StatusPengecekan,
 		DilaporkanOleh: userID,
@@ -119,6 +119,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	b.BarangID = req.BarangID
 	b.LabelBarang = req.LabelBarang
 	b.NamaBarang = req.NamaBarang
+	b.SerialNumber = req.SerialNumber
 	b.Keterangan = req.Keterangan
 	if err := h.repo.Update(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui laporan barang rusak", nil)
@@ -198,24 +199,49 @@ func (h *Controller) UploadFoto(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "ukuran file maksimal 2MB", nil)
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+	var contentType string
+	switch ext {
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	default:
 		return utils.Fail(c, fiber.StatusBadRequest, "format file harus jpg, jpeg, atau png", nil)
 	}
 
-	fotoDir := filepath.Join(h.storagePath, "barang-rusak")
-	if err := os.MkdirAll(fotoDir, 0o755); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyiapkan folder upload", nil)
+	opened, err := file.Open()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membaca file foto", nil)
 	}
-	filename := fmt.Sprintf("barang-rusak-%d-%d%s", b.ID, time.Now().UnixNano(), ext)
-	if err := c.SaveFile(file, filepath.Join(fotoDir, filename)); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan file", nil)
+	defer opened.Close()
+	data, err := io.ReadAll(opened)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membaca file foto", nil)
 	}
 
-	b.FotoURL = "/uploads/barang-rusak/" + filename
+	b.FotoData = data
+	b.FotoContentType = contentType
 	if err := h.repo.Update(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan foto bukti", nil)
 	}
 	return utils.OK(c, "foto bukti berhasil diunggah", b)
+}
+
+func (h *Controller) ServeFoto(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	b, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "data barang rusak tidak ditemukan", nil)
+	}
+	if len(b.FotoData) == 0 {
+		return utils.Fail(c, fiber.StatusNotFound, "belum ada foto bukti yang diunggah", nil)
+	}
+	c.Set("Content-Type", b.FotoContentType)
+	c.Set("Cache-Control", "private, max-age=86400")
+	return c.Send(b.FotoData)
 }
 
 func (h *Controller) RegisterRoutes(router fiber.Router) {
@@ -232,6 +258,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Post("/", tambah, h.Create)
 	g.Put("/:id", edit, h.Update)
 	g.Post("/:id/foto", edit, h.UploadFoto)
+	g.Get("/:id/foto", view, h.ServeFoto)
 	g.Patch("/:id/inspeksi", edit, onlyStaff, h.Inspeksi)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 }

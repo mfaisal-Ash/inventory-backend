@@ -294,14 +294,6 @@ func (h *Controller) DeleteGudang(c *fiber.Ctx) error {
 			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dihapus", nil)
 	}
 
-	rakCount, err := h.repo.CountRakByGudang(id)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memeriksa rak terkait", nil)
-	}
-	if rakCount > 0 {
-		return utils.Fail(c, fiber.StatusConflict, "gudang masih memiliki rak terdaftar, pindahkan atau hapus rak tersebut terlebih dahulu", nil)
-	}
-
 	if err := h.repo.DeleteGudang(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus gudang", nil)
 	}
@@ -331,150 +323,6 @@ func (h *Controller) ProtectGudang(c *fiber.Ctx) error {
 	return utils.OK(c, "status proteksi berhasil diubah", g)
 }
 
-func (h *Controller) ListRak(c *fiber.Ctx) error {
-	p := utils.PaginationFromContext(c)
-	gudangID, err := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "gudang_id tidak valid", nil)
-	}
-
-	list, total, err := h.repo.ListRak(p, uint(gudangID))
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar rak", nil)
-	}
-	return utils.OKWithMeta(c, "daftar rak berhasil diambil", list, utils.BuildPaginationMeta(p, total))
-}
-
-func (h *Controller) DetailRak(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id rak tidak valid", nil)
-	}
-	rak, err := h.repo.FindRakByID(id)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "rak tidak ditemukan", nil)
-	}
-	return utils.OK(c, "detail rak berhasil diambil", rak)
-}
-
-func (h *Controller) CreateRak(c *fiber.Ctx) error {
-	var req RakRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "payload tidak valid", nil)
-	}
-	if errs := utils.Validate(req); errs != nil {
-		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
-	}
-
-	if _, err := h.repo.FindRakByKode(req.KodeRak); err == nil {
-		return utils.Fail(c, fiber.StatusConflict, "kode rak sudah digunakan", nil)
-	}
-	if _, err := h.repo.FindGudangByID(req.GudangID); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "gudang tidak ditemukan", nil)
-	}
-
-	rak := &model.Rak{KodeRak: req.KodeRak, GudangID: req.GudangID, Kapasitas: req.Kapasitas, Status: "kosong"}
-	if err := h.repo.CreateRak(rak); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat rak", nil)
-	}
-	return utils.Created(c, "rak berhasil dibuat", rak)
-}
-
-func (h *Controller) UpdateRak(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id rak tidak valid", nil)
-	}
-	rak, err := h.repo.FindRakByID(id)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "rak tidak ditemukan", nil)
-	}
-
-	var req UpdateRakRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "payload tidak valid", nil)
-	}
-	if errs := utils.Validate(req); errs != nil {
-		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
-	}
-
-	if req.Kapasitas != nil {
-		if *req.Kapasitas < rak.Terisi {
-			return utils.Fail(c, fiber.StatusUnprocessableEntity,
-				"kapasitas baru tidak boleh lebih kecil dari jumlah unit yang sudah terisi ("+strconv.Itoa(rak.Terisi)+")", nil)
-		}
-		rak.Kapasitas = *req.Kapasitas
-		rak.RecalculateStatus()
-	}
-	if err := h.repo.UpdateRak(rak); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui rak", nil)
-	}
-	return utils.OK(c, "rak berhasil diperbarui", rak)
-}
-
-func (h *Controller) DeleteRak(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id rak tidak valid", nil)
-	}
-	rak, err := h.repo.FindRakByID(id)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "rak tidak ditemukan", nil)
-	}
-	if rak.Terisi > 0 {
-		return utils.Fail(c, fiber.StatusConflict, "rak masih menyimpan unit barang, kosongkan rak terlebih dahulu", nil)
-	}
-
-	if err := h.repo.DeleteRak(id); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus rak", nil)
-	}
-	return utils.OK(c, "rak berhasil dihapus", nil)
-}
-
-func (h *Controller) AdjustRak(c *fiber.Ctx) error {
-	id, err := parseIDParam(c)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "id rak tidak valid", nil)
-	}
-
-	var req AdjustRakRequest
-	if err := c.BodyParser(&req); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "payload tidak valid", nil)
-	}
-	if errs := utils.Validate(req); errs != nil {
-		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
-	}
-
-	rak, err := h.repo.AdjustRakTerisi(id, req.Delta)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui kapasitas terisi rak", nil)
-	}
-	return utils.OK(c, "kapasitas terisi rak berhasil diperbarui", rak)
-}
-
-func (h *Controller) Summary(c *fiber.Ctx) error {
-	totalGudang, err := h.repo.CountGudang()
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan", nil)
-	}
-	totalRak, err := h.repo.CountRakAll()
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan", nil)
-	}
-	penuh, err := h.repo.CountRakByStatus("penuh")
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan", nil)
-	}
-	kosong, err := h.repo.CountRakByStatus("kosong")
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan", nil)
-	}
-
-	return utils.OK(c, "ringkasan rak berhasil diambil", RakSummaryResponse{
-		TotalGudang: totalGudang, TotalRak: totalRak, RakTerisiPenuh: penuh, RakKosong: kosong,
-	})
-}
-
 func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/gudang", middleware.JWTAuth(h.jwtSvc))
 
@@ -500,12 +348,4 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Put("/:id", edit, h.UpdateGudang)
 	g.Delete("/:id", onlyStaff, edit, h.DeleteGudang)
 	g.Patch("/:id/protect", onlySuperAdmin, h.ProtectGudang)
-
-	g.Get("/rak/summary", view, h.Summary)
-	g.Get("/rak", view, h.ListRak)
-	g.Get("/rak/:id", view, h.DetailRak)
-	g.Post("/rak", tambah, h.CreateRak)
-	g.Put("/rak/:id", edit, h.UpdateRak)
-	g.Delete("/rak/:id", onlyStaff, edit, h.DeleteRak)
-	g.Patch("/rak/:id/adjust", edit, h.AdjustRak)
 }

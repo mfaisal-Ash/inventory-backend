@@ -28,16 +28,4 @@ type Repository interface {
 	UpdateGudang(g *model.Gudang) error
 	DeleteGudang(id uint) error
 	CountGudang() (int64, error)
-
-	ListRak(p utils.PaginationParams, gudangID uint) ([]model.Rak, int64, error)
-	FindRakByID(id uint) (*model.Rak, error)
-	FindRakByKode(kode string) (*model.Rak, error)
-	CreateRak(r *model.Rak) error
-	UpdateRak(r *model.Rak) error
-	DeleteRak(id uint) error
-	CountRakAll() (int64, error)
-	CountRakByStatus(status string) (int64, error)
-	CountRakByGudang(gudangID uint) (int64, error)
-
-	AdjustRakTerisi(rakID uint, delta int) (*model.Rak, error)
 }
