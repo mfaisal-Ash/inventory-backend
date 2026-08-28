@@ -1,4 +1,4 @@
-package notification
+package notifikasi
 
 import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"

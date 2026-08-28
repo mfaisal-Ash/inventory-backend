@@ -2,7 +2,7 @@ package appinfo
 
 import (
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/config"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )

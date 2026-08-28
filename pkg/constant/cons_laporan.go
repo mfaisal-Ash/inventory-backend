@@ -8,6 +8,7 @@ const (
 	LaporanStokOpname   = "Stock Opname"
 
 	LaporanBarangRetur = "Barang Retur"
+	LaporanBarangRusak = "Barang Rusak"
 )
 
 const (

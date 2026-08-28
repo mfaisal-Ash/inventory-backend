@@ -5,7 +5,7 @@ import (
 
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"

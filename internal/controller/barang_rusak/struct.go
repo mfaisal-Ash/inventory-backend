@@ -1,7 +1,7 @@
 package barang_rusak
 
 import (
-	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notification"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"

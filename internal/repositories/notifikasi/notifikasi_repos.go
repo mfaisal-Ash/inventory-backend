@@ -1,4 +1,4 @@
-package notification
+package notifikasi
 
 import (
 	"gorm.io/gorm"

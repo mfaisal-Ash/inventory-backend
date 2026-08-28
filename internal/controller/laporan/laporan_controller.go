@@ -288,6 +288,56 @@ var reportTitles = map[string]string{
 	constant.LaporanBarangKeluar: "Laporan Barang Keluar",
 	constant.LaporanStokOpname:   "Laporan Stock Opname",
 	constant.LaporanBarangRetur:  "Laporan Barang Retur",
+	constant.LaporanBarangRusak:  "Laporan Barang Rusak",
+}
+
+var barangRusakStatusLabel = map[string]string{
+	constant.StatusBarangRusakPengecekan: "Menunggu Pengecekan",
+	constant.StatusBarangRusakDiperbaiki: "Bisa Diperbaiki",
+	constant.StatusRetur:                 "Retur",
+	constant.StatusBarangRusakDibuang:    "Dibuang/Rusak",
+}
+
+// buildBarangRusak — laporan SELURUH laporan barang rusak (semua status:
+// menunggu pengecekan, bisa diperbaiki, retur, dibuang), berbeda dari
+// buildBarangRetur yang cuma mengambil status "retur" saja.
+func (h *Controller) buildBarangRusak(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
+	list, _, err := h.barangRusakRepo.List(bigPagination(), barangRusakRepoPkg.Filter{})
+	if err != nil {
+		return nil, nil, err
+	}
+	headers = []string{"Label/Kode Barang", "Kode Barang (SKU)", "Nama Barang", "Merek", "Tipe", "Serial Number", "Keterangan", "Status", "Dilaporkan Oleh", "Diperiksa Oleh", "Tanggal Diperiksa"}
+	for _, b := range list {
+		refDate := b.DicekPada
+		if refDate == nil {
+			refDate = &b.CreatedAt
+		}
+		if !inRange(*refDate, dari, sampai) {
+			continue
+		}
+		pelapor, pemeriksa, tanggal := "-", "-", "-"
+		if b.Pelapor != nil {
+			pelapor = b.Pelapor.FullName
+		}
+		if b.Pemeriksa != nil {
+			pemeriksa = b.Pemeriksa.FullName
+		}
+		if b.DicekPada != nil {
+			tanggal = b.DicekPada.Format(dateFormat)
+		}
+		kodeBarang, merek, tipe := "-", "-", "-"
+		if b.Barang != nil {
+			kodeBarang, merek, tipe = b.Barang.KodeBarang, orDash(b.Barang.Merek), orDash(b.Barang.Tipe)
+		}
+		status := b.Status
+		if label, ok := barangRusakStatusLabel[b.Status]; ok {
+			status = label
+		}
+		rows = append(rows, []string{
+			b.LabelBarang, kodeBarang, b.NamaBarang, merek, tipe, orDash(b.SerialNumber), orDash(b.Keterangan), status, pelapor, pemeriksa, tanggal,
+		})
+	}
+	return headers, rows, nil
 }
 
 func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title string, headers []string, rows [][]string, err error) {
@@ -307,6 +357,8 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 		headers, rows, err = h.buildStockOpname(dari, sampai)
 	case constant.LaporanBarangRetur:
 		headers, rows, err = h.buildBarangRetur(dari, sampai)
+	case constant.LaporanBarangRusak:
+		headers, rows, err = h.buildBarangRusak(dari, sampai)
 	}
 	return title, headers, rows, err
 }
