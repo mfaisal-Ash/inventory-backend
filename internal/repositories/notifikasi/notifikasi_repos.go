@@ -91,11 +91,16 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 	if len(ids) == 0 {
 		return nil
 	}
+
+	int64IDs := make([]int64, len(ids))
+	for i, id := range ids {
+		int64IDs[i] = int64(id)
+	}
 	return r.db.Exec(
 		`INSERT INTO notification_reads (notification_id, user_id, read_at)
-		 SELECT unnest(?::int[]), ?, NOW()
+		 SELECT unnest(?::bigint[]), ?, NOW()
 		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
-		ids, userID,
+		int64IDs, userID,
 	).Error
 }
 
