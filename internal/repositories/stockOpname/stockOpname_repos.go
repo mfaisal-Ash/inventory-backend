@@ -12,6 +12,8 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
+const queryIDEq = "id = ?"
+
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.Status != "" {
 		q = q.Where(constant.QueryStatusEq, f.Status)
@@ -40,6 +42,11 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.StockOpna
 		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
+	for i := range list {
+		if err := refreshDraftStokSistem(r.db, &list[i]); err != nil {
+			return nil, 0, err
+		}
+	}
 	return list, total, nil
 }
 
@@ -50,6 +57,9 @@ func (r *repository) FindByID(id uint) (*model.StockOpname, error) {
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
 		First(&so, id).Error
 	if err != nil {
+		return nil, err
+	}
+	if err := refreshDraftStokSistem(r.db, &so); err != nil {
 		return nil, err
 	}
 	return &so, nil
@@ -63,9 +73,39 @@ func (r *repository) FindByNomor(nomor string) (*model.StockOpname, error) {
 	return &so, nil
 }
 
-func buildItems(tx *gorm.DB, soID uint, gudangID uint, inputs []ItemInput) ([]model.StockOpnameItem, error) {
-	items := make([]model.StockOpnameItem, 0, len(inputs))
+// dedupeInputs menggabungkan baris-baris dengan barang_id yang sama dalam satu
+// sesi (mis. user tidak sengaja memilih barang yang sama dua kali / scan dua
+// kali). Hitung fisik dijumlahkan supaya satu SKU = satu baris, catatan digabung.
+func dedupeInputs(inputs []ItemInput) []ItemInput {
+	order := make([]uint, 0, len(inputs))
+	merged := make(map[uint]*ItemInput)
 	for _, in := range inputs {
+		if existing, ok := merged[in.BarangID]; ok {
+			existing.StokFisik += in.StokFisik
+			if in.Catatan != "" {
+				if existing.Catatan != "" {
+					existing.Catatan += "; " + in.Catatan
+				} else {
+					existing.Catatan = in.Catatan
+				}
+			}
+			continue
+		}
+		cp := in
+		merged[in.BarangID] = &cp
+		order = append(order, in.BarangID)
+	}
+	out := make([]ItemInput, 0, len(order))
+	for _, barangID := range order {
+		out = append(out, *merged[barangID])
+	}
+	return out
+}
+
+func buildItems(tx *gorm.DB, soID uint, gudangID uint, inputs []ItemInput) ([]model.StockOpnameItem, error) {
+	deduped := dedupeInputs(inputs)
+	items := make([]model.StockOpnameItem, 0, len(deduped))
+	for _, in := range deduped {
 		if err := tx.First(&model.Barang{}, in.BarangID).Error; err != nil {
 			return nil, err
 		}
@@ -84,6 +124,29 @@ func buildItems(tx *gorm.DB, soID uint, gudangID uint, inputs []ItemInput) ([]mo
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func refreshDraftStokSistem(db *gorm.DB, so *model.StockOpname) error {
+	if so == nil || so.Status != constant.StatusSODraft || len(so.Items) == 0 {
+		return nil
+	}
+	for i := range so.Items {
+		item := &so.Items[i]
+		stokSistem, err := barangstokgudang.GetStokGudangTx(db, item.BarangID, so.GudangID)
+		if err != nil {
+			return err
+		}
+		if stokSistem == item.StokSistem {
+			continue
+		}
+		item.StokSistem = stokSistem
+		item.HitungSelisih()
+		if err := db.Model(&model.StockOpnameItem{}).Where(queryIDEq, item.ID).
+			Updates(map[string]interface{}{"stok_sistem": item.StokSistem, "selisih": item.Selisih}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *repository) Create(so *model.StockOpname, inputs []ItemInput) error {
@@ -142,7 +205,18 @@ func (r *repository) Complete(id uint, userID uint) (*model.StockOpname, error) 
 			return errors.New(constant.ErrSOBukanDraft)
 		}
 
-		for _, item := range so.Items {
+		for idx := range so.Items {
+			item := &so.Items[idx]
+			liveStokSistem, err := barangstokgudang.GetStokGudangTx(tx, item.BarangID, so.GudangID)
+			if err != nil {
+				return err
+			}
+			item.StokSistem = liveStokSistem
+			item.HitungSelisih()
+			if err := tx.Model(&model.StockOpnameItem{}).Where(queryIDEq, item.ID).
+				Updates(map[string]interface{}{"stok_sistem": item.StokSistem, "selisih": item.Selisih}).Error; err != nil {
+				return err
+			}
 			if item.Selisih == 0 {
 				continue
 			}
@@ -155,7 +229,7 @@ func (r *repository) Complete(id uint, userID uint) (*model.StockOpname, error) 
 		}
 
 		now := time.Now()
-		return tx.Model(&model.StockOpname{}).Where("id = ?", id).Updates(map[string]interface{}{
+		return tx.Model(&model.StockOpname{}).Where(queryIDEq, id).Updates(map[string]interface{}{
 			"status":         constant.StatusSOSelesai,
 			"dilakukan_oleh": userID,
 			"completed_at":   now,
