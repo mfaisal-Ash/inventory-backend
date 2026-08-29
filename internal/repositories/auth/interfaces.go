@@ -8,8 +8,8 @@ type Repository interface {
 	RevokeAllUserTokens(userID uint) error
 
 	ListActiveSessions(userID uint) ([]model.RefreshToken, error)
-	RevokeSession(userID, sessionID uint) error
-	IsSessionRevoked(sessionID uint) (bool, error)
+	RevokeSession(userID, sessionID, revokedByUserID uint) error
+	CheckSession(sessionID uint) (revoked bool, revokedByUsername string, err error)
 
 	OnlineUserIDs(userIDs []uint) (map[uint]bool, error)
 }

@@ -16,8 +16,9 @@ type RefreshToken struct {
 	IPAddress string `json:"ip_address" gorm:"size:64"`
 	Location  string `json:"location" gorm:"size:100"`
 
-	ExpiresAt time.Time `json:"expires_at"`
-	Revoked   bool      `json:"revoked" gorm:"default:false"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	Revoked         bool      `json:"revoked" gorm:"default:false"`
+	RevokedByUserID *uint     `json:"revoked_by_user_id"`
 
 	LastActiveAt *time.Time `json:"last_active_at"`
 	CreatedAt    time.Time  `json:"created_at"`

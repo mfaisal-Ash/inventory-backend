@@ -313,6 +313,12 @@ func (h *Controller) Approve(c *fiber.Ctx) error {
 	if err := h.repo.Update(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyetujui barang", nil)
 	}
+	if b.DiajukanOleh != nil {
+		notification.Notify(h.notifRepo, "barang",
+			"Pengajuan Barang Disetujui",
+			fmt.Sprintf("%s (%s) yang kamu ajukan sudah disetujui.", b.Nama, b.KodeBarang),
+			"/kelola-barang", b.DiajukanOleh, "")
+	}
 	return utils.OK(c, "barang berhasil disetujui", b)
 }
 
@@ -343,6 +349,16 @@ func (h *Controller) Reject(c *fiber.Ctx) error {
 	b.DireviewPada = &now
 	if err := h.repo.Update(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menolak barang", nil)
+	}
+	if b.DiajukanOleh != nil {
+		alasan := req.Catatan
+		if alasan == "" {
+			alasan = "tanpa catatan tambahan"
+		}
+		notification.Notify(h.notifRepo, "barang",
+			"Pengajuan Barang Ditolak",
+			fmt.Sprintf("%s (%s) yang kamu ajukan ditolak — %s.", b.Nama, b.KodeBarang, alasan),
+			"/kelola-barang", b.DiajukanOleh, "")
 	}
 	return utils.OK(c, "barang berhasil ditolak", b)
 }

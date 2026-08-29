@@ -11,11 +11,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	"github.com/projsonal/gowms/internal/middleware"
-	"github.com/projsonal/gowms/internal/model"
-	"github.com/projsonal/gowms/pkg/constant"
-	cons "github.com/projsonal/gowms/pkg/constant"
-	"github.com/projsonal/gowms/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	cons "github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func (h *Controller) roleNameMap() map[uint]string {
@@ -356,7 +356,12 @@ func (h *Controller) RevokeUserSession(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusNotFound, cons.ErrUsersUserNotFound, nil)
 	}
 
-	if err := h.authRepo.RevokeSession(uint(id), uint(sessionID)); err != nil {
+	// Siapa admin yang MELAKUKAN pencabutan ini (bukan pemilik sesinya) —
+	// dicatat supaya perangkat yang di-cabut bisa diberi tahu "di-logout
+	// paksa oleh <username admin ini>" (lihat middleware.JWTAuth).
+	revokedByUserID, _ := c.Locals(constant.CtxUserID).(uint)
+
+	if err := h.authRepo.RevokeSession(uint(id), uint(sessionID), revokedByUserID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.Fail(c, fiber.StatusNotFound, "sesi tidak ditemukan", nil)
 		}

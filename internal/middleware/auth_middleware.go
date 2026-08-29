@@ -9,6 +9,8 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
+const ForcedLogoutMessagePrefix = "akun ini di keluarkan secara paksa oleh "
+
 func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		header := c.Get("Authorization")
@@ -22,8 +24,11 @@ func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {
 			return utils.Fail(c, fiber.StatusUnauthorized, "token tidak valid atau kedaluwarsa", nil)
 		}
 
-		revoked, revokeErr := jwtSvc.IsSessionRevoked(claims.SessionID)
+		revoked, revokedByUsername, revokeErr := jwtSvc.CheckSession(claims.SessionID)
 		if revokeErr == nil && revoked {
+			if revokedByUsername != "" {
+				return utils.Fail(c, fiber.StatusUnauthorized, ForcedLogoutMessagePrefix+revokedByUsername, nil)
+			}
 			return utils.Fail(c, fiber.StatusUnauthorized, "sesi ini sudah dicabut, silakan login ulang", nil)
 		}
 

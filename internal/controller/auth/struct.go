@@ -15,8 +15,6 @@ import (
 
 const otpReplayTTL = 5 * time.Minute
 
-const otpReplayTTL = 5 * time.Minute
-
 type Controller struct {
 	userRepo      users.Repository
 	roleRepo      role.Repository

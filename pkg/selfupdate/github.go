@@ -24,7 +24,7 @@ type Release struct {
 }
 
 func FetchLatestRelease(owner, repo string) (*Release, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
 	client := &http.Client{Timeout: 8 * time.Second}
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -47,11 +47,18 @@ func FetchLatestRelease(owner, repo string) (*Release, error) {
 		return nil, fmt.Errorf("GitHub API mengembalikan status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var release Release
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	var releases []Release
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 		return nil, fmt.Errorf("gagal membaca response GitHub: %w", err)
 	}
-	return &release, nil
+
+	for _, r := range releases {
+		if r.Prerelease && !r.Draft {
+			release := r
+			return &release, nil
+		}
+	}
+	return nil, ErrNoReleases
 }
 
 func CompareVersions(a, b string) int {

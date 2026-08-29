@@ -56,10 +56,10 @@ func (r *repository) OnlineUserIDs(userIDs []uint) (map[uint]bool, error) {
 	return result, nil
 }
 
-func (r *repository) RevokeSession(userID, sessionID uint) error {
+func (r *repository) RevokeSession(userID, sessionID, revokedByUserID uint) error {
 	result := r.db.Model(&model.RefreshToken{}).
 		Where("id = ? AND user_id = ?", sessionID, userID).
-		Update("revoked", true)
+		Updates(map[string]interface{}{"revoked": true, "revoked_by_user_id": revokedByUserID})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -69,20 +69,28 @@ func (r *repository) RevokeSession(userID, sessionID uint) error {
 	return nil
 }
 
-func (r *repository) IsSessionRevoked(sessionID uint) (bool, error) {
+func (r *repository) CheckSession(sessionID uint) (bool, string, error) {
 	var t model.RefreshToken
-	err := r.db.Select("revoked", "expires_at").First(&t, sessionID).Error
+	err := r.db.Select("id", "user_id", "revoked", "revoked_by_user_id", "expires_at").
+		First(&t, sessionID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return true, nil
+			return true, "", nil
 		}
-		return false, err
+		return false, "", err
 	}
-	if t.Revoked {
-		return true, nil
+	revoked := t.Revoked || (!t.ExpiresAt.IsZero() && time.Now().After(t.ExpiresAt))
+	if !revoked {
+		return false, "", nil
 	}
-	if !t.ExpiresAt.IsZero() && time.Now().After(t.ExpiresAt) {
-		return true, nil
+	if t.RevokedByUserID == nil || *t.RevokedByUserID == t.UserID {
+		return true, "", nil
 	}
-	return false, nil
+	var username string
+	if err := r.db.Model(&model.User{}).
+		Where("id = ?", *t.RevokedByUserID).
+		Pluck("username", &username).Error; err != nil {
+		return true, "", nil
+	}
+	return true, username, nil
 }

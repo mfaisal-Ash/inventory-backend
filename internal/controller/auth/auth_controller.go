@@ -434,7 +434,7 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	// admin sempat mencabut baris lama ini SEBELUM sempat di-refresh,
 	// refresh berikutnya otomatis ditolak (lihat pengecekan "revoked =
 	// false" di FindActiveRefreshToken).
-	if err := h.authRepo.RevokeSession(userID, oldSession.ID); err != nil {
+	if err := h.authRepo.RevokeSession(userID, oldSession.ID, userID); err != nil {
 		log.Printf("auth: gagal mencabut sesi lama %d setelah refresh: %v", oldSession.ID, err)
 	}
 	return utils.OK(c, "token berhasil diperbarui", res)
@@ -498,7 +498,7 @@ func (h *Controller) RevokeSession(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "id sesi tidak valid", nil)
 	}
 
-	if err := h.authRepo.RevokeSession(userID, params.ID); err != nil {
+	if err := h.authRepo.RevokeSession(userID, params.ID, userID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.Fail(c, fiber.StatusNotFound, "sesi tidak ditemukan", nil)
 		}
