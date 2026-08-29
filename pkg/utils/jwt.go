@@ -21,10 +21,28 @@ type JWTClaims struct {
 
 type JWTService struct {
 	cfg *config.JWTConfig
+
+	// sessionChecker, kalau di-set, dipanggil oleh middleware JWTAuth untuk
+	// memastikan sesi (session_id di dalam access token) belum dicabut.
+	// Ini yang membuat "Cabut" di Manajemen User langsung berlaku di
+	// request BERIKUTNYA dari perangkat lain — bukan menunggu access token
+	// lama itu kedaluwarsa sendiri (default 15 menit).
+	sessionChecker func(sessionID uint) (revoked bool, err error)
 }
 
 func NewJWTService(cfg *config.JWTConfig) *JWTService {
 	return &JWTService{cfg: cfg}
+}
+
+func (s *JWTService) SetSessionChecker(checker func(sessionID uint) (revoked bool, err error)) {
+	s.sessionChecker = checker
+}
+
+func (s *JWTService) IsSessionRevoked(sessionID uint) (bool, error) {
+	if s.sessionChecker == nil {
+		return false, nil
+	}
+	return s.sessionChecker(sessionID)
 }
 
 func (s *JWTService) GenerateAccessToken(userID, roleID, sessionID uint, roleName string) (string, error) {

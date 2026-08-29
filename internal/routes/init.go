@@ -99,6 +99,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rUsers := usersRepo.New(db)
 	rNotification := notificationRepo.New(db)
 	rAuth := authRepo.New(db)
+	jwtSvc.SetSessionChecker(rAuth.IsSessionRevoked)
 	rGudang := gudangRepo.New(db)
 	rBarang := barangRepo.New(db)
 	rBarangMasuk := barangMasukRepo.New(db)

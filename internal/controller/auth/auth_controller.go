@@ -65,6 +65,7 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	}
 
 	device, ip, location := h.buildSessionInfo(c)
+	now := time.Now()
 	session := &model.RefreshToken{
 		UserID:         u.ID,
 		TokenHash:      hashToken(refresh),
@@ -77,6 +78,7 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 		IPAddress:      ip,
 		Location:       location,
 		ExpiresAt:      expiry,
+		LastActiveAt:   &now,
 	}
 	if err := h.authRepo.SaveRefreshToken(session); err != nil {
 		return nil, err
@@ -412,7 +414,8 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	userID := utils.ParseUintSubject(claims.Subject)
-	if _, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(req.RefreshToken)); err != nil {
+	oldSession, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(req.RefreshToken))
+	if err != nil {
 		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah di-revoke", nil)
 	}
 
@@ -424,6 +427,15 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	res, err := h.issueTokens(c, u)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui token", nil)
+	}
+	// issueTokens membuat BARIS SESI BARU (rotasi token, dengan LastActiveAt
+	// = sekarang). Cabut baris lama supaya tidak menumpuk baris "aktif"
+	// duplikat untuk device yang sama di Riwayat Login, dan supaya kalau
+	// admin sempat mencabut baris lama ini SEBELUM sempat di-refresh,
+	// refresh berikutnya otomatis ditolak (lihat pengecekan "revoked =
+	// false" di FindActiveRefreshToken).
+	if err := h.authRepo.RevokeSession(userID, oldSession.ID); err != nil {
+		log.Printf("auth: gagal mencabut sesi lama %d setelah refresh: %v", oldSession.ID, err)
 	}
 	return utils.OK(c, "token berhasil diperbarui", res)
 }
@@ -437,6 +449,10 @@ func (h *Controller) Logout(c *fiber.Ctx) error {
 }
 
 func toSessionInfo(s model.RefreshToken, currentSessionID uint) SessionInfo {
+	lastActiveAt := ""
+	if s.LastActiveAt != nil {
+		lastActiveAt = s.LastActiveAt.Format(time.RFC3339)
+	}
 	return SessionInfo{
 		ID:             s.ID,
 		Browser:        s.Browser,
@@ -447,6 +463,7 @@ func toSessionInfo(s model.RefreshToken, currentSessionID uint) SessionInfo {
 		IPAddress:      s.IPAddress,
 		Location:       s.Location,
 		CreatedAt:      s.CreatedAt.Format(time.RFC3339),
+		LastActiveAt:   lastActiveAt,
 		IsCurrent:      currentSessionID != 0 && s.ID == currentSessionID,
 	}
 }

@@ -89,6 +89,7 @@ type SessionResponse struct {
 	IPAddress      string `json:"ip_address"`
 	Location       string `json:"location"`
 	CreatedAt      string `json:"created_at"`
+	LastActiveAt   string `json:"last_active_at,omitempty"`
 }
 
 type SessionListResponse struct {

@@ -22,6 +22,11 @@ func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {
 			return utils.Fail(c, fiber.StatusUnauthorized, "token tidak valid atau kedaluwarsa", nil)
 		}
 
+		revoked, revokeErr := jwtSvc.IsSessionRevoked(claims.SessionID)
+		if revokeErr == nil && revoked {
+			return utils.Fail(c, fiber.StatusUnauthorized, "sesi ini sudah dicabut, silakan login ulang", nil)
+		}
+
 		c.Locals(constant.CtxUserID, claims.UserID)
 		c.Locals(constant.CtxRoleID, claims.RoleID)
 		c.Locals(constant.CtxRoleName, claims.RoleName)

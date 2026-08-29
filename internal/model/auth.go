@@ -18,7 +18,9 @@ type RefreshToken struct {
 
 	ExpiresAt time.Time `json:"expires_at"`
 	Revoked   bool      `json:"revoked" gorm:"default:false"`
-	CreatedAt time.Time `json:"created_at"`
+
+	LastActiveAt *time.Time `json:"last_active_at"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 func (RefreshToken) TableName() string { return "refresh_tokens" }

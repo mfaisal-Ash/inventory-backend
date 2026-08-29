@@ -15,6 +15,8 @@ import (
 
 const otpReplayTTL = 5 * time.Minute
 
+const otpReplayTTL = 5 * time.Minute
+
 type Controller struct {
 	userRepo      users.Repository
 	roleRepo      role.Repository
@@ -118,6 +120,7 @@ type SessionInfo struct {
 	IPAddress      string `json:"ip_address"`
 	Location       string `json:"location"`
 	CreatedAt      string `json:"created_at"`
+	LastActiveAt   string `json:"last_active_at,omitempty"`
 	IsCurrent      bool   `json:"is_current"`
 }
 

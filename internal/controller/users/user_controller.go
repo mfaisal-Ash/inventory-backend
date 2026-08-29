@@ -11,11 +11,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
-	"github.com/mfaisal-Ash/inventory-backend/internal/model"
-	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
-	cons "github.com/mfaisal-Ash/inventory-backend/pkg/constant"
-	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
+	"github.com/projsonal/gowms/internal/middleware"
+	"github.com/projsonal/gowms/internal/model"
+	"github.com/projsonal/gowms/pkg/constant"
+	cons "github.com/projsonal/gowms/pkg/constant"
+	"github.com/projsonal/gowms/pkg/utils"
 )
 
 func (h *Controller) roleNameMap() map[uint]string {
@@ -329,11 +329,15 @@ func (h *Controller) UserSessions(c *fiber.Ctx) error {
 
 	result := make([]SessionResponse, 0, len(sessions))
 	for _, s := range sessions {
+		lastActiveAt := ""
+		if s.LastActiveAt != nil {
+			lastActiveAt = s.LastActiveAt.Format(time.RFC3339)
+		}
 		result = append(result, SessionResponse{
 			ID: s.ID, Browser: s.Browser, BrowserVersion: s.BrowserVersion,
 			OS: s.OS, OSVersion: s.OSVersion, DeviceType: s.DeviceType,
 			IPAddress: s.IPAddress, Location: s.Location,
-			CreatedAt: s.CreatedAt.Format(time.RFC3339),
+			CreatedAt: s.CreatedAt.Format(time.RFC3339), LastActiveAt: lastActiveAt,
 		})
 	}
 	return utils.OK(c, "berhasil memuat daftar sesi aktif", SessionListResponse{Sessions: result})

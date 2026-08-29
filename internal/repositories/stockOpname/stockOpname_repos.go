@@ -73,9 +73,6 @@ func (r *repository) FindByNomor(nomor string) (*model.StockOpname, error) {
 	return &so, nil
 }
 
-// dedupeInputs menggabungkan baris-baris dengan barang_id yang sama dalam satu
-// sesi (mis. user tidak sengaja memilih barang yang sama dua kali / scan dua
-// kali). Hitung fisik dijumlahkan supaya satu SKU = satu baris, catatan digabung.
 func dedupeInputs(inputs []ItemInput) []ItemInput {
 	order := make([]uint, 0, len(inputs))
 	merged := make(map[uint]*ItemInput)
@@ -109,6 +106,10 @@ func buildItems(tx *gorm.DB, soID uint, gudangID uint, inputs []ItemInput) ([]mo
 		if err := tx.First(&model.Barang{}, in.BarangID).Error; err != nil {
 			return nil, err
 		}
+		// Stok sistem diambil LIVE saat baris dibuat/diubah. Untuk dokumen draft,
+		// nilai ini akan disegarkan ulang lagi setiap kali dibaca (lihat
+		// refreshDraftStokSistem) supaya tidak basi jika ada transaksi lain
+		// (Barang Masuk/Keluar/opname lain) yang terjadi setelah draft dibuat.
 		stokSistem, err := barangstokgudang.GetStokGudangTx(tx, in.BarangID, gudangID)
 		if err != nil {
 			return nil, err
@@ -136,15 +137,8 @@ func refreshDraftStokSistem(db *gorm.DB, so *model.StockOpname) error {
 		if err != nil {
 			return err
 		}
-		if stokSistem == item.StokSistem {
-			continue
-		}
 		item.StokSistem = stokSistem
 		item.HitungSelisih()
-		if err := db.Model(&model.StockOpnameItem{}).Where(queryIDEq, item.ID).
-			Updates(map[string]interface{}{"stok_sistem": item.StokSistem, "selisih": item.Selisih}).Error; err != nil {
-			return err
-		}
 	}
 	return nil
 }

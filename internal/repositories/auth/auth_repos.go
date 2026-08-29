@@ -68,3 +68,21 @@ func (r *repository) RevokeSession(userID, sessionID uint) error {
 	}
 	return nil
 }
+
+func (r *repository) IsSessionRevoked(sessionID uint) (bool, error) {
+	var t model.RefreshToken
+	err := r.db.Select("revoked", "expires_at").First(&t, sessionID).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return true, nil
+		}
+		return false, err
+	}
+	if t.Revoked {
+		return true, nil
+	}
+	if !t.ExpiresAt.IsZero() && time.Now().After(t.ExpiresAt) {
+		return true, nil
+	}
+	return false, nil
+}
