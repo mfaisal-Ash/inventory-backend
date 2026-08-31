@@ -20,12 +20,13 @@ type BarangMasuk struct {
 func (BarangMasuk) TableName() string { return "barang_masuk" }
 
 type BarangMasukItem struct {
-	ID            uint    `json:"id" gorm:"primaryKey"`
-	BarangMasukID uint    `json:"barang_masuk_id" gorm:"not null;index"`
-	BarangID      uint    `json:"barang_id" gorm:"not null;index"`
-	Barang        *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
-	Qty           int     `json:"qty" gorm:"not null"`
-	HargaSatuan   int64   `json:"harga_satuan" gorm:"not null;default:0"`
+	ID            uint         `json:"id" gorm:"primaryKey"`
+	BarangMasukID uint         `json:"barang_masuk_id" gorm:"not null;index"`
+	BarangMasuk   *BarangMasuk `json:"barang_masuk,omitempty" gorm:"foreignKey:BarangMasukID"`
+	BarangID      uint         `json:"barang_id" gorm:"not null;index"`
+	Barang        *Barang      `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
+	Qty           int          `json:"qty" gorm:"not null"`
+	HargaSatuan   int64        `json:"harga_satuan" gorm:"not null;default:0"`
 }
 
 func (BarangMasukItem) TableName() string { return "barang_masuk_items" }

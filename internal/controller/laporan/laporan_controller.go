@@ -289,6 +289,7 @@ var reportTitles = map[string]string{
 	constant.LaporanStokOpname:   "Laporan Stock Opname",
 	constant.LaporanBarangRetur:  "Laporan Barang Retur",
 	constant.LaporanBarangRusak:  "Laporan Barang Rusak",
+	constant.LaporanFifoFefo:     "Laporan FIFO/FEFO",
 }
 
 var barangRusakStatusLabel = map[string]string{
@@ -359,6 +360,8 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 		headers, rows, err = h.buildBarangRetur(dari, sampai)
 	case constant.LaporanBarangRusak:
 		headers, rows, err = h.buildBarangRusak(dari, sampai)
+	case constant.LaporanFifoFefo:
+		headers, rows, err = h.buildFifoFefo(dari, sampai)
 	}
 	return title, headers, rows, err
 }
@@ -514,6 +517,89 @@ func (h *Controller) Export(c *fiber.Ctx) error {
 	return utils.Fail(c, fiber.StatusBadRequest, constant.ErrLaporanFormatTidakDidukung, nil)
 }
 
+// CustomExportRequest adalah payload untuk fitur "Modifikasi Data": pengguna
+// (biasanya atasan/PIC gudang) memilih sendiri baris mana saja dari hasil
+// pratinjau laporan yang mau direkap/dicetak, alih-alih selalu mengekspor
+// seluruh data. Frontend mengirim ulang header+baris yang sudah dia pilih
+// (hasil dari GET /laporan/preview yang sama), lalu endpoint ini merender
+// ulang jadi file export memakai builder yang sama persis dengan export biasa
+// supaya format Excel/PDF/Word-nya konsisten.
+type CustomExportRequest struct {
+	Tipe    string     `json:"tipe"`
+	Judul   string     `json:"judul"`
+	Format  string     `json:"format"`
+	Headers []string   `json:"headers"`
+	Rows    [][]string `json:"rows"`
+}
+
+const customExportRowLimit = 20000
+
+func (h *Controller) ExportCustom(c *fiber.Ctx) error {
+	var req CustomExportRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "payload tidak valid", nil)
+	}
+
+	if req.Format != constant.FormatExcel && req.Format != constant.FormatPDF && req.Format != constant.FormatWord {
+		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrLaporanFormatTidakDidukung, nil)
+	}
+	if len(req.Headers) == 0 || len(req.Rows) == 0 {
+		return utils.Fail(c, fiber.StatusBadRequest, "pilih minimal satu baris data untuk direkap", nil)
+	}
+	if len(req.Rows) > customExportRowLimit {
+		return utils.Fail(c, fiber.StatusBadRequest, "terlalu banyak baris dipilih untuk sekali export", nil)
+	}
+	for i, row := range req.Rows {
+		if len(row) != len(req.Headers) {
+			return utils.Fail(c, fiber.StatusBadRequest, fmt.Sprintf("baris ke-%d tidak cocok dengan jumlah kolom", i+1), nil)
+		}
+	}
+
+	title := req.Judul
+	if title == "" {
+		title = reportTitles[req.Tipe]
+	}
+	if title == "" {
+		title = "Laporan (Data Terpilih)"
+	}
+	title += " (Data Terpilih)"
+
+	summary := computeGenericSummary(req.Headers, req.Rows)
+	timestamp := time.Now().Format("20060102-150405")
+	safeTipe := req.Tipe
+	if safeTipe == "" {
+		safeTipe = "laporan"
+	}
+
+	switch req.Format {
+	case constant.FormatExcel:
+		data, err := reportexport.ToExcel(title, summary, req.Headers, req.Rows, nil)
+		if err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat file excel", nil)
+		}
+		c.Set(fiber.HeaderContentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`attachment; filename="%s-terpilih-%s.xlsx"`, safeTipe, timestamp))
+		return c.Send(data)
+	case constant.FormatPDF:
+		data, err := reportexport.ToPDF(title, summary, req.Headers, req.Rows, nil)
+		if err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat file pdf", nil)
+		}
+		c.Set(fiber.HeaderContentType, "application/pdf")
+		c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`attachment; filename="%s-terpilih-%s.pdf"`, safeTipe, timestamp))
+		return c.Send(data)
+	case constant.FormatWord:
+		data, err := reportexport.ToDocx(title, summary, req.Headers, req.Rows, nil, "")
+		if err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat file docx", nil)
+		}
+		c.Set(fiber.HeaderContentType, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+		c.Set(fiber.HeaderContentDisposition, fmt.Sprintf(`attachment; filename="%s-terpilih-%s.docx"`, safeTipe, timestamp))
+		return c.Send(data)
+	}
+	return utils.Fail(c, fiber.StatusBadRequest, constant.ErrLaporanFormatTidakDidukung, nil)
+}
+
 func toExportChart(cd *ChartData) *reportexport.ChartData {
 	if cd == nil {
 		return nil
@@ -568,4 +654,5 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/tipe", view, h.Types)
 	g.Get("/preview", view, h.Preview)
 	g.Get("/export", print, h.Export)
+	g.Post("/export-custom", print, h.ExportCustom)
 }

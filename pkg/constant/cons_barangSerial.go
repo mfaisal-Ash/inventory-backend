@@ -6,6 +6,12 @@ const (
 	StatusSerialRusak     = "rusak"
 )
 
+// UrutanFIFO dipakai sebagai nilai Filter.Urutan pada barang_serial.Repository.List
+// supaya hasilnya diurutkan dari yang paling lama tercatat (tanggal barang masuk)
+// ke yang paling baru — dasar untuk saran FIFO/FEFO saat memilih unit yang mau
+// dikeluarkan lebih dulu.
+const UrutanFIFO = "fifo"
+
 const (
 	ErrSerialTidakDitemukan    = "unit dengan nomor seri tersebut tidak ditemukan"
 	ErrSerialSudahDipakai      = "nomor seri sudah terdaftar di sistem (dipakai unit lain)"

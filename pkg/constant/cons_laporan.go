@@ -9,6 +9,7 @@ const (
 
 	LaporanBarangRetur = "Barang Retur"
 	LaporanBarangRusak = "Barang Rusak"
+	LaporanFifoFefo    = "FIFO FEFO"
 )
 
 const (

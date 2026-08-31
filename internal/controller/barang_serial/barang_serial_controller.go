@@ -33,6 +33,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 		Status:             c.Query("status", ""),
 		BarangMasukItemID:  uint(bmItemID),
 		BarangKeluarItemID: uint(bkItemID),
+		Urutan:             c.Query("urutan", ""),
 	}
 	list, total, err := h.repo.List(p, f)
 	if err != nil {

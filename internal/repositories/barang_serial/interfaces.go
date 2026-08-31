@@ -12,6 +12,11 @@ type Filter struct {
 
 	BarangMasukItemID  uint
 	BarangKeluarItemID uint
+
+	// Urutan, kalau diisi constant.UrutanFIFO, membuat List() mengurutkan hasil
+	// dari unit yang paling lama tercatat (tanggal barang masuk paling awal) ke
+	// yang paling baru, alih-alih urutan default (ID terbaru dulu).
+	Urutan string
 }
 
 type Repository interface {

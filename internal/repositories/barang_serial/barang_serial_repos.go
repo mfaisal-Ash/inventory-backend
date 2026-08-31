@@ -42,9 +42,30 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangSer
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := p.Apply(q.Session(&gorm.Session{}).
-		Preload("Barang").Preload("Gudang").Order("id desc")).
-		Find(&list).Error; err != nil {
+
+	finder := q.Session(&gorm.Session{}).
+		Preload("Barang").Preload("Gudang").Preload("BarangMasukItem.BarangMasuk")
+
+	if f.Urutan == constant.UrutanFIFO {
+		// FIFO: unit dengan tanggal barang masuk paling awal harus tampil
+		// duluan, supaya jadi rekomendasi pertama saat memilih unit yang mau
+		// dikeluarkan. Unit yang tidak tertaut ke dokumen barang masuk (mis.
+		// didaftarkan manual) jatuh balik ke created_at.
+		//
+		// Select eksplisit "barang_serials.*" WAJIB ada di sini — tanpa itu,
+		// SELECT * dari hasil JOIN akan membawa kolom "id"/"created_at" dari
+		// barang_masuk_items & barang_masuk juga (nama kolom sama persis),
+		// yang bisa membuat hasil Scan ke struct BarangSerial jadi salah.
+		finder = finder.
+			Select("barang_serials.*").
+			Joins("LEFT JOIN barang_masuk_items bmi_fifo ON bmi_fifo.id = barang_serials.barang_masuk_item_id").
+			Joins("LEFT JOIN barang_masuk bm_fifo ON bm_fifo.id = bmi_fifo.barang_masuk_id").
+			Order("COALESCE(bm_fifo.tanggal, barang_serials.created_at) ASC, barang_serials.id ASC")
+	} else {
+		finder = finder.Order("id desc")
+	}
+
+	if err := p.Apply(finder).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
 	return list, total, nil
