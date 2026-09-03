@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -56,9 +55,7 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/geocoding"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/geoip"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/humancheck"
-	"github.com/mfaisal-Ash/inventory-backend/pkg/passwordreset"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
-	"github.com/mfaisal-Ash/inventory-backend/pkg/wa"
 )
 
 type Dependencies struct {
@@ -136,43 +133,15 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	botCheckSvc := botcheck.NewService(cfg.BotCheck.Secret, time.Duration(cfg.BotCheck.WindowMinutes)*time.Minute)
 	geoipSvc := newGeoIPResolver(cfg)
 
-	// waSender dipakai untuk mengirim kode OTP reset password via WhatsApp
-	// (lihat pkg/passwordreset). Kalau drivernya belum dikonfigurasi atau
-	// gagal diinisialisasi, jatuh ke errSender supaya alur reset password
-	// gagal DENGAN JELAS ("whatsapp belum siap: ...") ketimbang diam-diam
-	// membiarkan reset password tanpa OTP sama sekali (fail closed, bukan
-	// fail open — celah account-takeover yang lama justru dari perilaku
-	// fail-open semacam itu).
-	var waSender wa.Sender
-	switch cfg.WhatsApp.Driver {
-	case "whatsmeow":
-		sender, err := wa.NewWhatsmeowSender(context.Background(), cfg.WhatsApp.SessionPath)
-		if err != nil {
-			log.Printf("wa: gagal inisialisasi whatsmeow, reset password via OTP akan gagal sampai ini diperbaiki: %v", err)
-			waSender = errSender{reason: err.Error()}
-		} else {
-			waSender = sender
-		}
-	default:
-		if cfg.WhatsApp.APIURL == "" {
-			waSender = errSender{reason: "WHATSAPP_API_URL belum diset"}
-		} else {
-			waSender = wa.NewClient(cfg.WhatsApp.APIURL, cfg.WhatsApp.APIKey, cfg.WhatsApp.Sender)
-		}
-	}
-	passwordResetSvc := passwordreset.NewService(cfg.PasswordReset.Secret, cfg.PasswordReset.TTLMinutes)
-
 	cAuth := authController.New(authController.Params{
-		AuthRepo:         rAuth,
-		UserRepo:         rUsers,
-		RoleRepo:         rRole,
-		JWTSvc:           jwtSvc,
-		CaptchaSvc:       captchaSvc,
-		HumanCheckSvc:    humanCheckSvc,
-		Cfg:              cfg,
-		GeoipSvc:         geoipSvc,
-		WASender:         waSender,
-		PasswordResetSvc: passwordResetSvc,
+		AuthRepo:      rAuth,
+		UserRepo:      rUsers,
+		RoleRepo:      rRole,
+		JWTSvc:        jwtSvc,
+		CaptchaSvc:    captchaSvc,
+		HumanCheckSvc: humanCheckSvc,
+		Cfg:           cfg,
+		GeoipSvc:      geoipSvc,
 	})
 	cUsers := usersController.New(usersController.Params{
 		UserRepo:      rUsers,

@@ -10,22 +10,19 @@ import (
 )
 
 type Config struct {
-	App           AppConfig
-	DB            DBConfig
-	JWT           JWTConfig
-	TOTP          TOTPConfig
-	CORS          CORSConfig
-	Storage       StorageConfig
-	Captcha       CaptchaConfig
-	HumanCheck    HumanCheckConfig
-	BotCheck      BotCheckConfig
-	WhatsApp      WhatsAppConfig
-	WAOTP         WAOTPConfig
-	SMS           SMSConfig
-	PasswordReset PasswordResetConfig
-	GeoIP         GeoIPConfig
-	Swagger       SwaggerConfig
-	SelfUpdate    SelfUpdateConfig
+	App        AppConfig
+	DB         DBConfig
+	JWT        JWTConfig
+	TOTP       TOTPConfig
+	CORS       CORSConfig
+	Storage    StorageConfig
+	Captcha    CaptchaConfig
+	HumanCheck HumanCheckConfig
+	BotCheck   BotCheckConfig
+	SMS        SMSConfig
+	GeoIP      GeoIPConfig
+	Swagger    SwaggerConfig
+	SelfUpdate SelfUpdateConfig
 }
 
 type AppConfig struct {
@@ -91,28 +88,10 @@ type BotCheckConfig struct {
 	WindowMinutes int
 }
 
-type WhatsAppConfig struct {
-	Driver      string
-	APIURL      string
-	APIKey      string
-	Sender      string
-	SessionPath string
-}
-
-type WAOTPConfig struct {
-	Secret     string
-	TTLMinutes int
-}
-
 type SMSConfig struct {
 	APIURL string
 	APIKey string
 	Sender string
-}
-
-type PasswordResetConfig struct {
-	Secret     string
-	TTLMinutes int
 }
 
 type GeoIPConfig struct {
@@ -185,25 +164,10 @@ func Load() *Config {
 			Secret:        getEnv("BOTCHECK_SECRET", "change-me-botcheck-secret"),
 			WindowMinutes: getEnvAsInt("BOTCHECK_WINDOW_MINUTES", 60),
 		},
-		WhatsApp: WhatsAppConfig{
-			Driver:      getEnv("WHATSAPP_DRIVER", "gateway"),
-			APIURL:      getEnv("WHATSAPP_API_URL", ""),
-			APIKey:      getEnv("WHATSAPP_API_KEY", ""),
-			Sender:      getEnv("WHATSAPP_SENDER", "stockrsd"),
-			SessionPath: getEnv("WHATSMEOW_SESSION_PATH", "./var/whatsmeow-session.db"),
-		},
-		WAOTP: WAOTPConfig{
-			Secret:     getEnv("WA_OTP_SECRET", "change-me-wa-otp-secret"),
-			TTLMinutes: getEnvAsInt("WA_OTP_TTL_MINUTES", 5),
-		},
 		SMS: SMSConfig{
 			APIURL: getEnv("SMS_API_URL", ""),
 			APIKey: getEnv("SMS_API_KEY", ""),
 			Sender: getEnv("SMS_SENDER", "stockrsd"),
-		},
-		PasswordReset: PasswordResetConfig{
-			Secret:     getEnv("PASSWORD_RESET_SECRET", "change-me-password-reset-secret"),
-			TTLMinutes: getEnvAsInt("PASSWORD_RESET_TTL_MINUTES", 10),
 		},
 		GeoIP: GeoIPConfig{
 			Enabled: getEnvAsBool("GEOIP_ENABLED", false),
@@ -230,13 +194,11 @@ func Load() *Config {
 }
 
 var weakSecretDefaults = map[string]string{
-	"JWT_ACCESS_SECRET":     "access-secret",
-	"JWT_REFRESH_SECRET":    "refresh-secret",
-	"CAPTCHA_SECRET":        "change-me-captcha-secret",
-	"HUMANCHECK_SECRET":     "change-me-humancheck-secret",
-	"BOTCHECK_SECRET":       "change-me-botcheck-secret",
-	"PASSWORD_RESET_SECRET": "change-me-password-reset-secret",
-	"WA_OTP_SECRET":         "change-me-wa-otp-secret",
+	"JWT_ACCESS_SECRET":  "access-secret",
+	"JWT_REFRESH_SECRET": "refresh-secret",
+	"CAPTCHA_SECRET":     "change-me-captcha-secret",
+	"HUMANCHECK_SECRET":  "change-me-humancheck-secret",
+	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
 }
 
 func validateProductionSecrets(cfg *Config) {
@@ -252,13 +214,11 @@ func validateProductionSecrets(cfg *Config) {
 		return
 	}
 	actual := map[string]string{
-		"JWT_ACCESS_SECRET":     cfg.JWT.AccessSecret,
-		"JWT_REFRESH_SECRET":    cfg.JWT.RefreshSecret,
-		"CAPTCHA_SECRET":        cfg.Captcha.Secret,
-		"HUMANCHECK_SECRET":     cfg.HumanCheck.Secret,
-		"BOTCHECK_SECRET":       cfg.BotCheck.Secret,
-		"PASSWORD_RESET_SECRET": cfg.PasswordReset.Secret,
-		"WA_OTP_SECRET":         cfg.WAOTP.Secret,
+		"JWT_ACCESS_SECRET":  cfg.JWT.AccessSecret,
+		"JWT_REFRESH_SECRET": cfg.JWT.RefreshSecret,
+		"CAPTCHA_SECRET":     cfg.Captcha.Secret,
+		"HUMANCHECK_SECRET":  cfg.HumanCheck.Secret,
+		"BOTCHECK_SECRET":    cfg.BotCheck.Secret,
 	}
 	var insecure []string
 	for key, value := range actual {

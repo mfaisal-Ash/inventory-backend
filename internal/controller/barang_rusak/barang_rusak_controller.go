@@ -75,6 +75,8 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		BarangID:       req.BarangID,
 		LabelBarang:    req.LabelBarang,
 		NamaBarang:     req.NamaBarang,
+		Merek:          req.Merek,
+		KodeBarang:     req.KodeBarang,
 		SerialNumber:   req.SerialNumber,
 		Keterangan:     req.Keterangan,
 		Status:         constant.StatusPengecekan,
@@ -120,6 +122,8 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	b.BarangID = req.BarangID
 	b.LabelBarang = req.LabelBarang
 	b.NamaBarang = req.NamaBarang
+	b.Merek = req.Merek
+	b.KodeBarang = req.KodeBarang
 	b.SerialNumber = req.SerialNumber
 	b.Keterangan = req.Keterangan
 	if err := h.repo.Update(b); err != nil {
@@ -168,8 +172,10 @@ func (h *Controller) Inspeksi(c *fiber.Ctx) error {
 }
 
 // SimpanKeGudang: pengganti fitur retur-ke-supplier yang sudah dihapus dari
-// aplikasi ini — barang berstatus "Bisa Diretur" disimpan sementara kembali
-// ke stok gudang yang dipilih, bukan menggantung tanpa tindak lanjut.
+// aplikasi ini — barang berstatus "Bisa Diretur" (bukan Rusak Total)
+// disimpan kembali sebagai stok ke gudang yang dipilih, bukan menggantung
+// tanpa tindak lanjut. Barang berstatus Rusak Total sengaja TIDAK termasuk
+// di sini — itu status final, tidak bisa dikembalikan sebagai stok.
 func (h *Controller) SimpanKeGudang(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {

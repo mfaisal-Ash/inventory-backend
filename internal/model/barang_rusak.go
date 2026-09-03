@@ -17,6 +17,14 @@ type BarangRusak struct {
 	LabelBarang string `json:"label_barang" gorm:"size:60;not null;index"`
 	NamaBarang  string `json:"nama_barang" gorm:"size:150;not null"`
 
+	// Merek & KodeBarang: input manual — dipakai saat laporan TIDAK tertaut
+	// ke katalog Kelola Barang (barang belum terdaftar). Kalau tertaut
+	// (BarangID != nil), tampilan di frontend memprioritaskan Merek/KodeBarang
+	// dari Barang aslinya (lebih otoritatif) dan baru jatuh ke kolom manual
+	// ini kalau kosong — lihat mapBarangRusakRaw di frontend.
+	Merek      string `json:"merek" gorm:"size:100"`
+	KodeBarang string `json:"kode_barang" gorm:"size:60"`
+
 	SerialNumber string `json:"serial_number" gorm:"size:100"`
 	Keterangan   string `json:"keterangan" gorm:"size:500"`
 

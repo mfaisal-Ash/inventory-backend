@@ -28,10 +28,16 @@ func (r *repository) RevokeAllUserTokens(userID uint) error {
 		Update("revoked", true).Error
 }
 
+// ListActiveSessions: dulu cuma filter revoked = false, jadi sesi yang
+// sudah KEDALUWARSA (refresh token lewat expires_at, misal karena device
+// lama tidak dipakai) tetap muncul di daftar "sedang login" — padahal
+// perangkat itu sebenarnya sudah otomatis ter-logout begitu access token +
+// refresh token-nya sama-sama habis. Sekarang ikut filter expires_at,
+// konsisten dengan OnlineUserIDs di bawah yang sudah benar dari awal.
 func (r *repository) ListActiveSessions(userID uint) ([]model.RefreshToken, error) {
 	var sessions []model.RefreshToken
 	err := r.db.
-		Where("user_id = ? AND revoked = false", userID).
+		Where("user_id = ? AND revoked = false AND expires_at > ?", userID, time.Now()).
 		Order("created_at DESC").
 		Find(&sessions).Error
 	return sessions, err

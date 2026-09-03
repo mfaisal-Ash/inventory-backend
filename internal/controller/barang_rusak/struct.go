@@ -30,6 +30,8 @@ type BarangRusakRequest struct {
 	BarangID     *uint  `json:"barang_id" validate:"omitempty"`
 	LabelBarang  string `json:"label_barang" validate:"required,max=60"`
 	NamaBarang   string `json:"nama_barang" validate:"required,max=150"`
+	Merek        string `json:"merek" validate:"max=100"`
+	KodeBarang   string `json:"kode_barang" validate:"max=60"`
 	SerialNumber string `json:"serial_number" validate:"max=100"`
 	Keterangan   string `json:"keterangan" validate:"max=500"`
 }
