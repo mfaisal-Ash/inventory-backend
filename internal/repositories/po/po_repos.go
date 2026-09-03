@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
@@ -85,7 +86,10 @@ func (r *repository) Update(po *model.PurchaseOrder, items []model.PurchaseOrder
 				return err
 			}
 		}
-		return tx.Save(po).Error
+		// Omit(clause.Associations): cegah Save() menimpa balik supplier_id
+		// dengan ID dari relasi Supplier yang ter-preload di FindByID (bug
+		// sama seperti repositories/barang — lihat komentar di sana).
+		return tx.Omit(clause.Associations).Save(po).Error
 	})
 }
 

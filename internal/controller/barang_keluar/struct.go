@@ -57,3 +57,15 @@ type SummaryResponse struct {
 	Draft        int64 `json:"draft"`
 	Selesai      int64 `json:"selesai"`
 }
+
+// SpesifikasiRequest dipakai untuk mencatat progres pemasangan 1 item
+// barang keluar, mis. dari 100 meter kabel yang dikeluarkan, berapa yang
+// sudah terpasang di lapangan — sisanya dihitung otomatis (Qty - JumlahTerpasang).
+type SpesifikasiRequest struct {
+	JumlahTerpasang int    `json:"jumlah_terpasang" validate:"min=0"`
+	Catatan         string `json:"catatan" validate:"max=255"`
+}
+
+type ProtectRequest struct {
+	IsProtected *bool `json:"is_protected" validate:"required"`
+}

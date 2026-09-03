@@ -10,6 +10,13 @@ type Filter struct {
 	GudangID uint
 
 	KategoriID uint
+	BarangID   uint
+
+	// Merek/Tipe: filter tambahan (join ke tabel barang, sama seperti
+	// KategoriID/BarangID) supaya daftar barang masuk bisa dipersempit
+	// berdasarkan merek/tipe barang di dalam dokumennya.
+	Merek string
+	Tipe  string
 }
 
 type Repository interface {
@@ -19,9 +26,14 @@ type Repository interface {
 	Create(bm *model.BarangMasuk) error
 	Update(bm *model.BarangMasuk, items []model.BarangMasukItem) error
 	Delete(id uint) error
+	SetProtected(id uint, protect bool) error
 
 	Complete(id uint, userID uint, serials map[uint][]string) (*model.BarangMasuk, error)
 	Batalkan(id uint) (*model.BarangMasuk, error)
 
 	CountByStatus(status string) (int64, error)
+
+	// NextNomor menghasilkan nomor penerimaan berurutan berikutnya
+	// (format BM-YYYYMM-0001) lewat pkg/docnumber.
+	NextNomor() (string, error)
 }

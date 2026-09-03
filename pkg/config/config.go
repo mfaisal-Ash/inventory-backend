@@ -230,23 +230,35 @@ func Load() *Config {
 }
 
 var weakSecretDefaults = map[string]string{
-	"JWT_ACCESS_SECRET":  "access-secret",
-	"JWT_REFRESH_SECRET": "refresh-secret",
-	"CAPTCHA_SECRET":     "change-me-captcha-secret",
-	"HUMANCHECK_SECRET":  "change-me-humancheck-secret",
-	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
+	"JWT_ACCESS_SECRET":     "access-secret",
+	"JWT_REFRESH_SECRET":    "refresh-secret",
+	"CAPTCHA_SECRET":        "change-me-captcha-secret",
+	"HUMANCHECK_SECRET":     "change-me-humancheck-secret",
+	"BOTCHECK_SECRET":       "change-me-botcheck-secret",
+	"PASSWORD_RESET_SECRET": "change-me-password-reset-secret",
+	"WA_OTP_SECRET":         "change-me-wa-otp-secret",
 }
 
 func validateProductionSecrets(cfg *Config) {
-	if cfg.App.Env != "production" {
+	// Fail closed: cek di setiap env SELAIN "development" eksplisit, bukan
+	// hanya saat APP_ENV="production" persis. Sebelumnya, kalau APP_ENV lupa
+	// di-set di sebuah deployment nyata (typo, env var kosong, dsb.), nilai
+	// defaultnya "development" membuat pengecekan ini diam-diam dilewati dan
+	// aplikasi berjalan pakai JWT signing key publik ("access-secret" dkk,
+	// tercantum di kode ini) — siapa pun bisa memalsukan token akses untuk
+	// akun/role manapun. Dengan default aman "development", operator harus
+	// SENGAJA set APP_ENV=development untuk melewati validasi ini.
+	if cfg.App.Env == "development" {
 		return
 	}
 	actual := map[string]string{
-		"JWT_ACCESS_SECRET":  cfg.JWT.AccessSecret,
-		"JWT_REFRESH_SECRET": cfg.JWT.RefreshSecret,
-		"CAPTCHA_SECRET":     cfg.Captcha.Secret,
-		"HUMANCHECK_SECRET":  cfg.HumanCheck.Secret,
-		"BOTCHECK_SECRET":    cfg.BotCheck.Secret,
+		"JWT_ACCESS_SECRET":     cfg.JWT.AccessSecret,
+		"JWT_REFRESH_SECRET":    cfg.JWT.RefreshSecret,
+		"CAPTCHA_SECRET":        cfg.Captcha.Secret,
+		"HUMANCHECK_SECRET":     cfg.HumanCheck.Secret,
+		"BOTCHECK_SECRET":       cfg.BotCheck.Secret,
+		"PASSWORD_RESET_SECRET": cfg.PasswordReset.Secret,
+		"WA_OTP_SECRET":         cfg.WAOTP.Secret,
 	}
 	var insecure []string
 	for key, value := range actual {

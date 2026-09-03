@@ -7,9 +7,11 @@ const (
 	LaporanPO           = "Purchase Order"
 	LaporanStokOpname   = "Stock Opname"
 
-	LaporanBarangRetur = "Barang Retur"
-	LaporanBarangRusak = "Barang Rusak"
-	LaporanFifoFefo    = "FIFO FEFO"
+	LaporanBarangRetur     = "Barang Retur"
+	LaporanBarangRusak     = "Barang Rusak"
+	LaporanFifoFefo        = "FIFO FEFO"
+	LaporanPengajuanBarang = "Pengajuan Barang"
+	LaporanTrackingAset    = "Tracking Aset"
 )
 
 const (

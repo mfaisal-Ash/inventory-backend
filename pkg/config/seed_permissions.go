@@ -19,6 +19,7 @@ var operationalModules = []string{
 	constant.ModuleCOD,
 	constant.ModuleLaporan,
 	constant.ModuleDashboard,
+	constant.ModulePengajuanBarang,
 }
 
 type grant struct {

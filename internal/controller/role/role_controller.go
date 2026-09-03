@@ -45,6 +45,22 @@ func (h *Controller) GetPermissionMatrix(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "id role tidak valid", nil)
 	}
 
+	// Setiap user (bukan cuma super admin) perlu bisa baca matrix akses
+	// ROLE-NYA SENDIRI — usePermissions.ts di frontend memanggil endpoint
+	// ini untuk semua role non-super-admin supaya tahu menu/tombol apa saja
+	// yang boleh diakses. Kalau ini diblokir total ke super_admin saja,
+	// SEMUA user admin/karyawan gagal memuat izinnya sendiri dan otomatis
+	// dianggap tidak punya akses ke mana pun (redirect 403 di semua
+	// halaman). Jadi izinkan: super_admin (lihat matrix role apa saja),
+	// atau user biasa yang memang meminta matrix ROLE-NYA SENDIRI. Melihat
+	// matrix milik role LAIN tetap diblokir di sini (bukan cuma di
+	// RegisterRoutes) supaya information-disclosure fix sebelumnya tetap utuh.
+	roleName, _ := c.Locals(constant.CtxRoleName).(string)
+	roleID, _ := c.Locals(constant.CtxRoleID).(uint)
+	if roleName != constant.RoleSuperAdmin && roleID != uint(id) {
+		return utils.Fail(c, fiber.StatusForbidden, "tidak diizinkan melihat matrix akses role lain", nil)
+	}
+
 	matrix, err := h.repo.GetMatrix(uint(id))
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil matrix akses", nil)
@@ -102,6 +118,12 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/roles", middleware.JWTAuth(h.jwtSvc))
 	g.Get("/", h.List)
 	g.Post("/", middleware.RequireRole(constant.RoleSuperAdmin), h.Create)
+	// GetPermissionMatrix TIDAK dibatasi RequireRole(super_admin) di sini —
+	// endpoint ini juga dipakai tiap user non-super-admin buat baca matrix
+	// akses ROLE-NYA SENDIRI (lihat usePermissions.ts). Pengecekan "boleh
+	// lihat role sendiri, atau super_admin buat role manapun" dilakukan di
+	// dalam handler (butuh bandingkan :id dengan roleID user, bukan cuma
+	// nama role) — lihat komentar di GetPermissionMatrix.
 	g.Get("/:id/permissions", h.GetPermissionMatrix)
 	g.Put("/:id/permissions", middleware.RequireRole(constant.RoleSuperAdmin), h.UpdatePermissionMatrix)
 }

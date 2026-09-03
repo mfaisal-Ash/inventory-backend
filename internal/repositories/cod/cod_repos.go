@@ -2,6 +2,7 @@ package cod
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -53,8 +54,13 @@ func (r *repository) Create(c *model.CodTransaction) error {
 	return r.db.Create(c).Error
 }
 
+// Update: Omit(clause.Associations) sebagai pencegahan tambahan — FindByID
+// di sini tidak Preload("Pengiriman") jadi saat ini belum aktif kena bug,
+// tapi List() sudah Preload("Pengiriman") dan pola yang sama di modul lain
+// (barang, aset, tugas, dll) terbukti berbahaya begitu ada Preload di jalur
+// yang dipakai sebelum Save(). Ditambahkan supaya aman ke depannya.
 func (r *repository) Update(c *model.CodTransaction) error {
-	return r.db.Save(c).Error
+	return r.db.Omit(clause.Associations).Save(c).Error
 }
 
 func (r *repository) Delete(id uint) error {

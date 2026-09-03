@@ -5,6 +5,7 @@ import (
 
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
+	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -15,13 +16,14 @@ const Module = constant.ModuleBarangRusak
 type Controller struct {
 	repo       barangRusakRepo.Repository
 	barangRepo barangRepo.Repository
+	gudangRepo gudangRepo.Repository
 	roleRepo   role.Repository
 	jwtSvc     *utils.JWTService
 	notifRepo  notificationRepo.Repository
 }
 
-func New(repo barangRusakRepo.Repository, barangRepo barangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
-	return &Controller{repo: repo, barangRepo: barangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
+func New(repo barangRusakRepo.Repository, barangRepo barangRepo.Repository, gudangRepo gudangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
+	return &Controller{repo: repo, barangRepo: barangRepo, gudangRepo: gudangRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
 type BarangRusakRequest struct {
@@ -34,6 +36,10 @@ type BarangRusakRequest struct {
 
 type InspeksiRequest struct {
 	JenisBarang string `json:"jenis_barang" validate:"required,oneof=retur rusak"`
+}
+
+type SimpanKeGudangRequest struct {
+	GudangID uint `json:"gudang_id" validate:"required"`
 }
 
 type SummaryResponse struct {

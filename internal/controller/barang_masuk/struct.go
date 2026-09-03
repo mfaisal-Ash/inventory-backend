@@ -62,3 +62,7 @@ type SummaryResponse struct {
 	Draft        int64 `json:"draft"`
 	Selesai      int64 `json:"selesai"`
 }
+
+type ProtectRequest struct {
+	IsProtected *bool `json:"is_protected" validate:"required"`
+}

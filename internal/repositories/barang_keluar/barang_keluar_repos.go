@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	barangSerial "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/docnumber"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -21,11 +23,22 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.GudangID != 0 {
 		q = q.Where(constant.QueryGudangIDEq, f.GudangID)
 	}
-	if f.KategoriID != 0 {
+	if f.KategoriID != 0 || f.BarangID != 0 || f.Merek != "" || f.Tipe != "" {
 		q = q.Select("barang_keluar.*").Distinct().
 			Joins("JOIN barang_keluar_items ON barang_keluar_items.barang_keluar_id = barang_keluar.id").
-			Joins("JOIN barang ON barang.id = barang_keluar_items.barang_id").
-			Where("barang.kategori_id = ?", f.KategoriID)
+			Joins("JOIN barang ON barang.id = barang_keluar_items.barang_id")
+		if f.KategoriID != 0 {
+			q = q.Where("barang.kategori_id = ?", f.KategoriID)
+		}
+		if f.BarangID != 0 {
+			q = q.Where("barang.id = ?", f.BarangID)
+		}
+		if f.Merek != "" {
+			q = q.Where("barang.merek = ?", f.Merek)
+		}
+		if f.Tipe != "" {
+			q = q.Where("barang.tipe = ?", f.Tipe)
+		}
 	}
 	return q
 }
@@ -48,6 +61,9 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangKel
 		Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
+	for i := range list {
+		list[i].HitungSisaItems()
+	}
 	return list, total, nil
 }
 
@@ -59,6 +75,7 @@ func (r *repository) FindByID(id uint) (*model.BarangKeluar, error) {
 	if err != nil {
 		return nil, err
 	}
+	bk.HitungSisaItems()
 	return &bk, nil
 }
 
@@ -88,7 +105,10 @@ func (r *repository) Update(bk *model.BarangKeluar, items []model.BarangKeluarIt
 				return err
 			}
 		}
-		return tx.Save(bk).Error
+		// Omit(clause.Associations): cegah Save() menimpa balik gudang_id
+		// dengan ID dari relasi Gudang yang ter-preload di FindByID (bug sama
+		// seperti repositories/barang — lihat komentar di sana).
+		return tx.Omit(clause.Associations).Save(bk).Error
 	})
 }
 
@@ -99,6 +119,12 @@ func (r *repository) Delete(id uint) error {
 		}
 		return tx.Delete(&model.BarangKeluar{}, id).Error
 	})
+}
+
+// SetProtected hanya menulis kolom is_protected saja (bukan Save() atas
+// struct penuh) supaya tidak menyentuh/menimpa items ataupun kolom lain.
+func (r *repository) SetProtected(id uint, protect bool) error {
+	return r.db.Model(&model.BarangKeluar{}).Where("id = ?", id).Update("is_protected", protect).Error
 }
 
 func (r *repository) Complete(id uint, userID uint, serials map[uint][]string) (*model.BarangKeluar, error) {
@@ -182,4 +208,154 @@ func (r *repository) CountByStatus(status string) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.BarangKeluar{}).Where(constant.QueryStatusEq, status).Count(&count).Error
 	return count, err
+}
+
+func (r *repository) NextNomor() (string, error) {
+	return docnumber.Next(r.db, "BK")
+}
+
+func (r *repository) UpdateSpesifikasi(itemID uint, jumlahTerpasang int, catatan string) (*model.BarangKeluarItem, error) {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var item model.BarangKeluarItem
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&item, itemID).Error; err != nil {
+			return err
+		}
+		var bk model.BarangKeluar
+		if err := tx.First(&bk, item.BarangKeluarID).Error; err != nil {
+			return err
+		}
+		if bk.Status != constant.StatusBKSelesai {
+			return errors.New(constant.ErrBKBelumSelesai)
+		}
+		if jumlahTerpasang < 0 || jumlahTerpasang > item.Qty {
+			return errors.New(constant.ErrBKJumlahTerpasangLebih)
+		}
+		return tx.Model(&model.BarangKeluarItem{}).Where("id = ?", itemID).
+			Updates(map[string]interface{}{
+				"jumlah_terpasang":    jumlahTerpasang,
+				"catatan_spesifikasi": catatan,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result model.BarangKeluarItem
+	if err := r.db.Preload("Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		First(&result, itemID).Error; err != nil {
+		return nil, err
+	}
+	result.HitungSisa()
+	return &result, nil
+}
+
+func applySpesifikasiFilter(q *gorm.DB, f SpesifikasiFilter) *gorm.DB {
+	if f.GudangID != 0 {
+		q = q.Where("bk.gudang_id = ?", f.GudangID)
+	}
+	if f.From != nil {
+		q = q.Where("bk.tanggal >= ?", *f.From)
+	}
+	if f.To != nil {
+		q = q.Where("bk.tanggal <= ?", *f.To)
+	}
+	return q
+}
+
+func (r *repository) RecapSpesifikasi(f SpesifikasiFilter) ([]SpesifikasiRecapRow, error) {
+	q := applySpesifikasiFilter(
+		r.db.Table("barang_keluar_items bki").
+			Joins("JOIN barang_keluar bk ON bk.id = bki.barang_keluar_id").
+			Joins("JOIN barang b ON b.id = bki.barang_id").
+			Joins("LEFT JOIN satuan s ON s.id = b.satuan_id").
+			Where("bk.status = ?", constant.StatusBKSelesai),
+		f,
+	)
+
+	var rows []SpesifikasiRecapRow
+	err := q.Select(`bki.barang_id AS barang_id,
+		b.nama AS nama_barang,
+		b.kode_barang AS kode_barang,
+		COALESCE(s.singkatan, s.nama, '') AS satuan,
+		SUM(bki.qty) AS total_terpakai,
+		SUM(bki.jumlah_terpasang) AS total_terpasang,
+		SUM(bki.qty - bki.jumlah_terpasang) AS total_sisa`).
+		Group("bki.barang_id, b.nama, b.kode_barang, s.singkatan, s.nama").
+		Order("b.nama ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func applySpesifikasiListFilter(q *gorm.DB, f SpesifikasiListFilter) *gorm.DB {
+	if f.BarangID != 0 {
+		q = q.Where("bki.barang_id = ?", f.BarangID)
+	}
+	if f.GudangID != 0 {
+		q = q.Where("bk.gudang_id = ?", f.GudangID)
+	}
+	switch f.Status {
+	case "belum":
+		q = q.Where("bki.jumlah_terpasang = 0")
+	case "sebagian":
+		q = q.Where("bki.jumlah_terpasang > 0 AND bki.jumlah_terpasang < bki.qty")
+	case "selesai":
+		q = q.Where("bki.jumlah_terpasang >= bki.qty")
+	}
+	return q
+}
+
+func (r *repository) baseSpesifikasiListQuery(f SpesifikasiListFilter) *gorm.DB {
+	return applySpesifikasiListFilter(
+		r.db.Table("barang_keluar_items bki").
+			Joins("JOIN barang_keluar bk ON bk.id = bki.barang_keluar_id").
+			Joins("JOIN barang b ON b.id = bki.barang_id").
+			Joins("LEFT JOIN satuan s ON s.id = b.satuan_id").
+			Joins("LEFT JOIN gudangs g ON g.id = bk.gudang_id").
+			Where("bk.status = ?", constant.StatusBKSelesai),
+		f,
+	)
+}
+
+// ListSpesifikasi mengembalikan daftar baris item barang keluar (dokumen
+// induknya sudah selesai) satu per satu — mirip pola List() di
+// repositories/barang_serial: filter + pencarian + paginasi server-side.
+func (r *repository) ListSpesifikasi(p utils.PaginationParams, f SpesifikasiListFilter) ([]SpesifikasiListRow, int64, error) {
+	countQ := r.baseSpesifikasiListQuery(f)
+	if p.Search != "" {
+		countQ = countQ.Where("b.nama ILIKE ? OR bk.nomor_pengeluaran ILIKE ?", "%"+p.Search+"%", "%"+p.Search+"%")
+	}
+	var total int64
+	if err := countQ.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	listQ := r.baseSpesifikasiListQuery(f)
+	if p.Search != "" {
+		listQ = listQ.Where("b.nama ILIKE ? OR bk.nomor_pengeluaran ILIKE ?", "%"+p.Search+"%", "%"+p.Search+"%")
+	}
+	var rows []SpesifikasiListRow
+	err := p.Apply(listQ.Session(&gorm.Session{}).Select(`bki.id AS item_id,
+		bki.barang_keluar_id AS barang_keluar_id,
+		bk.nomor_pengeluaran AS nomor_pengeluaran,
+		bk.tanggal AS tanggal,
+		bk.keperluan AS keperluan,
+		bk.gudang_id AS gudang_id,
+		COALESCE(g.nama, '') AS nama_gudang,
+		bki.barang_id AS barang_id,
+		b.nama AS nama_barang,
+		b.kode_barang AS kode_barang,
+		COALESCE(s.singkatan, s.nama, '') AS satuan,
+		bki.qty AS qty,
+		bki.jumlah_terpasang AS jumlah_terpasang,
+		GREATEST(bki.qty - bki.jumlah_terpasang, 0) AS jumlah_sisa,
+		bki.catatan_spesifikasi AS catatan_spesifikasi`).
+		Order("bk.tanggal DESC, bki.id DESC")).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }

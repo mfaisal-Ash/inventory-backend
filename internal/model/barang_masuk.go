@@ -12,6 +12,7 @@ type BarangMasuk struct {
 	Catatan         string            `json:"catatan" gorm:"size:255"`
 	DiterimaOleh    *uint             `json:"diterima_oleh"`
 	CompletedAt     *time.Time        `json:"completed_at"`
+	IsProtected     bool              `json:"is_protected" gorm:"not null;default:false"`
 	Items           []BarangMasukItem `json:"items,omitempty" gorm:"foreignKey:BarangMasukID"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`

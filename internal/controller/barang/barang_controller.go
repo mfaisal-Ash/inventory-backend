@@ -49,20 +49,30 @@ func parseListFilter(c *fiber.Ctx) barangRepo.Filter {
 		SatuanID:    uint(satuanID),
 		StokMenipis: c.QueryBool("stok_menipis", false),
 		OnlyActive:  c.Query("status", "") == "aktif",
+		Merek:       c.Query("merek", ""),
+		Tipe:        c.Query("tipe", ""),
 	}
 
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	delegatedToMe := c.QueryBool("delegated_to_me", false)
 	switch roleName {
 	case constant.RoleSuperAdmin:
 
-		if s := c.Query("approval_status", ""); s != "" {
+		if delegatedToMe {
+			f.OnlyDelegatedTo = userID
+		} else if s := c.Query("approval_status", ""); s != "" {
 			f.ApprovalStatuses = []string{s}
 		}
 	case constant.RoleAdmin:
 
-		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
-		f.OrSubmittedBy = userID
+		if delegatedToMe {
+			f.OnlyDelegatedTo = userID
+		} else {
+			f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
+			f.OrSubmittedBy = userID
+			f.OrDelegatedTo = userID
+		}
 	case constant.RoleKaryawan:
 
 		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
@@ -118,6 +128,65 @@ func (h *Controller) validateReferensi(kategoriID, satuanID uint) error {
 	return nil
 }
 
+func (h *Controller) getStokGudangAwal(req BarangRequest) (*model.Gudang, error) {
+	if req.Stok <= 0 {
+		return nil, nil
+	}
+	if req.StokGudangID == 0 {
+		return nil, fmt.Errorf("stok awal diisi tapi gudang tujuannya belum dipilih — pilih gudang supaya stok ini tercatat di lokasi yang benar")
+	}
+	return h.gudangRepo.FindGudangByID(req.StokGudangID)
+}
+
+func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang) *model.Barang {
+	b := &model.Barang{
+		KodeBarang:   req.KodeBarang,
+		Nama:         req.Nama,
+		KategoriID:   req.KategoriID,
+		SatuanID:     req.SatuanID,
+		HargaBeli:    req.HargaBeli,
+		Stok:         req.Stok,
+		StokMinimum:  req.StokMinimum,
+		BeratGram:    req.BeratGram,
+		IsActive:     true,
+		IsSerialized: req.IsSerialized,
+		Merek:        req.Merek,
+		Tipe:         req.Tipe,
+		Deskripsi:    req.Deskripsi,
+	}
+	if stokGudang != nil {
+		b.NamaGudang = stokGudang.Nama
+	}
+	return b
+}
+
+func (h *Controller) setApprovalStatus(c *fiber.Ctx, b *model.Barang) {
+	roleName, _ := c.Locals(constant.CtxRoleName).(string)
+	if roleName == constant.RoleAdmin || roleName == constant.RoleKaryawan {
+		userID, _ := c.Locals(constant.CtxUserID).(uint)
+		b.ApprovalStatus = constant.ApprovalMenunggu
+		b.DiajukanOleh = &userID
+	}
+}
+
+func (h *Controller) handlePostCreateStok(b *model.Barang, req BarangRequest) error {
+	if req.Stok > 0 && req.StokGudangID != 0 {
+		return h.repo.SetStokGudangAwal(b.ID, req.StokGudangID, req.Stok)
+	}
+	return nil
+}
+
+func (h *Controller) getCreateMessage(b *model.Barang) string {
+	if b.ApprovalStatus == constant.ApprovalMenunggu {
+		notification.Notify(h.notifRepo, "barang",
+			"Pengajuan Barang Baru",
+			fmt.Sprintf("%s (%s) diajukan, menunggu pengecekan fisik & persetujuan.", b.Nama, b.KodeBarang),
+			"/kelola-barang", nil, constant.RoleSuperAdmin)
+		return "barang berhasil diajukan, menunggu persetujuan super admin"
+	}
+	return "barang berhasil dibuat"
+}
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req BarangRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -134,57 +203,24 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "kategori atau satuan tidak ditemukan", nil)
 	}
 
-	if req.Stok > 0 {
-		if req.StokGudangID == 0 {
-			return utils.Fail(c, fiber.StatusBadRequest,
-				"stok awal diisi tapi gudang tujuannya belum dipilih — pilih gudang supaya stok ini tercatat di lokasi yang benar", nil)
-		}
-		if _, err := h.gudangRepo.FindGudangByID(req.StokGudangID); err != nil {
-			return utils.Fail(c, fiber.StatusBadRequest, "gudang tujuan stok awal tidak ditemukan", nil)
-		}
+	stokGudang, err := h.getStokGudangAwal(req)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
-	b := &model.Barang{
-		KodeBarang:   req.KodeBarang,
-		Nama:         req.Nama,
-		KategoriID:   req.KategoriID,
-		SatuanID:     req.SatuanID,
-		HargaBeli:    req.HargaBeli,
-		Stok:         req.Stok,
-		StokMinimum:  req.StokMinimum,
-		BeratGram:    req.BeratGram,
-		IsActive:     true,
-		IsSerialized: req.IsSerialized,
-		Merek:        req.Merek,
-		Tipe:         req.Tipe,
-		Deskripsi:    req.Deskripsi,
-	}
-
-	roleName, _ := c.Locals(constant.CtxRoleName).(string)
-	if roleName == constant.RoleAdmin || roleName == constant.RoleKaryawan {
-		userID, _ := c.Locals(constant.CtxUserID).(uint)
-		b.ApprovalStatus = constant.ApprovalMenunggu
-		b.DiajukanOleh = &userID
-	}
+	b := h.buildBarangModel(req, stokGudang)
+	h.setApprovalStatus(c, b)
 
 	if err := h.repo.Create(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat barang", nil)
 	}
-	if req.Stok > 0 && req.StokGudangID != 0 {
-		if err := h.repo.SetStokGudangAwal(b.ID, req.StokGudangID, req.Stok); err != nil {
 
-			return utils.Fail(c, fiber.StatusInternalServerError,
-				"barang berhasil dibuat, TAPI gagal mencatat stok awal ke gudang tujuan — buka Ubah Barang untuk mengisi ulang", nil)
-		}
+	if err := h.handlePostCreateStok(b, req); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError,
+			"barang berhasil dibuat, TAPI gagal mencatat stok awal ke gudang tujuan — buka Ubah Barang untuk mengisi ulang", nil)
 	}
-	msg := "barang berhasil dibuat"
-	if b.ApprovalStatus == constant.ApprovalMenunggu {
-		msg = "barang berhasil diajukan, menunggu persetujuan super admin"
-		notification.Notify(h.notifRepo, "barang",
-			"Pengajuan Barang Baru",
-			fmt.Sprintf("%s (%s) diajukan, menunggu pengecekan fisik & persetujuan.", b.Nama, b.KodeBarang),
-			"/kelola-barang", nil, constant.RoleSuperAdmin)
-	}
+
+	msg := h.getCreateMessage(b)
 	return utils.Created(c, msg, b)
 }
 
@@ -219,12 +255,14 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "kategori atau satuan tidak ditemukan", nil)
 	}
 
+	stokBerubah := req.Stok != b.Stok
+	stokDelta := req.Stok - b.Stok
+
 	b.KodeBarang = req.KodeBarang
 	b.Nama = req.Nama
 	b.KategoriID = req.KategoriID
 	b.SatuanID = req.SatuanID
 	b.HargaBeli = req.HargaBeli
-	b.Stok = req.Stok
 	b.BeratGram = req.BeratGram
 	b.StokMinimum = req.StokMinimum
 
@@ -232,10 +270,30 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	b.Merek = req.Merek
 	b.Tipe = req.Tipe
 	b.Deskripsi = req.Deskripsi
-	if err := h.repo.Update(b); err != nil {
+
+	if !stokBerubah {
+		// Stok tidak diubah — simpan seperti biasa, tanpa perlu pilih gudang.
+		if err := h.repo.Update(b); err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui barang", nil)
+		}
+		return utils.OK(c, "barang berhasil diperbarui", b)
+	}
+
+	// Stok diubah — ini koreksi manual, jadi wajib pilih gudang tujuan
+	// koreksi supaya rincian per-gudang (barang_stok_gudang) tidak
+	// menyimpang dari total Barang.Stok (real-time-safe, lihat
+	// UpdateWithStokKoreksi & SyncBarangStokTotalTx).
+	if req.StokGudangID == 0 {
+		return utils.Fail(c, fiber.StatusBadRequest,
+			"stok diubah, tapi gudang tujuan koreksinya belum dipilih — pilih gudang yang stoknya mau dikoreksi supaya tetap tercatat real-time per gudang", nil)
+	}
+	if _, err := h.gudangRepo.FindGudangByID(req.StokGudangID); err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "gudang tujuan koreksi stok tidak ditemukan", nil)
+	}
+	if err := h.repo.UpdateWithStokKoreksi(b, req.StokGudangID, stokDelta); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui barang", nil)
 	}
-	return utils.OK(c, "barang berhasil diperbarui", b)
+	return utils.OK(c, "barang berhasil diperbarui, stok dikoreksi real-time", b)
 }
 
 func (h *Controller) Delete(c *fiber.Ctx) error {
@@ -399,6 +457,54 @@ func (h *Controller) Delegasikan(c *fiber.Ctx) error {
 	return utils.OK(c, "pengajuan berhasil didelegasikan", updated)
 }
 
+func (h *Controller) BatalkanDelegasi(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang tidak valid", nil)
+	}
+	b, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
+	}
+	if b.DidelegasikanKe == nil {
+		return utils.Fail(c, fiber.StatusConflict, "barang ini belum didelegasikan ke siapa pun", nil)
+	}
+	b.DidelegasikanKe = nil
+	if err := h.repo.Update(b); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membatalkan delegasi", nil)
+	}
+	updated, _ := h.repo.FindByID(b.ID)
+	return utils.OK(c, "delegasi berhasil dibatalkan", updated)
+}
+
+func (h *Controller) DetailStok(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id barang tidak valid", nil)
+	}
+	b, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "Data barang tidak ditemukan", nil)
+	}
+	masuk, keluar, err := barangstokgudang.SumMasukKeluar(h.db, id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung ringkasan masuk/keluar", nil)
+	}
+	perGudang, err := barangstokgudang.ListByBarang(h.db, id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil stok per gudang", nil)
+	}
+	return utils.OK(c, "detail stok barang berhasil diambil", DetailStokResponse{
+		BarangID:    b.ID,
+		KodeBarang:  b.KodeBarang,
+		NamaBarang:  b.Nama,
+		TotalStok:   b.Stok,
+		TotalMasuk:  masuk,
+		TotalKeluar: keluar,
+		PerGudang:   perGudang,
+	})
+}
+
 func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -473,6 +579,7 @@ func (h *Controller) RingkasanStok(c *fiber.Ctx) error {
 	for _, r := range rows {
 		out = append(out, RingkasanStokRow{
 			BarangID: r.BarangID, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
+			Merek: r.Merek, Tipe: r.Tipe,
 			GudangID: r.GudangID, NamaGudang: r.NamaGudang, Stok: r.Stok,
 		})
 	}
@@ -592,4 +699,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Patch("/:id/approve", onlyStaff, h.Approve)
 	g.Patch("/:id/reject", onlyStaff, h.Reject)
 	g.Patch("/:id/delegasikan", onlySuperAdmin, h.Delegasikan)
+	g.Patch("/:id/batalkan-delegasi", onlySuperAdmin, h.BatalkanDelegasi)
+	g.Get("/:id/detail-stok", view, h.DetailStok)
 }

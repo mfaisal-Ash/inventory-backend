@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	barangSerial "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/docnumber"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -21,12 +23,22 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.GudangID != 0 {
 		q = q.Where(constant.QueryGudangIDEq, f.GudangID)
 	}
-	if f.KategoriID != 0 {
-
+	if f.KategoriID != 0 || f.BarangID != 0 || f.Merek != "" || f.Tipe != "" {
 		q = q.Select("barang_masuk.*").Distinct().
 			Joins("JOIN barang_masuk_items ON barang_masuk_items.barang_masuk_id = barang_masuk.id").
-			Joins("JOIN barang ON barang.id = barang_masuk_items.barang_id").
-			Where("barang.kategori_id = ?", f.KategoriID)
+			Joins("JOIN barang ON barang.id = barang_masuk_items.barang_id")
+		if f.KategoriID != 0 {
+			q = q.Where("barang.kategori_id = ?", f.KategoriID)
+		}
+		if f.BarangID != 0 {
+			q = q.Where("barang.id = ?", f.BarangID)
+		}
+		if f.Merek != "" {
+			q = q.Where("barang.merek = ?", f.Merek)
+		}
+		if f.Tipe != "" {
+			q = q.Where("barang.tipe = ?", f.Tipe)
+		}
 	}
 	return q
 }
@@ -90,7 +102,10 @@ func (r *repository) Update(bm *model.BarangMasuk, items []model.BarangMasukItem
 				return err
 			}
 		}
-		return tx.Save(bm).Error
+		// Omit(clause.Associations): cegah Save() menimpa balik gudang_id
+		// dengan ID dari relasi Gudang yang ter-preload di FindByID (bug sama
+		// seperti repositories/barang — lihat komentar di sana).
+		return tx.Omit(clause.Associations).Save(bm).Error
 	})
 }
 
@@ -101,6 +116,12 @@ func (r *repository) Delete(id uint) error {
 		}
 		return tx.Delete(&model.BarangMasuk{}, id).Error
 	})
+}
+
+// SetProtected hanya menulis kolom is_protected saja (bukan Save() atas
+// struct penuh) supaya tidak menyentuh/menimpa items ataupun kolom lain.
+func (r *repository) SetProtected(id uint, protect bool) error {
+	return r.db.Model(&model.BarangMasuk{}).Where("id = ?", id).Update("is_protected", protect).Error
 }
 
 func (r *repository) Complete(id uint, userID uint, serials map[uint][]string) (*model.BarangMasuk, error) {
@@ -115,7 +136,13 @@ func (r *repository) Complete(id uint, userID uint, serials map[uint][]string) (
 
 		for _, item := range bm.Items {
 			var b model.Barang
-			if err := tx.First(&b, item.BarangID).Error; err != nil {
+			// FOR UPDATE: b.Stok & b.HargaBeli dipakai buat menghitung
+			// harga_beli rata-rata tertimbang di bawah (lihat hargaRataRata).
+			// Tanpa lock ini, dua Complete() bersamaan pada barang yang sama
+			// bisa sama-sama baca stok/harga lama sebelum salah satunya
+			// selesai nulis, menghasilkan harga rata-rata yang salah — sama
+			// seperti pola locking yang sudah dipakai di barang_keluar_repos.go.
+			if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {
 				return err
 			}
 
@@ -180,4 +207,8 @@ func (r *repository) CountByStatus(status string) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.BarangMasuk{}).Where(constant.QueryStatusEq, status).Count(&count).Error
 	return count, err
+}
+
+func (r *repository) NextNomor() (string, error) {
+	return docnumber.Next(r.db, "BM")
 }

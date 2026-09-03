@@ -117,6 +117,31 @@ func (r *repository) UpdateStatusManual(id uint, status string, catatan string) 
 	return r.FindByID(id)
 }
 
+// UpdateLokasi sebelumnya TIDAK PERNAH terpanggil — frontend memanggil
+// method `.update()` yang tidak ada di client API, dan backend juga tidak
+// punya endpoint untuk ini sama sekali (cuma ada PATCH /:id/status buat
+// ganti status). Modal "Ubah Unit" (pilih gudang + catatan) jadi selalu
+// gagal. Method ini + endpoint barunya menutup celah itu.
+func (r *repository) UpdateLokasi(id uint, gudangID uint, catatan string) (*model.BarangSerial, error) {
+	var g model.Gudang
+	if err := r.db.First(&g, gudangID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New(constant.ErrSerialGudangTidakAda)
+		}
+		return nil, err
+	}
+
+	res := r.db.Model(&model.BarangSerial{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"gudang_id": gudangID, "catatan": catatan})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, errors.New(constant.ErrSerialTidakDitemukan)
+	}
+	return r.FindByID(id)
+}
+
 func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&model.BarangSerial{}, id).Error
 }

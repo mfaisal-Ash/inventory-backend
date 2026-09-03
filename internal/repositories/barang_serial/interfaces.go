@@ -31,5 +31,9 @@ type Repository interface {
 	RiwayatDokumen(s *model.BarangSerial) (nomorMasuk string, nomorKeluar string, err error)
 
 	UpdateStatusManual(id uint, status string, catatan string) (*model.BarangSerial, error)
+	// UpdateLokasi memindahkan unit ke gudang lain + ubah catatan (dipakai
+	// modal "Ubah Unit" di menu Nomor Seri). Ini terpisah dari
+	// UpdateStatusManual karena mengubah gudang, bukan status.
+	UpdateLokasi(id uint, gudangID uint, catatan string) (*model.BarangSerial, error)
 	Delete(id uint) error
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -26,10 +25,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 		return 0, err
 	}
 	return uint(id), nil
-}
-
-func generateNomorBM() string {
-	return fmt.Sprintf("BM-%d-%d", time.Now().Year(), time.Now().UnixNano()%100000)
 }
 
 func (h *Controller) validateItems(req BMRequest) error {
@@ -66,10 +61,14 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
 	kategoriID, _ := strconv.ParseUint(c.Query("kategori_id", "0"), 10, 64)
+	barangID, _ := strconv.ParseUint(c.Query("barang_id", "0"), 10, 64)
 	f := bmRepo.Filter{
 		Status:     c.Query("status", ""),
 		GudangID:   uint(gudangID),
 		KategoriID: uint(kategoriID),
+		BarangID:   uint(barangID),
+		Merek:      c.Query("merek", ""),
+		Tipe:       c.Query("tipe", ""),
 	}
 
 	list, total, err := h.repo.List(p, f)
@@ -107,8 +106,12 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
+	nomor, err := h.repo.NextNomor()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor penerimaan", nil)
+	}
 	bm := &model.BarangMasuk{
-		NomorPenerimaan: generateNomorBM(),
+		NomorPenerimaan: nomor,
 		GudangID:        req.GudangID,
 		Status:          constant.StatusBMDraft,
 		Tanggal:         tanggal,
@@ -145,6 +148,10 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}
+	if bm.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum diubah", nil)
+	}
 
 	var req BMRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -175,13 +182,40 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
 	}
-	if _, err := h.requireDraft(id); err != nil {
+	bm, err := h.requireDraft(id)
+	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	if bm.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dihapus", nil)
 	}
 	if err := h.repo.Delete(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus dokumen barang masuk", nil)
 	}
 	return utils.OK(c, "dokumen barang masuk berhasil dihapus", nil)
+}
+
+func (h *Controller) Protect(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
+	}
+	var req ProtectRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	if _, err := h.repo.FindByID(id); err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang masuk tidak ditemukan", nil)
+	}
+	if err := h.repo.SetProtected(id, *req.IsProtected); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengubah status proteksi", nil)
+	}
+	bm, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil dokumen setelah diperbarui", nil)
+	}
+	return utils.OK(c, "status proteksi berhasil diubah", bm)
 }
 
 func (h *Controller) Complete(c *fiber.Ctx) error {
@@ -190,6 +224,19 @@ func (h *Controller) Complete(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
 	}
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
+
+	// Complete/Batalkan tadinya tidak pernah cek IsProtected sama sekali
+	// (beda dengan Update/Delete di atas) — padahal Complete tetap mengubah
+	// stok & status dokumen, jadi dokumen yang sudah di-Protect super admin
+	// seharusnya juga tidak bisa diselesaikan/dibatalkan lewat sini.
+	existing, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang masuk tidak ditemukan", nil)
+	}
+	if existing.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum diselesaikan", nil)
+	}
 
 	var req CompleteBMRequest
 	_ = c.BodyParser(&req)
@@ -210,6 +257,16 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
 	}
+
+	existing, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang masuk tidak ditemukan", nil)
+	}
+	if existing.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dibatalkan", nil)
+	}
+
 	bm, err := h.repo.Batalkan(id)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
@@ -236,6 +293,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	tambah := middleware.RequirePermission(h.roleRepo, Module, constant.ActionTambah)
 	edit := middleware.RequirePermission(h.roleRepo, Module, constant.ActionEdit)
 	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
+	onlySuperAdmin := middleware.RequireRole(constant.RoleSuperAdmin)
 
 	g.Get("/summary", view, h.Summary)
 	g.Get("/", view, h.List)
@@ -245,4 +303,5 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 	g.Patch("/:id/selesai", edit, h.Complete)
 	g.Patch("/:id/batalkan", edit, h.Batalkan)
+	g.Patch("/:id/protect", onlySuperAdmin, h.Protect)
 }

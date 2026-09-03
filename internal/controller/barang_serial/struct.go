@@ -24,6 +24,13 @@ type UpdateStatusRequest struct {
 	Catatan string `json:"catatan" validate:"max=255"`
 }
 
+// UpdateLokasiRequest dipakai modal "Ubah Unit" (pindah gudang + catatan) —
+// beda dari UpdateStatusRequest yang buat ganti status.
+type UpdateLokasiRequest struct {
+	GudangID uint   `json:"gudang_id" validate:"required"`
+	Catatan  string `json:"catatan" validate:"max=255"`
+}
+
 type CreateRequest struct {
 	BarangID     uint   `json:"barang_id" validate:"required"`
 	GudangID     uint   `json:"gudang_id" validate:"required"`

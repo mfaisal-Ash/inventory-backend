@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -24,10 +23,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 		return 0, err
 	}
 	return uint(id), nil
-}
-
-func generateNomorSO() string {
-	return fmt.Sprintf("SO-%d-%d", time.Now().Year(), time.Now().UnixNano()%100000)
 }
 
 func (h *Controller) validateItems(items []ItemRequest) error {
@@ -89,8 +84,12 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
+	nomor, err := h.repo.NextNomor()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor opname", nil)
+	}
 	so := &model.StockOpname{
-		NomorOpname: generateNomorSO(),
+		NomorOpname: nomor,
 		GudangID:    req.GudangID,
 		Status:      constant.StatusSODraft,
 		Tanggal:     tanggal,

@@ -134,7 +134,16 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if req.PhoneNumber != nil {
 		u.PhoneNumber = *req.PhoneNumber
 	}
-	if req.RoleID != 0 {
+	if req.RoleID != 0 && req.RoleID != u.RoleID {
+		// Endpoint ini boleh diakses super_admin MAUPUN admin biasa (lihat
+		// RegisterRoutes), tapi mengganti role_id user lain (termasuk
+		// mempromosikan diri sendiri/user lain jadi super_admin) HARUS
+		// dibatasi super_admin saja — kalau tidak, admin biasa bisa
+		// eskalasi privilese lewat endpoint ini.
+		callerRoleName, _ := c.Locals(cons.CtxRoleName).(string)
+		if callerRoleName != cons.RoleSuperAdmin {
+			return utils.Fail(c, fiber.StatusForbidden, "hanya super admin yang boleh mengubah role user", nil)
+		}
 		u.RoleID = req.RoleID
 	}
 	if req.IsActive != nil {

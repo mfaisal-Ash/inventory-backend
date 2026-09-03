@@ -92,15 +92,18 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 		return nil
 	}
 
-	int64IDs := make([]int64, len(ids))
-	for i, id := range ids {
-		int64IDs[i] = int64(id)
-	}
+	// Catatan: SEBELUMNYA pakai `unnest(?::bigint[])` dengan slice Go dibind ke
+	// satu placeholder `?` — GORM otomatis meng-expand argumen ber-tipe slice
+	// jadi banyak placeholder (?,?,?,...), yang merusak cast array itu jadi
+	// SQL tidak valid (makanya tombol "Tandai semua dibaca" selalu gagal).
+	// Pola `IN (?)` di bawah ini konsisten dengan cara IN-clause dipakai di
+	// seluruh repository lain di project ini dan memang didesain untuk
+	// di-expand GORM seperti itu.
 	return r.db.Exec(
 		`INSERT INTO notification_reads (notification_id, user_id, read_at)
-		 SELECT unnest(?::bigint[]), ?, NOW()
+		 SELECT id, ?, NOW() FROM notifications WHERE id IN (?)
 		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
-		int64IDs, userID,
+		userID, ids,
 	).Error
 }
 

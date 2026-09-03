@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
@@ -69,8 +70,11 @@ func (r *repository) Create(pg *model.Pengiriman) error {
 	return r.db.Create(pg).Error
 }
 
+// Update: Omit(clause.Associations) — cegah Save() menimpa balik
+// gudang_asal_id dengan ID dari relasi GudangAsal yang ter-preload di
+// FindByID (bug sama seperti repositories/barang — lihat komentar di sana).
 func (r *repository) Update(pg *model.Pengiriman) error {
-	return r.db.Save(pg).Error
+	return r.db.Omit(clause.Associations).Save(pg).Error
 }
 
 func (r *repository) Delete(id uint) error {

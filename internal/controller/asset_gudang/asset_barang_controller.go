@@ -40,6 +40,8 @@ func (h *Controller) List(c *fiber.Ctx) error {
 		JenisAset: c.Query("jenis_aset", ""),
 		GudangID:  uint(gudangID),
 		Status:    c.Query("status", ""),
+		Merek:     c.Query("merek", ""),
+		Tipe:      c.Query("tipe", ""),
 	}
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
@@ -107,10 +109,27 @@ func (h *Controller) MapPoints(c *fiber.Ctx) error {
 	return utils.OK(c, "titik peta aset berhasil diambil", out)
 }
 
+// validasiTransportasi: untuk jenis_aset "transportasi", nopol/jenis
+// transportasi/nomor BPKB/tahun kendaraan wajib diisi — ini pengganti
+// latitude/longitude yang wajib untuk jenis aset lain (lihat
+// model.JenisAsetPunyaKoordinat).
+func validasiTransportasi(req AssetRequest) string {
+	if req.JenisAset != constant.JenisAsetTransportasi {
+		return ""
+	}
+	if req.Nopol == "" || req.JenisTransportasi == "" || req.NomorBPKB == "" || req.TahunKendaraan == 0 {
+		return "nomor polisi, jenis transportasi, nomor BPKB, dan tahun kendaraan wajib diisi untuk aset transportasi"
+	}
+	return ""
+}
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req AssetRequest
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
+	}
+	if msg := validasiTransportasi(req); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
 
 	gudang, err := h.gudangRepo.FindGudangByID(req.GudangID)
@@ -140,10 +159,16 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		Keterangan:    req.Keterangan,
 		Merek:         req.Merek,
 		Tipe:          req.Tipe,
+		NilaiAset:     req.NilaiAset,
 		ParentAssetID: req.ParentAssetID,
 		JumlahPort:    req.JumlahPort,
 		BarangID:      req.BarangID,
 		Status:        "aktif",
+
+		Nopol:             req.Nopol,
+		JenisTransportasi: req.JenisTransportasi,
+		NomorBPKB:         req.NomorBPKB,
+		TahunKendaraan:    req.TahunKendaraan,
 	}
 
 	if model.JenisAsetPunyaKoordinat(req.JenisAset) {
@@ -192,6 +217,12 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
 	}
+	if msg := validasiTransportasi(AssetRequest{
+		JenisAset: a.JenisAset, Nopol: req.Nopol, JenisTransportasi: req.JenisTransportasi,
+		NomorBPKB: req.NomorBPKB, TahunKendaraan: req.TahunKendaraan,
+	}); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
+	}
 	if req.ParentAssetID != nil {
 		if *req.ParentAssetID == a.ID {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity, "aset tidak bisa jadi induk untuk dirinya sendiri", nil)
@@ -215,14 +246,26 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	oldLat, oldLng := a.Latitude, a.Longitude
 	oldGudangID := a.GudangID
 	oldLabelRSD := a.LabelRSD
+	oldNilaiAset := a.NilaiAset
+	oldNopol := a.Nopol
+	oldJenisTransportasi := a.JenisTransportasi
+	oldNomorBPKB := a.NomorBPKB
+	oldTahunKendaraan := a.TahunKendaraan
 
 	a.Nama = req.Nama
 	a.Keterangan = req.Keterangan
 	a.Merek = req.Merek
 	a.Tipe = req.Tipe
+	a.NilaiAset = req.NilaiAset
 	a.ParentAssetID = req.ParentAssetID
 	a.JumlahPort = req.JumlahPort
 	a.BarangID = req.BarangID
+	if a.JenisAset == constant.JenisAsetTransportasi {
+		a.Nopol = req.Nopol
+		a.JenisTransportasi = req.JenisTransportasi
+		a.NomorBPKB = req.NomorBPKB
+		a.TahunKendaraan = req.TahunKendaraan
+	}
 
 	if req.GudangID != 0 && req.GudangID != a.GudangID {
 		newGudang, gerr := h.gudangRepo.FindGudangByID(req.GudangID)
@@ -268,6 +311,15 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if oldGudangID != a.GudangID {
 		h.logHistory(c, a.ID, "gudang", oldLabelRSD, a.LabelRSD,
 			fmt.Sprintf("Aset dipindahkan ke gudang lain, label RSD diregenerasi (gudang #%d -> #%d)", oldGudangID, a.GudangID))
+	}
+	if oldNilaiAset != a.NilaiAset {
+		h.logHistory(c, a.ID, "nilai_aset", strconv.FormatInt(oldNilaiAset, 10), strconv.FormatInt(a.NilaiAset, 10), "Nilai aset diubah")
+	}
+	if oldNopol != a.Nopol || oldJenisTransportasi != a.JenisTransportasi || oldNomorBPKB != a.NomorBPKB || oldTahunKendaraan != a.TahunKendaraan {
+		h.logHistory(c, a.ID, "data_transportasi",
+			fmt.Sprintf("%s / %s / %s / %d", oldNopol, oldJenisTransportasi, oldNomorBPKB, oldTahunKendaraan),
+			fmt.Sprintf("%s / %s / %s / %d", a.Nopol, a.JenisTransportasi, a.NomorBPKB, a.TahunKendaraan),
+			"Data transportasi (nopol/jenis/BPKB/tahun) diubah")
 	}
 	return utils.OK(c, "aset berhasil diperbarui", a)
 }

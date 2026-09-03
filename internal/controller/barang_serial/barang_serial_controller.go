@@ -123,6 +123,22 @@ func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 	return utils.OK(c, "status unit berhasil diperbarui", s)
 }
 
+func (h *Controller) UpdateLokasi(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id unit tidak valid", nil)
+	}
+	var req UpdateLokasiRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	s, err := h.repo.UpdateLokasi(id, req.GudangID, req.Catatan)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	return utils.OK(c, "unit berhasil dipindahkan", s)
+}
+
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -148,5 +164,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/ringkasan/:barang_id", view, h.Ringkasan)
 	g.Get("/:id", view, h.Detail)
 	g.Patch("/:id/status", edit, h.UpdateStatus)
+	g.Patch("/:id", edit, h.UpdateLokasi)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 }

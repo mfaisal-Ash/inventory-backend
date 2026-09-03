@@ -10,6 +10,7 @@ type Barang struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
 	KodeBarang  string    `json:"kode_barang" gorm:"size:30;uniqueIndex;not null"`
 	Nama        string    `json:"nama" gorm:"size:150;not null;index"`
+	NamaGudang  string    `json:"nama_gudang" gorm:"size:150;not null;index"`
 	KategoriID  uint      `json:"kategori_id" gorm:"not null;index"`
 	Kategori    *Kategori `json:"kategori,omitempty" gorm:"foreignKey:KategoriID"`
 	SatuanID    uint      `json:"satuan_id" gorm:"not null;index"`

@@ -65,7 +65,7 @@ func periodKey(t time.Time, granularity string) (key, label string) {
 	case GranularitasTahunan:
 		return t.Format("2006"), t.Format("2006")
 	default:
-		return t.Format("2006-01"), t.Format("Jan 2006")
+		return t.Format("2006-01"), formatBulanIndonesia(t)
 	}
 }
 
@@ -174,14 +174,16 @@ func (h *Controller) buildChart(tipe string, headers []string, rows [][]string, 
 		return computeDateSeriesChart("Barang Keluar per Periode", headers, rows, []string{"Tanggal"}, granularity)
 	case constant.LaporanBarangMasuk:
 		return computeDateSeriesChart("Barang Masuk per Periode", headers, rows, []string{"Tanggal"}, granularity)
-	case constant.LaporanBarangRetur:
-		return computeDateSeriesChart("Barang Retur per Periode", headers, rows, []string{"Tanggal Diperiksa"}, granularity)
+	case constant.LaporanTrackingAset:
+		return computeDateSeriesChart("Tracking Aset per Periode", headers, rows, []string{"Tanggal"}, granularity)
 	case constant.LaporanBarangRusak:
 		return computeDateSeriesChart("Laporan Barang Rusak per Periode", headers, rows, []string{"Tanggal Diperiksa"}, granularity)
 	case constant.LaporanStokOpname:
 		return computeDateSeriesChart("Stock Opname per Periode", headers, rows, []string{"Tanggal"}, granularity)
 	case constant.LaporanStokBarang:
 		return computeTopStokChart(headers, rows)
+	case constant.LaporanPengajuanBarang:
+		return computeDateSeriesChart("Pengajuan Barang per Periode", headers, rows, []string{"Tanggal"}, granularity)
 	default:
 		return nil
 	}

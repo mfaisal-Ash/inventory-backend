@@ -15,6 +15,7 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/geoip"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/passwordreset"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -189,8 +190,131 @@ func (h *Controller) Register(c *fiber.Ctx) error {
 	return utils.Created(c, "akun berhasil dibuat", res)
 }
 
+// maskPhoneNumber menyembunyikan sebagian besar digit nomor HP di respons
+// API supaya endpoint ini tidak bisa dipakai untuk mengonfirmasi nomor HP
+// lengkap milik orang lain (cukup tampilkan beberapa digit terakhir, sama
+// seperti pola umum "kirim kode ke +62***-***-1234").
+func maskPhoneNumber(phone string) string {
+	if len(phone) <= 4 {
+		return strings.Repeat("*", len(phone))
+	}
+	visible := phone[len(phone)-4:]
+	return strings.Repeat("*", len(phone)-4) + visible
+}
+
+// RequestPasswordResetOTP adalah langkah 1 dari alur lupa password: mencari
+// akun berdasarkan identifier, mengirim kode OTP 6 digit ke nomor HP yang
+// SUDAH terdaftar untuk akun itu via WhatsApp, lalu mengembalikan sebuah
+// "reset ticket" (bukan kodenya) yang harus dikirim balik bersama kode di
+// langkah ResetPassword. Ini menutup celah account-takeover pada alur lama
+// yang cuma mensyaratkan identifier + human-check tanpa bukti kepemilikan
+// akun sama sekali.
+func (h *Controller) RequestPasswordResetOTP(c *fiber.Ctx) error {
+	var req RequestPasswordResetOTPRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+
+	if err := h.humanCheckSvc.Verify(req.HumanCheckToken); err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "verifikasi gagal: "+err.Error(), nil)
+	}
+
+	u, err := h.userRepo.FindByUsername(req.Identifier)
+	if err != nil {
+		u, err = h.userRepo.FindByEmail(req.Identifier)
+	}
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "akun dengan username tersebut tidak ditemukan", nil)
+	}
+	if !u.IsActive {
+		return utils.Fail(c, fiber.StatusForbidden, "akun anda tidak aktif, hubungi administrator", nil)
+	}
+	if strings.TrimSpace(u.PhoneNumber) == "" {
+		return utils.Fail(c, fiber.StatusBadRequest, "akun ini belum punya nomor HP terdaftar, hubungi administrator untuk reset password manual", nil)
+	}
+
+	code, err := passwordreset.GenerateCode()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat kode verifikasi", nil)
+	}
+
+	if err := h.waSender.SendOTP(u.PhoneNumber, code); err != nil {
+		log.Printf("auth: gagal mengirim OTP reset password via whatsapp untuk user %d: %v", u.ID, err)
+		return utils.Fail(c, fiber.StatusServiceUnavailable, "gagal mengirim kode verifikasi via WhatsApp, coba lagi nanti atau hubungi administrator", nil)
+	}
+
+	ticket, err := h.passwordResetSvc.IssueTicket(u.ID, code)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat tiket reset", nil)
+	}
+
+	return utils.OK(c, "kode verifikasi sudah dikirim via WhatsApp", RequestPasswordResetOTPResponse{
+		ResetTicket:   ticket,
+		MaskedPhone:   maskPhoneNumber(u.PhoneNumber),
+		ExpiresInMins: 10,
+	})
+}
+
+// ResetPassword adalah langkah 2: memverifikasi kode OTP yang diketik ulang
+// pengguna terhadap reset ticket dari RequestPasswordResetOTP, lalu baru
+// mengganti password kalau cocok. Ticket cuma bisa dipakai sekali (Consume
+// dipanggil setelah password berhasil diganti) dan kedaluwarsa mengikuti
+// PasswordResetConfig.TTLMinutes.
 func (h *Controller) ResetPassword(c *fiber.Ctx) error {
 	var req ResetPasswordRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+
+	userID, err := h.passwordResetSvc.VerifyTicket(req.ResetTicket, req.Code)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
+	}
+
+	u, err := h.userRepo.FindByID(userID)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "akun tidak ditemukan", nil)
+	}
+	if !u.IsActive {
+		return utils.Fail(c, fiber.StatusForbidden, "akun anda tidak aktif, hubungi administrator", nil)
+	}
+
+	hashed, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengenkripsi password baru", nil)
+	}
+	u.PasswordHash = hashed
+	if err := h.userRepo.Update(u); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan password baru", nil)
+	}
+
+	if err := h.authRepo.RevokeAllUserTokens(u.ID); err != nil {
+		log.Printf("auth: gagal mencabut sesi lama setelah reset password untuk user %d: %v", u.ID, err)
+	}
+
+	h.passwordResetSvc.Consume(req.ResetTicket)
+
+	return utils.OK(c, "password berhasil diubah, silakan login dengan password baru", nil)
+}
+
+// ForgotPassword: alur lupa password satu-langkah TANPA verifikasi
+// kepemilikan akun via OTP WhatsApp — dikembalikan atas permintaan
+// eksplisit pemilik sistem karena pengiriman OTP via WhatsApp
+// (RequestPasswordResetOTP di atas) gagal terus di lingkungan ini
+// (gateway WhatsApp tidak tersedia/tidak diandalkan).
+//
+// PERINGATAN KEAMANAN — baca sebelum mengaktifkan endpoint ini di
+// lingkungan production: endpoint ini HANYA mensyaratkan username/email
+// yang benar + lolos human-check (anti-bot), TIDAK ADA bukti bahwa yang
+// mengajukan benar-benar pemilik akun tersebut. Siapa pun yang tahu atau
+// menebak username seseorang bisa mengganti passwordnya lewat sini. Ini
+// SENGAJA lebih longgar daripada alur OTP (RequestPasswordResetOTP +
+// ResetPassword) yang sebelumnya menutup celah account-takeover ini —
+// pertimbangkan pindah balik ke alur OTP begitu WhatsApp gateway bisa
+// diandalkan lagi, atau batasi endpoint ini hanya untuk lingkungan
+// internal/terpercaya.
+func (h *Controller) ForgotPassword(c *fiber.Ctx) error {
+	var req ForgotPasswordRequest
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
 	}
@@ -220,7 +344,7 @@ func (h *Controller) ResetPassword(c *fiber.Ctx) error {
 	}
 
 	if err := h.authRepo.RevokeAllUserTokens(u.ID); err != nil {
-		log.Printf("auth: gagal mencabut sesi lama setelah reset password untuk user %d: %v", u.ID, err)
+		log.Printf("auth: gagal mencabut sesi lama setelah reset password (alur biasa) untuk user %d: %v", u.ID, err)
 	}
 
 	return utils.OK(c, "password berhasil diubah, silakan login dengan password baru", nil)
@@ -321,6 +445,21 @@ func (h *Controller) Setup2FA(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
 	}
+	// pendingToken di sini adalah JWT stateless yang sama bentuknya dengan
+	// pendingToken yang diterbitkan Login() saat akun sudah punya 2FA aktif
+	// (dua-duanya lewat GenerateRefreshToken, tidak pernah disimpan ke tabel
+	// refresh_tokens, jadi tidak bisa dibedakan "asalnya" cuma dari token
+	// itu sendiri). Tanpa guard ini, siapa pun yang cuma tahu password akun
+	// (misalnya dari kebocoran password di layanan lain) bisa Login untuk
+	// mendapat pendingToken, lalu pakai endpoint setup 2FA ini buat
+	// memasang secret TOTP PILIHAN SENDIRI dan langsung lolos verifikasi —
+	// sama sekali tidak butuh HP/authenticator korban. Itu meniadakan
+	// gunanya 2FA. StartTwoFactorSetup (jalur resmi, perlu login dulu) sudah
+	// menolak kalau 2FA aktif; guard yang sama wajib ada di sini juga karena
+	// endpoint ini tidak mensyaratkan JWTAuth sama sekali.
+	if u.Is2FAEnabled {
+		return utils.Fail(c, fiber.StatusBadRequest, "2FA sudah aktif untuk akun ini, matikan dulu lewat administrator sebelum setup ulang", nil)
+	}
 
 	totpLabel := u.Email
 	if totpLabel == "" {
@@ -347,6 +486,20 @@ func (h *Controller) ConfirmSetup2FA(c *fiber.Ctx) error {
 	}
 	userID := utils.ParseUintSubject(claims.Subject)
 
+	u, err := h.userRepo.FindByID(userID)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
+	}
+	// Guard yang sama seperti di Setup2FA (lihat komentar di sana): tanpa
+	// ini, pendingToken dari Login (yang cuma butuh password) bisa dipakai
+	// buat menimpa TOTPSecret akun yang 2FA-nya SUDAH aktif dengan secret
+	// pilihan penyerang sendiri, lalu langsung dapat access/refresh token
+	// via issueTokens di bawah — bypass total 2FA tanpa pernah menyentuh
+	// authenticator korban.
+	if u.Is2FAEnabled {
+		return utils.Fail(c, fiber.StatusBadRequest, "2FA sudah aktif untuk akun ini, matikan dulu lewat administrator sebelum setup ulang", nil)
+	}
+
 	if !utils.VerifyTOTP(req.OTPCode, req.Secret) {
 		return utils.Fail(c, fiber.StatusBadRequest, "Kode OTP salah atau sudah kedaluwarsa", nil)
 	}
@@ -356,11 +509,7 @@ func (h *Controller) ConfirmSetup2FA(c *fiber.Ctx) error {
 	if err := h.userRepo.UpdateTOTPSecret(userID, req.Secret, true); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengaktifkan 2FA", nil)
 	}
-
-	u, err := h.userRepo.FindByID(userID)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
-	}
+	u.Is2FAEnabled = true
 	res, err := h.issueTokens(c, u)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menerbitkan sesi", nil)
@@ -549,7 +698,9 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Post("/verify-otp", h.VerifyOTP)
 	g.Post("/refresh", h.RefreshToken)
 
+	g.Post("/password/forgot-otp", middleware.PasswordResetRateLimiter(), h.RequestPasswordResetOTP)
 	g.Post("/password/reset", middleware.PasswordResetRateLimiter(), h.ResetPassword)
+	g.Post("/password/forgot", middleware.PasswordResetRateLimiter(), h.ForgotPassword)
 
 	protected := g.Group("/", middleware.JWTAuth(h.jwtSvc))
 	protected.Post("/logout", h.Logout)

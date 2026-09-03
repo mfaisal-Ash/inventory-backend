@@ -6,7 +6,8 @@ import (
 )
 
 type Filter struct {
-	Status string
+	Status   string
+	BarangID uint
 }
 
 type Repository interface {
@@ -17,4 +18,11 @@ type Repository interface {
 	Delete(id uint) error
 
 	CountByStatus(status string) (int64, error)
+
+	// SimpanKeGudang: pengganti fitur retur-ke-supplier yang sudah dihapus —
+	// menambahkan kembali 1 unit ke stok gudang tujuan (barang_stok_gudang +
+	// total stok barang) dan mengunci baris ini ke status akhir
+	// "disimpan_gudang" dalam satu transaksi, supaya stoknya tidak bisa
+	// dobel-ditambahkan lewat panggilan berulang.
+	SimpanKeGudang(id uint, gudangID uint) (*model.BarangRusak, error)
 }

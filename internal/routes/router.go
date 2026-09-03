@@ -36,7 +36,16 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	app.Get("/health/ready", deps.HealthController.Ready)
 	app.Get("/health", deps.HealthController.Health)
 
-	app.Static("/uploads", deps.Cfg.Storage.Path)
+	// Catatan keamanan: dulu ada `app.Static("/uploads", deps.Cfg.Storage.Path)`
+	// di sini yang membuat seluruh isi STORAGE_PATH bisa diakses publik tanpa
+	// login. Setelah ditelusuri, tidak ada kode yang benar-benar menyimpan file
+	// ke folder itu — avatar user, foto barang rusak, dan file template
+	// pengajuan semuanya disimpan sebagai blob di database dan dilayani lewat
+	// endpoint terautentikasi masing-masing (lihat ServeAvatar, ServeFoto, dan
+	// handler download template). STORAGE_PATH cuma dipakai health checker
+	// untuk tes tulis file probe sementara. Jadi mount publik ini dihapus —
+	// tidak ada fitur yang bergantung padanya, dan menghapusnya menutup celah
+	// direktori publik untuk fitur upload berbasis file di masa depan.
 
 	if deps.Cfg.Swagger.Enabled {
 		swaggerRoute := app.Group("/swagger")
@@ -54,6 +63,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	deps.AppInfoController.RegisterRoutes(api)
 	deps.TrashController.RegisterRoutes(api)
 	deps.NotificationController.RegisterRoutes(api)
+	deps.GeocodeController.RegisterRoutes(api)
 
 	deps.MaintenanceController.RegisterRoutes(api)
 
@@ -85,6 +95,8 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 		deps.TaskController,
 		deps.LaporanController,
 		deps.DashboardController,
+		deps.PengajuanBarangController,
+		deps.PengajuanTemplateController,
 	}
 	for _, r := range operationalRegistrars {
 		r.RegisterRoutes(operational)

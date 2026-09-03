@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -27,6 +28,12 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	}
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
+	}
+	if f.Merek != "" {
+		q = q.Where("merek = ?", f.Merek)
+	}
+	if f.Tipe != "" {
+		q = q.Where("tipe = ?", f.Tipe)
 	}
 	return q
 }
@@ -103,8 +110,14 @@ func (r *repository) Create(a *model.Asset) error {
 	return r.db.Create(a).Error
 }
 
+// Update: Omit(clause.Associations) mencegah Save() menimpa balik kolom FK
+// (gudang_id, barang_id) dengan ID dari relasi Gudang/Barang yang
+// ter-preload di FindByID — tanpa ini, memindahkan aset ke gudang lain atau
+// mengaitkannya ke barang lain lewat form Ubah Aset kelihatan berhasil (200
+// OK) tapi diam-diam balik ke gudang/barang lama di database (bug yang sama
+// seperti di repositories/barang — lihat komentar di sana).
 func (r *repository) Update(a *model.Asset) error {
-	return r.db.Save(a).Error
+	return r.db.Omit(clause.Associations).Save(a).Error
 }
 
 func (r *repository) Delete(id uint) error {

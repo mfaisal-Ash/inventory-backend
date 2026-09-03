@@ -10,7 +10,9 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/config"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/geoip"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/humancheck"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/passwordreset"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/wa"
 )
 
 const otpReplayTTL = 5 * time.Minute
@@ -23,6 +25,9 @@ type Controller struct {
 	captchaSvc    *captcha.Service
 	humanCheckSvc *humancheck.Service
 	geoipSvc      geoip.Resolver
+
+	waSender         wa.Sender
+	passwordResetSvc *passwordreset.Service
 
 	appEnv     string
 	totpIssuer string
@@ -39,6 +44,9 @@ type Params struct {
 	HumanCheckSvc *humancheck.Service
 	GeoipSvc      geoip.Resolver
 	Cfg           *config.Config
+
+	WASender         wa.Sender
+	PasswordResetSvc *passwordreset.Service
 }
 
 func New(p Params) *Controller {
@@ -50,8 +58,12 @@ func New(p Params) *Controller {
 		captchaSvc:    p.CaptchaSvc,
 		humanCheckSvc: p.HumanCheckSvc,
 		geoipSvc:      p.GeoipSvc,
-		appEnv:        p.Cfg.App.Env,
-		totpIssuer:    p.Cfg.TOTP.Issuer,
+
+		waSender:         p.WASender,
+		passwordResetSvc: p.PasswordResetSvc,
+
+		appEnv:     p.Cfg.App.Env,
+		totpIssuer: p.Cfg.TOTP.Issuer,
 
 		otpReplayGuard: newTOTPReplayGuard(otpReplayTTL),
 	}
@@ -75,10 +87,31 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required,min=6"`
 }
 
-type ResetPasswordRequest struct {
+// RequestPasswordResetOTPRequest adalah langkah 1 dari alur lupa password:
+// meminta server mengirim kode OTP via WhatsApp ke nomor HP yang terdaftar
+// untuk akun dengan identifier ini.
+type RequestPasswordResetOTPRequest struct {
 	Identifier      string `json:"identifier" validate:"required"`
-	NewPassword     string `json:"new_password" validate:"required,min=8"`
 	HumanCheckToken string `json:"human_check_token" validate:"required"`
+}
+
+// ResetPasswordRequest adalah langkah 2: mengetik ulang kode OTP yang
+// diterima via WhatsApp bersama reset ticket dari langkah 1, untuk
+// membuktikan kepemilikan akun sebelum password diganti.
+type ResetPasswordRequest struct {
+	ResetTicket             string `json:"reset_ticket" validate:"required"`
+	Code                    string `json:"code" validate:"required,len=6"`
+	NewPassword             string `json:"new_password" validate:"required,min=8"`
+	NewPasswordConfirmation string `json:"new_password_confirmation" validate:"required,eqfield=NewPassword"`
+}
+
+// ForgotPasswordRequest: alur lupa password "biasa" (satu langkah, TANPA
+// kode OTP WhatsApp) — lihat catatan keamanan di Controller.ForgotPassword.
+type ForgotPasswordRequest struct {
+	Identifier              string `json:"identifier" validate:"required"`
+	NewPassword             string `json:"new_password" validate:"required,min=8"`
+	NewPasswordConfirmation string `json:"new_password_confirmation" validate:"required,eqfield=NewPassword"`
+	HumanCheckToken         string `json:"human_check_token" validate:"required"`
 }
 
 type Setup2FARequest struct {
@@ -134,6 +167,12 @@ type LoginResponse struct {
 	RefreshToken string       `json:"refresh_token,omitempty"`
 	User         *UserSummary `json:"user,omitempty"`
 	Session      *SessionInfo `json:"session,omitempty"`
+}
+
+type RequestPasswordResetOTPResponse struct {
+	ResetTicket   string `json:"reset_ticket"`
+	MaskedPhone   string `json:"masked_phone"`
+	ExpiresInMins int    `json:"expires_in_minutes"`
 }
 
 type Setup2FAResponse struct {

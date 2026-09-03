@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
@@ -76,9 +77,21 @@ type RingkasanStokRow struct {
 	BarangID   uint   `json:"barang_id"`
 	KodeBarang string `json:"kode_barang"`
 	NamaBarang string `json:"nama_barang"`
+	Merek      string `json:"merek"`
+	Tipe       string `json:"tipe"`
 	GudangID   uint   `json:"gudang_id"`
 	NamaGudang string `json:"nama_gudang"`
 	Stok       int    `json:"stok"`
+}
+
+type DetailStokResponse struct {
+	BarangID    uint                       `json:"barang_id"`
+	KodeBarang  string                     `json:"kode_barang"`
+	NamaBarang  string                     `json:"nama_barang"`
+	TotalStok   int                        `json:"total_stok"`
+	TotalMasuk  int64                      `json:"total_masuk"`
+	TotalKeluar int64                      `json:"total_keluar"`
+	PerGudang   []barangstokgudang.StokRow `json:"per_gudang"`
 }
 
 type NextSKUResponse struct {

@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 )
 
 func AdjustStokGudangTx(tx *gorm.DB, barangID, gudangID uint, delta int) error {
@@ -69,19 +70,41 @@ func SyncBarangStokTotalTx(tx *gorm.DB, barangID uint) error {
 	return tx.Model(&model.Barang{}).Where("id = ?", barangID).Update("stok", total).Error
 }
 
+// SumMasukKeluar menghitung total qty barang masuk & keluar (all-time, cuma
+// dari dokumen yang sudah SELESAI) untuk 1 barang — dihitung fresh setiap
+// dipanggil (bukan nilai yang di-cache) supaya selalu real-time. Dipakai
+// panel detail "spesifikasi real-time" di Kelola Barang.
+func SumMasukKeluar(db *gorm.DB, barangID uint) (masuk int64, keluar int64, err error) {
+	if err = db.Table("barang_masuk_items bmi").
+		Joins("JOIN barang_masuk bm ON bm.id = bmi.barang_masuk_id").
+		Where("bmi.barang_id = ? AND bm.status = ?", barangID, constant.StatusBMSelesai).
+		Select("COALESCE(SUM(bmi.qty), 0)").Scan(&masuk).Error; err != nil {
+		return 0, 0, err
+	}
+	if err = db.Table("barang_keluar_items bki").
+		Joins("JOIN barang_keluar bk ON bk.id = bki.barang_keluar_id").
+		Where("bki.barang_id = ? AND bk.status = ?", barangID, constant.StatusBKSelesai).
+		Select("COALESCE(SUM(bki.qty), 0)").Scan(&keluar).Error; err != nil {
+		return 0, 0, err
+	}
+	return masuk, keluar, nil
+}
+
 type StokRow struct {
-	BarangID   uint
-	KodeBarang string
-	NamaBarang string
-	GudangID   uint
-	NamaGudang string
-	Stok       int
+	BarangID   uint   `json:"barang_id"`
+	KodeBarang string `json:"kode_barang"`
+	NamaBarang string `json:"nama_barang"`
+	Merek      string `json:"merek"`
+	Tipe       string `json:"tipe"`
+	GudangID   uint   `json:"gudang_id"`
+	NamaGudang string `json:"nama_gudang"`
+	Stok       int    `json:"stok"`
 }
 
 func ListAll(db *gorm.DB) ([]StokRow, error) {
 	var rows []StokRow
 	err := db.Table("barang_stok_gudang bsg").
-		Select("bsg.barang_id, b.kode_barang, b.nama AS nama_barang, bsg.gudang_id, g.nama AS nama_gudang, bsg.stok").
+		Select("bsg.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe, bsg.gudang_id, g.nama AS nama_gudang, bsg.stok").
 		Joins("JOIN barang b ON b.id = bsg.barang_id").
 		Joins("JOIN gudangs g ON g.id = bsg.gudang_id").
 		Where("bsg.stok > 0").

@@ -28,7 +28,8 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 
 func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
-	f := barangRusakRepo.Filter{Status: c.Query("status", "")}
+	barangID, _ := strconv.ParseUint(c.Query("barang_id", "0"), 10, 64)
+	f := barangRusakRepo.Filter{Status: c.Query("status", ""), BarangID: uint(barangID)}
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar barang rusak", nil)
@@ -166,6 +167,35 @@ func (h *Controller) Inspeksi(c *fiber.Ctx) error {
 	return utils.OK(c, "hasil pengecekan berhasil disimpan", b)
 }
 
+// SimpanKeGudang: pengganti fitur retur-ke-supplier yang sudah dihapus dari
+// aplikasi ini — barang berstatus "Bisa Diretur" disimpan sementara kembali
+// ke stok gudang yang dipilih, bukan menggantung tanpa tindak lanjut.
+func (h *Controller) SimpanKeGudang(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
+	}
+	var req SimpanKeGudangRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	// Sebelumnya gudang_id dari request langsung dipakai tanpa dicek
+	// eksistensinya dulu — kalau ID gudang salah/sudah dihapus, stok bisa
+	// nyasar ke baris barang_stok_gudang untuk gudang yang tidak ada.
+	if _, err := h.gudangRepo.FindGudangByID(req.GudangID); err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "gudang tidak ditemukan", nil)
+	}
+	b, err := h.repo.SimpanKeGudang(id, req.GudangID)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
+	}
+	notification.Notify(h.notifRepo, "barang_rusak",
+		"Barang Disimpan ke Gudang",
+		b.NamaBarang+" ("+b.LabelBarang+") sudah disimpan kembali ke stok gudang.",
+		"/home/barang-rusak", &b.DilaporkanOleh, "")
+	return utils.OK(c, "barang berhasil disimpan kembali ke stok gudang", b)
+}
+
 func (h *Controller) Delete(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
@@ -260,5 +290,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Post("/:id/foto", edit, h.UploadFoto)
 	g.Get("/:id/foto", view, h.ServeFoto)
 	g.Patch("/:id/inspeksi", edit, onlyStaff, h.Inspeksi)
+	g.Patch("/:id/simpan-gudang", edit, onlyStaff, h.SimpanKeGudang)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 }

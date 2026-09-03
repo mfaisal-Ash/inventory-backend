@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/docnumber"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -176,7 +178,10 @@ func (r *repository) Update(so *model.StockOpname, inputs []ItemInput) error {
 				return err
 			}
 		}
-		return tx.Save(so).Error
+		// Omit(clause.Associations): cegah Save() menimpa balik gudang_id
+		// dengan ID dari relasi Gudang yang ter-preload di FindByID (bug sama
+		// seperti repositories/barang — lihat komentar di sana).
+		return tx.Omit(clause.Associations).Save(so).Error
 	})
 }
 
@@ -251,4 +256,8 @@ func (r *repository) CountByStatus(status string) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.StockOpname{}).Where(constant.QueryStatusEq, status).Count(&count).Error
 	return count, err
+}
+
+func (r *repository) NextNomor() (string, error) {
+	return docnumber.Next(r.db, "SO")
 }

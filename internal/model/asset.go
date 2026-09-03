@@ -33,6 +33,20 @@ type Asset struct {
 	Merek string `json:"merek" gorm:"size:100"`
 	Tipe  string `json:"tipe" gorm:"size:100"`
 
+	// NilaiAset: nilai/harga aset ini secara mandiri (bukan HargaBeli milik
+	// Barang) — diisi manual per aset karena harga fisik di lapangan bisa
+	// beda-beda per unit (kondisi, tahun pembelian, dsb), terpisah dari
+	// rata-rata tertimbang Barang.HargaBeli yang dipakai untuk nilai gudang.
+	NilaiAset int64 `json:"nilai_aset" gorm:"not null;default:0"`
+
+	// Data khusus aset JenisAset == "transportasi" (kendaraan): nomor
+	// polisi/plat, jenis kendaraannya (mobil/motor/truk, dsb), nomor BPKB,
+	// dan tahun kendaraan. Kosong/tidak dipakai untuk jenis aset lain.
+	Nopol             string `json:"nopol" gorm:"size:20"`
+	JenisTransportasi string `json:"jenis_transportasi" gorm:"size:50"`
+	NomorBPKB         string `json:"nomor_bpkb" gorm:"size:50"`
+	TahunKendaraan    int    `json:"tahun_kendaraan" gorm:"not null;default:0"`
+
 	BarangID *uint   `json:"barang_id" gorm:"index"`
 	Barang   *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
@@ -24,12 +25,30 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.OnlyActive {
 		q = q.Where("is_active = ?", true)
 	}
-	if len(f.ApprovalStatuses) > 0 {
+	if f.Merek != "" {
+		q = q.Where("merek = ?", f.Merek)
+	}
+	if f.Tipe != "" {
+		q = q.Where("tipe = ?", f.Tipe)
+	}
+	if f.OnlyDelegatedTo != 0 {
+		q = q.Where("didelegasikan_ke = ?", f.OnlyDelegatedTo)
+	} else if len(f.ApprovalStatuses) > 0 {
+		clause := "approval_status IN ?"
+		args := []interface{}{f.ApprovalStatuses}
 		if f.OrSubmittedBy != 0 {
-			q = q.Where("approval_status IN ? OR diajukan_oleh = ?", f.ApprovalStatuses, f.OrSubmittedBy)
-		} else {
-			q = q.Where("approval_status IN ?", f.ApprovalStatuses)
+			clause += " OR diajukan_oleh = ?"
+			args = append(args, f.OrSubmittedBy)
 		}
+		if f.OrDelegatedTo != 0 {
+			// Item yang didelegasikan ke admin ini harus tetap kelihatan
+			// walau statusnya masih "menunggu" — kalau tidak, admin yang
+			// ditugaskan tidak akan pernah tahu ada barang yang perlu
+			// dicek/disetujui olehnya (lihat Delegasikan di controller).
+			clause += " OR didelegasikan_ke = ?"
+			args = append(args, f.OrDelegatedTo)
+		}
+		q = q.Where(clause, args...)
 	}
 	return q
 }
@@ -71,13 +90,43 @@ func (r *repository) Create(b *model.Barang) error {
 	return r.db.Create(b).Error
 }
 
+// Update: pakai Omit(clause.Associations) supaya Save() TIDAK ikut
+// meng-upsert/menimpa kolom FK (kategori_id, satuan_id, didelegasikan_ke)
+// dari relasi yang ter-preload di FindByID (Kategori/Satuan/Didelegasikan).
+// Tanpa ini, GORM diam-diam menimpa balik FK yang barusan diubah controller
+// dengan ID dari objek relasi LAMA (hasil Preload sebelum field-nya
+// diganti) — bug nyata: ganti Kategori/Satuan lewat form Ubah Barang
+// kelihatan "berhasil" (200 OK) tapi nilainya balik ke yang lama di
+// database, karena Save() menyimpan associations SEBELUM baris utamanya.
 func (r *repository) Update(b *model.Barang) error {
-	return r.db.Save(b).Error
+	return r.db.Omit(clause.Associations).Save(b).Error
 }
 
 func (r *repository) SetStokGudangAwal(barangID, gudangID uint, stok int) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		return barangstokgudang.SetStokGudangTx(tx, barangID, gudangID, stok)
+	})
+}
+
+func (r *repository) UpdateWithStokKoreksi(b *model.Barang, stokGudangID uint, delta int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Sama seperti Update di atas — Omit(clause.Associations) wajib di
+		// sini juga, kalau tidak Kategori/Satuan/Didelegasikan yang
+		// ter-preload dari FindByID akan menimpa balik FK-nya ke nilai lama.
+		if err := tx.Omit(clause.Associations).Save(b).Error; err != nil {
+			return err
+		}
+		if err := barangstokgudang.AdjustStokGudangTx(tx, b.ID, stokGudangID, delta); err != nil {
+			return err
+		}
+		if err := barangstokgudang.SyncBarangStokTotalTx(tx, b.ID); err != nil {
+			return err
+		}
+		// Muat ulang kolom stok yang baru saja di-derive dari
+		// barang_stok_gudang supaya struct b yang dikembalikan ke caller
+		// selalu mencerminkan angka final (bukan nilai sementara sebelum
+		// dikoreksi).
+		return tx.Select("stok").First(b, b.ID).Error
 	})
 }
 

@@ -34,6 +34,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.RolePermission{},
 		&model.User{},
 		&model.RefreshToken{},
+		&model.DocumentCounter{},
 
 		&model.Kategori{},
 		&model.Satuan{},
@@ -46,6 +47,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.BarangKeluarItem{},
 		&model.BarangSerial{},
 		&model.BarangStokGudang{},
+		&model.PengajuanTemplate{},
+		&model.PengajuanBarang{},
+		&model.PengajuanBarangItem{},
 		&model.StockOpname{},
 		&model.StockOpnameItem{},
 		&model.Asset{},

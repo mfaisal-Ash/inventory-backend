@@ -27,6 +27,12 @@ type BarangRusak struct {
 
 	Status string `json:"status" gorm:"size:20;not null;default:'pengecekan';index"`
 
+	// PengajuanID: terisi kalau baris ini dibuat otomatis dari persetujuan
+	// Pengajuan Barang (jenis "rusak"). Tetap masuk alur pengecekan staf
+	// yang sudah ada — persetujuan pengajuan hanya mengesahkan laporannya,
+	// bukan menentukan hasil pengecekan (retur/rusak).
+	PengajuanID *uint `json:"pengajuan_id" gorm:"index"`
+
 	DilaporkanOleh uint       `json:"dilaporkan_oleh" gorm:"not null"`
 	Pelapor        *User      `json:"pelapor,omitempty" gorm:"foreignKey:DilaporkanOleh"`
 	DicekOleh      *uint      `json:"dicek_oleh"`

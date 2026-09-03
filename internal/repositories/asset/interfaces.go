@@ -9,6 +9,12 @@ type Filter struct {
 	JenisAset string
 	GudangID  uint
 	Status    string
+
+	// Merek/Tipe: filter tambahan supaya daftar aset bisa dipersempit
+	// berdasarkan merek/tipe aset (kolom milik Asset sendiri, bukan hasil
+	// join ke Barang — lihat model.Asset.Merek/.Tipe).
+	Merek string
+	Tipe  string
 }
 
 type MapRow struct {

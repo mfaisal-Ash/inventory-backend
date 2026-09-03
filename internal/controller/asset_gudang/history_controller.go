@@ -1,6 +1,8 @@
 package assetgudang
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
@@ -24,12 +26,28 @@ func (h *Controller) logHistory(c *fiber.Ctx, assetID uint, eventType, fieldLama
 	})
 }
 
+// ListHistory: default-nya (tanpa query "bulan") tetap perilaku lama —
+// 100 kejadian terakhir, dipakai tampilan tracking Harian. Kalau query
+// "bulan" diisi (format "2026-08"), fitur tracking Bulanan: ambil SEMUA
+// kejadian dalam bulan itu (tanpa batas 100) supaya rekap bulanannya utuh.
 func (h *Controller) ListHistory(c *fiber.Ctx) error {
 	id, err := parseIDParam(c)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, "id aset tidak valid", nil)
 	}
-	rows, err := h.historyRepo.ListByAsset(id, 100)
+
+	bulan := c.Query("bulan", "")
+	var rows []model.AssetHistory
+	if bulan != "" {
+		dari, perr := time.Parse("2006-01", bulan)
+		if perr != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, "format bulan tidak valid — gunakan YYYY-MM", nil)
+		}
+		sampai := dari.AddDate(0, 1, 0)
+		rows, err = h.historyRepo.ListByAssetRange(id, dari, sampai)
+	} else {
+		rows, err = h.historyRepo.ListByAsset(id, 100)
+	}
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil riwayat aset", nil)
 	}

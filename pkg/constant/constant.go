@@ -33,6 +33,8 @@ const (
 	ModuleAsetGudang = "aset_gudang"
 
 	ModuleBarangRusak = "barang_rusak"
+
+	ModulePengajuanBarang = "pengajuan_barang"
 )
 
 const (
@@ -54,6 +56,12 @@ const (
 	StatusPengecekan = "pengecekan"
 	StatusRetur      = "retur"
 	StatusRusak      = "rusak"
+	// StatusDisimpanGudang: status akhir untuk barang berstatus "retur" yang
+	// tidak/belum dikirim balik ke supplier — fitur retur-ke-supplier
+	// sebelumnya sudah dihapus dari aplikasi ini, jadi sebagai gantinya
+	// barangnya disimpan sementara kembali ke stok gudang (via endpoint
+	// SimpanKeGudang) supaya tidak menggantung tanpa tindak lanjut.
+	StatusDisimpanGudang = "disimpan_gudang"
 )
 
 const (

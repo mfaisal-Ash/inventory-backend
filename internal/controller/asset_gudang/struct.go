@@ -46,6 +46,16 @@ type AssetRequest struct {
 	Merek      string `json:"merek" validate:"max=100"`
 	Tipe       string `json:"tipe" validate:"max=100"`
 
+	NilaiAset int64 `json:"nilai_aset" validate:"min=0"`
+
+	// Khusus jenis_aset == "transportasi" — divalidasi wajib diisi di
+	// handler (bukan lewat tag "required", karena field ini opsional untuk
+	// jenis aset lain).
+	Nopol             string `json:"nopol" validate:"max=20"`
+	JenisTransportasi string `json:"jenis_transportasi" validate:"max=50"`
+	NomorBPKB         string `json:"nomor_bpkb" validate:"max=50"`
+	TahunKendaraan    int    `json:"tahun_kendaraan" validate:"omitempty,min=1950,max=2100"`
+
 	BarangID   *uint  `json:"barang_id"`
 	Keterangan string `json:"keterangan" validate:"max=500"`
 }

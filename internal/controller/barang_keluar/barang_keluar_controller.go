@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -28,10 +27,6 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-func generateNomorBK() string {
-	return fmt.Sprintf("BK-%d-%d", time.Now().Year(), time.Now().UnixNano()%100000)
-}
-
 func (h *Controller) validateItems(items []ItemRequest) error {
 	for _, it := range items {
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
@@ -53,7 +48,15 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	p := utils.PaginationFromContext(c)
 	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
 	kategoriID, _ := strconv.ParseUint(c.Query("kategori_id", "0"), 10, 64)
-	f := bkRepo.Filter{Status: c.Query("status", ""), GudangID: uint(gudangID), KategoriID: uint(kategoriID)}
+	barangID, _ := strconv.ParseUint(c.Query("barang_id", "0"), 10, 64)
+	f := bkRepo.Filter{
+		Status:     c.Query("status", ""),
+		GudangID:   uint(gudangID),
+		KategoriID: uint(kategoriID),
+		BarangID:   uint(barangID),
+		Merek:      c.Query("merek", ""),
+		Tipe:       c.Query("tipe", ""),
+	}
 
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
@@ -90,8 +93,12 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
+	nomor, err := h.repo.NextNomor()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor pengeluaran", nil)
+	}
 	bk := &model.BarangKeluar{
-		NomorPengeluaran: generateNomorBK(),
+		NomorPengeluaran: nomor,
 		GudangID:         req.GudangID,
 		Status:           constant.StatusBKDraft,
 		Tanggal:          tanggal,
@@ -129,6 +136,10 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}
+	if bk.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum diubah", nil)
+	}
 
 	var req BKRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -160,13 +171,40 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
-	if _, err := h.requireDraft(id); err != nil {
+	bk, err := h.requireDraft(id)
+	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	if bk.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dihapus", nil)
 	}
 	if err := h.repo.Delete(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus dokumen barang keluar", nil)
 	}
 	return utils.OK(c, "dokumen barang keluar berhasil dihapus", nil)
+}
+
+func (h *Controller) Protect(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, msgId, nil)
+	}
+	var req ProtectRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	if _, err := h.repo.FindByID(id); err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang keluar tidak ditemukan", nil)
+	}
+	if err := h.repo.SetProtected(id, *req.IsProtected); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengubah status proteksi", nil)
+	}
+	bk, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil dokumen setelah diperbarui", nil)
+	}
+	return utils.OK(c, "status proteksi berhasil diubah", bk)
 }
 
 func (h *Controller) Complete(c *fiber.Ctx) error {
@@ -175,6 +213,17 @@ func (h *Controller) Complete(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
+
+	// Sama seperti barang_masuk: Complete/Batalkan tadinya tidak cek
+	// IsProtected sama sekali walau tetap mengubah stok & status dokumen.
+	existing, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang keluar tidak ditemukan", nil)
+	}
+	if existing.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum diselesaikan", nil)
+	}
 
 	var req CompleteBKRequest
 	_ = c.BodyParser(&req)
@@ -213,11 +262,73 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, "id barang keluar tidak valid", nil)
 	}
+
+	existing, err := h.repo.FindByID(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang keluar tidak ditemukan", nil)
+	}
+	if existing.IsProtected {
+		return utils.Fail(c, fiber.StatusForbidden,
+			"data ini dikunci (Protect) oleh super admin — buka kuncinya dulu sebelum dibatalkan", nil)
+	}
+
 	bk, err := h.repo.Batalkan(id)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}
 	return utils.OK(c, "dokumen barang keluar berhasil dibatalkan", bk)
+}
+
+func (h *Controller) UpdateSpesifikasi(c *fiber.Ctx) error {
+	itemID, err := strconv.ParseUint(c.Params("itemId"), 10, 64)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id item barang keluar tidak valid", nil)
+	}
+	var req SpesifikasiRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	item, err := h.repo.UpdateSpesifikasi(uint(itemID), req.JumlahTerpasang, req.Catatan)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	return utils.OK(c, "spesifikasi pemasangan berhasil diperbarui", item)
+}
+
+func (h *Controller) RecapSpesifikasi(c *fiber.Ctx) error {
+	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
+	f := bkRepo.SpesifikasiFilter{GudangID: uint(gudangID)}
+	if raw := c.Query("from", ""); raw != "" {
+		if t, parseErr := parseTanggalHarian(raw); parseErr == nil {
+			f.From = &t
+		}
+	}
+	if raw := c.Query("to", ""); raw != "" {
+		if t, parseErr := parseTanggalHarian(raw); parseErr == nil {
+			f.To = &t
+		}
+	}
+	rows, err := h.repo.RecapSpesifikasi(f)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil rekap spesifikasi", nil)
+	}
+	return utils.OK(c, "rekap spesifikasi berhasil diambil", rows)
+}
+
+func (h *Controller) Spesifikasi(c *fiber.Ctx) error {
+	p := utils.PaginationFromContext(c)
+	barangID, _ := strconv.ParseUint(c.Query("barang_id", "0"), 10, 64)
+	gudangID, _ := strconv.ParseUint(c.Query("gudang_id", "0"), 10, 64)
+	f := bkRepo.SpesifikasiListFilter{
+		BarangID: uint(barangID),
+		GudangID: uint(gudangID),
+		Status:   c.Query("status", ""),
+	}
+	rows, total, err := h.repo.ListSpesifikasi(p, f)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar spesifikasi", nil)
+	}
+	return utils.OKWithMeta(c, "daftar spesifikasi berhasil diambil", rows, utils.BuildPaginationMeta(p, total))
 }
 
 func (h *Controller) Summary(c *fiber.Ctx) error {
@@ -239,8 +350,11 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	tambah := middleware.RequirePermission(h.roleRepo, Module, constant.ActionTambah)
 	edit := middleware.RequirePermission(h.roleRepo, Module, constant.ActionEdit)
 	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
+	onlySuperAdmin := middleware.RequireRole(constant.RoleSuperAdmin)
 
 	g.Get("/summary", view, h.Summary)
+	g.Get("/spesifikasi/recap", view, h.RecapSpesifikasi)
+	g.Get("/spesifikasi", view, h.Spesifikasi)
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, h.Create)
@@ -248,4 +362,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 	g.Patch("/:id/selesai", edit, h.Complete)
 	g.Patch("/:id/batalkan", edit, h.Batalkan)
+	g.Patch("/:id/items/:itemId/spesifikasi", edit, h.UpdateSpesifikasi)
+	g.Patch("/:id/protect", onlySuperAdmin, h.Protect)
 }

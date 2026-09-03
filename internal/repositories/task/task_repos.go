@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -57,8 +58,13 @@ func (r *repository) Create(t *model.Task) error {
 	return r.db.Create(t).Error
 }
 
+// Update: Omit(clause.Associations) — cegah Save() menimpa balik
+// assigned_to dengan ID dari relasi Assignee yang ter-preload di FindByID
+// (bug sama seperti repositories/barang; lihat komentar di sana). Tanpa
+// ini, memindahkan tugas ke orang lain lewat Ubah Tugas kelihatan berhasil
+// tapi diam-diam balik ke assignee lama di database.
 func (r *repository) Update(t *model.Task) error {
-	return r.db.Save(t).Error
+	return r.db.Omit(clause.Associations).Save(t).Error
 }
 
 func (r *repository) Delete(id uint) error {

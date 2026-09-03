@@ -28,4 +28,8 @@ type Repository interface {
 	Batalkan(id uint) (*model.StockOpname, error)
 
 	CountByStatus(status string) (int64, error)
+
+	// NextNomor menghasilkan nomor opname berurutan berikutnya
+	// (format SO-YYYYMM-0001) lewat pkg/docnumber.
+	NextNomor() (string, error)
 }

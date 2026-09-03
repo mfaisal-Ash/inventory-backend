@@ -10,11 +10,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/internal/model"
+	assetRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
 	barangRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	barangKeluarRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
 	barangMasukRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
 	barangRusakRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
 	barangSerialRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
+	pengajuanRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_barang"
 	stockOpnameRepoPkg "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/reportexport"
@@ -244,6 +247,74 @@ func (h *Controller) buildBarangKeluar(dari, sampai *time.Time) (headers []strin
 	return headers, rows, nil
 }
 
+var pengajuanStatusLabelMap = map[string]string{
+	constant.StatusPengajuanDiajukan:  "Menunggu Persetujuan",
+	constant.StatusPengajuanDisetujui: "Disetujui",
+	constant.StatusPengajuanDitolak:   "Ditolak",
+}
+
+func pengajuanStatusLabel(status string) string {
+	if label, ok := pengajuanStatusLabelMap[status]; ok {
+		return label
+	}
+	return status
+}
+
+// buildPengajuanBarang — rekap seluruh pengajuan pengeluaran barang (baik
+// yang masih menunggu, sudah disetujui, maupun ditolak) supaya bisa
+// direkap per hari/bulan lewat granularitas yang sama dengan laporan lain.
+func (h *Controller) buildPengajuanBarang(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
+	list, _, err := h.pengajuanRepo.List(bigPagination(), pengajuanRepoPkg.Filter{})
+	if err != nil {
+		return nil, nil, err
+	}
+	headers = []string{"Nomor Pengajuan", "Jenis", "Tanggal", "Gudang", "Kode Barang", "Nama Barang", "Qty", "Keperluan", "Status", "Diajukan Oleh", "Diproses Oleh", "Catatan Proses"}
+	userCache := map[uint]string{}
+	for _, p := range list {
+		if !inRange(p.Tanggal, dari, sampai) {
+			continue
+		}
+		gudang := "-"
+		if p.Gudang != nil {
+			gudang = p.Gudang.Nama
+		}
+		diajukanOleh := p.DiajukanOleh
+		diajukan := h.userLabel(userCache, &diajukanOleh)
+		diproses := h.userLabel(userCache, p.DiprosesOleh)
+		statusLabel := pengajuanStatusLabel(p.Status)
+		jenisLabel := pengajuanJenisLabel(p.Jenis)
+		if len(p.Items) == 0 {
+			rows = append(rows, []string{
+				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, "-", "-", "-",
+				p.Keperluan, statusLabel, diajukan, diproses, orDash(p.CatatanProses),
+			})
+			continue
+		}
+		for _, it := range p.Items {
+			kodeBarang, nama := "-", "-"
+			if it.Barang != nil {
+				kodeBarang, nama = it.Barang.KodeBarang, it.Barang.Nama
+			}
+			rows = append(rows, []string{
+				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, strconv.Itoa(it.Qty),
+				p.Keperluan, statusLabel, diajukan, diproses, orDash(p.CatatanProses),
+			})
+		}
+	}
+	return headers, rows, nil
+}
+
+func pengajuanJenisLabel(jenis string) string {
+	switch jenis {
+	case constant.JenisPengajuanMasuk:
+		return "Barang Masuk"
+	case constant.JenisPengajuanRusak:
+		return "Barang Rusak"
+	default:
+		return "Barang Keluar"
+	}
+}
+
 func (h *Controller) buildStockOpname(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
 	list, _, err := h.stockOpnameRepo.List(bigPagination(), stockOpnameRepoPkg.Filter{})
 	if err != nil {
@@ -283,13 +354,29 @@ func (h *Controller) buildStockOpname(dari, sampai *time.Time) (headers []string
 }
 
 var reportTitles = map[string]string{
-	constant.LaporanStokBarang:   "Laporan Stok Barang",
-	constant.LaporanBarangMasuk:  "Laporan Barang Masuk",
-	constant.LaporanBarangKeluar: "Laporan Barang Keluar",
-	constant.LaporanStokOpname:   "Laporan Stock Opname",
-	constant.LaporanBarangRetur:  "Laporan Barang Retur",
-	constant.LaporanBarangRusak:  "Laporan Barang Rusak",
-	constant.LaporanFifoFefo:     "Laporan FIFO/FEFO",
+	constant.LaporanStokBarang:      "Laporan Stok Barang",
+	constant.LaporanBarangMasuk:     "Laporan Barang Masuk",
+	constant.LaporanBarangKeluar:    "Laporan Barang Keluar",
+	constant.LaporanStokOpname:      "Laporan Stock Opname",
+	constant.LaporanBarangRusak:     "Laporan Barang Rusak",
+	constant.LaporanFifoFefo:        "Laporan FIFO/FEFO",
+	constant.LaporanPengajuanBarang: "Laporan Pengajuan Barang",
+	constant.LaporanTrackingAset:    "Laporan Tracking Aset",
+}
+
+// assetHistoryEventLabel: label Indonesia yang enak dibaca untuk tiap
+// EventType riwayat aset, dijaga konsisten dengan EVENT_TYPE_LABEL di
+// frontend (AssetTrackingMap.tsx) supaya laporan & UI tracking aset
+// memakai istilah yang sama.
+var assetHistoryEventLabel = map[string]string{
+	"dibuat":            "Dibuat",
+	"status":            "Status diubah",
+	"lokasi":            "Lokasi diubah",
+	"induk":             "Aset induk diubah",
+	"gudang":            "Dipindahkan ke gudang lain",
+	"port":              "Port diubah",
+	"nilai_aset":        "Nilai aset diubah",
+	"data_transportasi": "Data transportasi diubah",
 }
 
 var barangRusakStatusLabel = map[string]string{
@@ -356,12 +443,14 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 		headers, rows, err = h.buildBarangKeluar(dari, sampai)
 	case constant.LaporanStokOpname:
 		headers, rows, err = h.buildStockOpname(dari, sampai)
-	case constant.LaporanBarangRetur:
-		headers, rows, err = h.buildBarangRetur(dari, sampai)
 	case constant.LaporanBarangRusak:
 		headers, rows, err = h.buildBarangRusak(dari, sampai)
 	case constant.LaporanFifoFefo:
 		headers, rows, err = h.buildFifoFefo(dari, sampai)
+	case constant.LaporanPengajuanBarang:
+		headers, rows, err = h.buildPengajuanBarang(dari, sampai)
+	case constant.LaporanTrackingAset:
+		headers, rows, err = h.buildLaporanTrackingAset(dari, sampai)
 	}
 	return title, headers, rows, err
 }
@@ -392,6 +481,62 @@ func (h *Controller) buildBarangRetur(dari, sampai *time.Time) (headers []string
 		}
 		rows = append(rows, []string{
 			b.LabelBarang, kodeBarang, b.NamaBarang, merek, tipe, orDash(b.SerialNumber), orDash(b.Keterangan), pelapor, pemeriksa, tanggal,
+		})
+	}
+	return headers, rows, nil
+}
+
+// buildLaporanTrackingAset — laporan riwayat/tracking seluruh aset (lintas
+// semua gudang), dipakai untuk pengganti "Laporan Barang Retur". Satu baris
+// per kejadian riwayat aset (AssetHistory) dalam rentang tanggal dari/sampai.
+func (h *Controller) buildLaporanTrackingAset(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
+	assets, _, err := h.assetRepo.List(bigPagination(), assetRepoPkg.Filter{})
+	if err != nil {
+		return nil, nil, err
+	}
+	assetByID := make(map[uint]model.Asset, len(assets))
+	for _, a := range assets {
+		assetByID[a.ID] = a
+	}
+
+	list, err := h.assetHistoryRepo.ListRange(dari, sampai, exportRowLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	headers = []string{"Tanggal", "Nama/Label Aset", "Jenis Aset", "Gudang", "Event", "Keterangan", "Oleh"}
+	for _, ev := range list {
+		namaLabel, jenisAset, gudang := "-", "-", "-"
+		if a, ok := assetByID[ev.AssetID]; ok {
+			namaLabel = a.Nama
+			if a.LabelRSD != "" {
+				namaLabel = fmt.Sprintf("%s (%s)", a.Nama, a.LabelRSD)
+			}
+			jenisAset = orDash(a.JenisAset)
+			if a.Gudang != nil {
+				gudang = a.Gudang.Nama
+			}
+		}
+
+		eventLabel := ev.EventType
+		if label, ok := assetHistoryEventLabel[ev.EventType]; ok {
+			eventLabel = label
+		}
+
+		var ketParts []string
+		if ev.FieldLama != "" || ev.FieldBaru != "" {
+			ketParts = append(ketParts, fmt.Sprintf("%s -> %s", orDash(ev.FieldLama), orDash(ev.FieldBaru)))
+		}
+		if ev.Catatan != "" {
+			ketParts = append(ketParts, ev.Catatan)
+		}
+		keterangan := "-"
+		if len(ketParts) > 0 {
+			keterangan = strings.Join(ketParts, "; ")
+		}
+
+		rows = append(rows, []string{
+			ev.CreatedAt.Format(dateFormat), namaLabel, jenisAset, gudang, eventLabel, keterangan, orDash(ev.UserNama),
 		})
 	}
 	return headers, rows, nil
@@ -480,9 +625,16 @@ func (h *Controller) Export(c *fiber.Ctx) error {
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
+	// Summary & chart selalu dihitung dari data MENTAH (sebelum
+	// dikelompokkan) supaya angka totalnya tetap akurat apapun tampilan
+	// tabel/export yang dipilih pengguna.
 	summary := computeGenericSummary(headers, rows)
 	granularity := normalizeGranularity(c.Query("granularitas", ""))
 	chart := h.buildChart(tipe, headers, rows, granularity)
+	// Tabel/file export mengikuti granularitas yang sama dengan chart:
+	// Harian tetap 1 baris per transaksi (tanggal diformat ulang),
+	// Bulanan/Tahunan dikelompokkan & dijumlahkan per periode.
+	headers, rows = applyGranularityToRows(tipe, headers, rows, granularity)
 	switch format {
 	case constant.FormatExcel:
 		data, err := reportexport.ToExcel(title, summary, headers, rows, toExportChart(chart))
@@ -636,10 +788,14 @@ func (h *Controller) Preview(c *fiber.Ctx) error {
 	}
 	granularity := normalizeGranularity(c.Query("granularitas", ""))
 	chart := h.buildChart(tipe, headers, rows, granularity)
+	// Tabel pratinjau di layar mengikuti granularitas yang sama dengan
+	// chart-nya (lihat applyGranularityToRows) — summary tetap dari data
+	// mentah supaya totalnya akurat.
+	viewHeaders, viewRows := applyGranularityToRows(tipe, headers, rows, granularity)
 	return utils.OK(c, "pratinjau laporan berhasil diambil", fiber.Map{
 		"title":        title,
-		"headers":      headers,
-		"rows":         rows,
+		"headers":      viewHeaders,
+		"rows":         viewRows,
 		"summary":      summary,
 		"chart":        chart,
 		"granularitas": granularity,
