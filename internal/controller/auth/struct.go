@@ -25,6 +25,8 @@ type Controller struct {
 	geoipSvc      geoip.Resolver
 
 	appEnv     string
+
+	allowSelfRegisterRole bool
 	totpIssuer string
 
 	otpReplayGuard *totpReplayGuard
@@ -52,6 +54,8 @@ func New(p Params) *Controller {
 		geoipSvc:      p.GeoipSvc,
 
 		appEnv:     p.Cfg.App.Env,
+
+		allowSelfRegisterRole: p.Cfg.App.AllowSelfRegisterRole,
 		totpIssuer: p.Cfg.TOTP.Issuer,
 
 		otpReplayGuard: newTOTPReplayGuard(otpReplayTTL),

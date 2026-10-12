@@ -113,15 +113,25 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	}, nil
 }
 
+// resolveRegisterRoleName menentukan role akun baru saat self-register.
+// Role yang dipilih di form dihormati selama ALLOW_SELF_REGISTER_ROLE=true
+// (default), terlepas dari APP_ENV. Nilai di luar daftar role yang dikenal
+// atau flag dimatikan -> dipaksa ke karyawan.
 func (h *Controller) resolveRegisterRoleName(requestedRole string) string {
-	if requestedRole == "" {
+	requestedRole = strings.ToLower(strings.TrimSpace(requestedRole))
+	switch requestedRole {
+	case constant.RoleKaryawan, "":
+		return constant.RoleKaryawan
+	case constant.RoleSuperAdmin, constant.RoleAdmin:
+		if !h.allowSelfRegisterRole {
+			log.Printf("auth: self-register role '%s' ditolak (ALLOW_SELF_REGISTER_ROLE=false), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
+			return constant.RoleKaryawan
+		}
+		return requestedRole
+	default:
+		log.Printf("auth: role '%s' tidak dikenal saat register, dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
 		return constant.RoleKaryawan
 	}
-	if h.appEnv == "production" {
-		log.Printf("auth: percobaan self-register dengan role '%s' ditolak (APP_ENV=production), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
-		return constant.RoleKaryawan
-	}
-	return requestedRole
 }
 
 func (h *Controller) CheckUsernameAvailability(c *fiber.Ctx) error {

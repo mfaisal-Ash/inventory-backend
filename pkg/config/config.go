@@ -31,6 +31,11 @@ type AppConfig struct {
 	Host           string
 	Port           string
 	TrustedProxies []string
+
+	// AllowSelfRegisterRole: kalau true, pendaftar boleh memilih role
+	// (super_admin/admin/karyawan) sendiri lewat form register. Kalau false,
+	// semua pendaftar baru dipaksa jadi karyawan.
+	AllowSelfRegisterRole bool
 }
 
 func (a AppConfig) ListenAddress() string {
@@ -125,6 +130,8 @@ func Load() *Config {
 			Host:           getEnv("APP_HOST", ""),
 			Port:           getEnv("APP_PORT", "8080"),
 			TrustedProxies: getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+
+			AllowSelfRegisterRole: getEnvAsBool("ALLOW_SELF_REGISTER_ROLE", true),
 		},
 		DB: DBConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
