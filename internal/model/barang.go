@@ -38,6 +38,12 @@ type Barang struct {
 	CatatanApproval string     `json:"catatan_approval" gorm:"size:255"`
 	DireviewPada    *time.Time `json:"direview_pada"`
 
+	// Statistik turunan untuk tabel Kelola Barang — diisi controller saat List,
+	// tidak disimpan di DB.
+	TotalKeluar int64  `json:"total_keluar" gorm:"-"`
+	JumlahRusak int64  `json:"jumlah_rusak" gorm:"-"`
+	NamaPengaju string `json:"nama_pengaju" gorm:"-"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 

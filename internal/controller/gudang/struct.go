@@ -17,7 +17,8 @@ func New(repo gudangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWT
 }
 
 type KategoriRequest struct {
-	Nama string `json:"nama" validate:"required,max=100"`
+	Nama      string `json:"nama" validate:"required,max=100"`
+	Singkatan string `json:"singkatan" validate:"omitempty,alphanum,max=6"`
 }
 
 type SatuanRequest struct {

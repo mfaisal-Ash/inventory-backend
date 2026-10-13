@@ -14,6 +14,7 @@ import (
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/skucode"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -91,6 +92,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar barang", nil)
 	}
+	h.fillListStats(list)
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	maskProtected(roleName, list)
 	return utils.OKWithMeta(c, "daftar barang berhasil diambil", list, utils.BuildPaginationMeta(p, total))
@@ -195,6 +197,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if errs := utils.Validate(req); errs != nil {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, " gagal memvalidasi", errs)
 	}
+	tipe, err := normalizeTipe(req.Nama, req.Tipe)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+	}
+	req.Tipe = tipe
 
 	if _, err := h.repo.FindByKode(req.KodeBarang); err == nil {
 		return utils.Fail(c, fiber.StatusConflict, "kode barang sudah digunakan", nil)
@@ -245,6 +252,11 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if errs := utils.Validate(req); errs != nil {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, "validasi gagal", errs)
 	}
+	tipe, err := normalizeTipe(req.Nama, req.Tipe)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+	}
+	req.Tipe = tipe
 
 	if req.KodeBarang != b.KodeBarang {
 		if existing, err := h.repo.FindByKode(req.KodeBarang); err == nil && existing.ID != b.ID {
@@ -586,39 +598,29 @@ func (h *Controller) RingkasanStok(c *fiber.Ctx) error {
 	return utils.OK(c, "ringkasan stok berhasil diambil", out)
 }
 
+// NextSKU menyarankan kode barang berformat
+// <KATEGORI>-<PRODUK>-<MMYYYY>-<NOMOR URUT> (lihat pkg/skucode).
+// Query: kategori_id (wajib) dan nama (wajib, nama barang). Kalau salah satu
+// belum ada, sku dikembalikan kosong — form belum cukup data untuk membentuk
+// kode.
 func (h *Controller) NextSKU(c *fiber.Ctx) error {
-	prefix := "BRG"
-	if kategoriIDStr := c.Query("kategori_id"); kategoriIDStr != "" {
-		kategoriID, err := strconv.ParseUint(kategoriIDStr, 10, 64)
-		if err == nil {
-			if kat, err := h.gudangRepo.FindKategoriByID(uint(kategoriID)); err == nil {
-				prefix = derivePrefixFromName(kat.Nama)
-			}
-		}
+	nama := strings.TrimSpace(c.Query("nama"))
+	kategoriID, err := strconv.ParseUint(c.Query("kategori_id"), 10, 64)
+	if err != nil || kategoriID == 0 || nama == "" {
+		return utils.OK(c, "pilih kategori dan isi nama barang dulu untuk membuat SKU", NextSKUResponse{SKU: ""})
 	}
-	if tipe := c.Query("tipe"); tipe != "" {
-		if tipePrefix := derivePrefixFromName(tipe); tipePrefix != "BRG" {
-			prefix = prefix + "-" + tipePrefix
-		}
-	}
-	if merek := c.Query("merek"); merek != "" {
-		if merekPrefix := derivePrefixFromName(merek); merekPrefix != "BRG" {
-			prefix = prefix + "-" + merekPrefix
-		}
-	}
-	if beratGramStr := c.Query("berat_gram"); beratGramStr != "" {
-		if beratGram, err := strconv.Atoi(beratGramStr); err == nil {
-			if ukuran := deriveUkuranFromBerat(&beratGram); ukuran != "" {
-				prefix = prefix + "-" + ukuran
-			}
-		}
+	kat, err := h.gudangRepo.FindKategoriByID(uint(kategoriID))
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "kategori tidak ditemukan", nil)
 	}
 
-	nomor, err := h.repo.NextSKUNumber(prefix)
+	katCode := skucode.KategoriCode(kat.Singkatan, kat.Nama)
+	periode := skucode.Periode(time.Now())
+	nomor, err := h.repo.NextSKUNumber(katCode, periode)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat saran SKU", nil)
 	}
-	sku := fmt.Sprintf("%s-%04d", prefix, nomor)
+	sku := skucode.Format(skucode.Prefix(katCode, skucode.ProdukCode(nama), periode), nomor)
 	return utils.OK(c, "saran SKU berhasil dibuat", NextSKUResponse{SKU: sku})
 }
 
@@ -639,39 +641,21 @@ func (h *Controller) CheckSKU(c *fiber.Ctx) error {
 	return utils.OK(c, "sku sudah dipakai", CheckSKUResponse{Available: false})
 }
 
-func derivePrefixFromName(nama string) string {
-	var letters []rune
-	for _, r := range strings.ToUpper(nama) {
-		if r >= 'A' && r <= 'Z' {
-			letters = append(letters, r)
-			if len(letters) == 3 {
-				break
-			}
+// normalizeTipe memvalidasi kolom Tipe: wajib diisi; untuk barang ONT hanya
+// boleh warna port "Hijau" atau "Biru" (dinormalisasi kapitalisasinya).
+func normalizeTipe(nama, tipe string) (string, error) {
+	tipe = strings.TrimSpace(tipe)
+	if skucode.IsONT(nama) {
+		v, ok := skucode.NormalizeTipeONT(tipe)
+		if !ok {
+			return "", fmt.Errorf("tipe barang ONT harus warna port: %s", strings.Join(skucode.TipeONT, " atau "))
 		}
+		return v, nil
 	}
-	if len(letters) == 0 {
-		return "BRG"
+	if tipe == "" {
+		return "", fmt.Errorf("tipe barang wajib diisi")
 	}
-	return string(letters)
-}
-
-const (
-	ukuranSmallMaxGram  = 1000
-	ukuranMediumMaxGram = 5000
-)
-
-func deriveUkuranFromBerat(beratGram *int) string {
-	if beratGram == nil {
-		return ""
-	}
-	switch {
-	case *beratGram < ukuranSmallMaxGram:
-		return "S"
-	case *beratGram <= ukuranMediumMaxGram:
-		return "M"
-	default:
-		return "L"
-	}
+	return tipe, nil
 }
 
 func (h *Controller) RegisterRoutes(router fiber.Router) {

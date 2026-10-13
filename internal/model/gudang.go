@@ -10,6 +10,9 @@ import (
 type Kategori struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Nama      string    `json:"nama" gorm:"size:100;uniqueIndex;not null"`
+	// Singkatan dipakai sebagai segmen pertama kode barang (mis. "OP",
+	// "ELK"). Opsional: kalau kosong diturunkan dari Nama (pkg/skucode).
+	Singkatan string    `json:"singkatan" gorm:"size:10"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

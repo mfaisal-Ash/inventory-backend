@@ -50,7 +50,7 @@ func (h *Controller) CreateKategori(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusConflict, "nama kategori sudah digunakan", nil)
 	}
 
-	k := &model.Kategori{Nama: req.Nama}
+	k := &model.Kategori{Nama: req.Nama, Singkatan: strings.ToUpper(req.Singkatan)}
 	if err := h.repo.CreateKategori(k); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat kategori", nil)
 	}
@@ -81,6 +81,7 @@ func (h *Controller) UpdateKategori(c *fiber.Ctx) error {
 	}
 
 	k.Nama = req.Nama
+	k.Singkatan = strings.ToUpper(req.Singkatan)
 	if err := h.repo.UpdateKategori(k); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui kategori", nil)
 	}

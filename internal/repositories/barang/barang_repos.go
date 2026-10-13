@@ -1,14 +1,12 @@
 package barang
 
 import (
-	"strconv"
-	"strings"
-
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/skucode"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -152,34 +150,17 @@ func (r *repository) AdjustStok(id uint, delta int) (*model.Barang, error) {
 	return &b, nil
 }
 
-func (r *repository) NextSKUNumber(prefix string) (int, error) {
+func (r *repository) NextSKUNumber(kategoriCode, periode string) (int, error) {
 	var codes []string
+	// Unscoped: kode milik barang yang sudah di-soft-delete tetap
+	// dianggap terpakai (kolom kode_barang unique, tidak peduli deleted_at).
 	err := r.db.Unscoped().Model(&model.Barang{}).
-		Where("kode_barang LIKE ?", prefix+"-%").
+		Where("kode_barang LIKE ?", skucode.LikePattern(kategoriCode, periode)).
 		Pluck("kode_barang", &codes).Error
 	if err != nil {
 		return 0, err
 	}
-	return maxSuffixNumber(codes, prefix+"-") + 1, nil
-}
-
-func maxSuffixNumber(values []string, sep string) int {
-	max := 0
-	for _, v := range values {
-		idx := strings.LastIndex(v, sep)
-		if idx == -1 {
-			continue
-		}
-		suffix := v[idx+len(sep):]
-		n, err := strconv.Atoi(suffix)
-		if err != nil {
-			continue
-		}
-		if n > max {
-			max = n
-		}
-	}
-	return max
+	return skucode.MaxNomor(codes, kategoriCode, periode) + 1, nil
 }
 
 func (r *repository) CountAll() (int64, error) {

@@ -52,7 +52,9 @@ type Repository interface {
 	// rincian per-gudangnya (real-time-safe, lihat SyncBarangStokTotalTx).
 	UpdateWithStokKoreksi(b *model.Barang, stokGudangID uint, delta int) error
 
-	NextSKUNumber(prefix string) (int, error)
+	// NextSKUNumber: nomor urut berikutnya untuk kategoriCode di periode
+	// (MMYYYY) tertentu — lihat pkg/skucode.
+	NextSKUNumber(kategoriCode, periode string) (int, error)
 
 	CountAll() (int64, error)
 	CountStokMenipis() (int64, error)

@@ -13,7 +13,10 @@ import (
 	barangKeluarController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_keluar"
 	barangMasukController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_masuk"
 	barangRusakController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_rusak"
+	returController "github.com/mfaisal-Ash/inventory-backend/internal/controller/retur"
 	barangSerialController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_serial"
+	kabelController "github.com/mfaisal-Ash/inventory-backend/internal/controller/kabel"
+	neracaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/neraca"
 	captchaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/captcha"
 	dashboardController "github.com/mfaisal-Ash/inventory-backend/internal/controller/dashboard"
 	geocodeController "github.com/mfaisal-Ash/inventory-backend/internal/controller/geocode"
@@ -39,7 +42,10 @@ import (
 	barangKeluarRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
 	barangMasukRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
+	returRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/retur"
 	barangSerialRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
+	kabelRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/kabel"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
@@ -79,6 +85,9 @@ type Dependencies struct {
 	StockOpnameController  *stockOpnameController.Controller
 	AssetController        *assetController.Controller
 	BarangRusakController  *barangRusakController.Controller
+	ReturController        *returController.Controller
+	KabelController        *kabelController.Controller
+	NeracaController       *neracaController.Controller
 	TaskController         *taskController.Controller
 	AppInfoController      *appinfoController.Controller
 	TrashController        *trashController.Controller
@@ -119,6 +128,9 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rAssetPort := assetPortRepo.New(db)
 	rAssetHistory := assetHistoryRepo.New(db)
 	rBarangRusak := barangRusakRepo.New(db)
+	rRetur := returRepo.New(db)
+	rKabel := kabelRepo.New(db)
+	rNeraca := neracaRepo.New(db)
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
 	rPengajuanBarang := pengajuanBarangRepo.New(db)
@@ -161,6 +173,9 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, rBarang, jwtSvc, rNotification)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cTask := taskController.New(rTask, rRole, jwtSvc)
+	cRetur := returController.New(rRetur, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cKabel := kabelController.New(rKabel, rRole, jwtSvc)
+	cNeraca := neracaController.New(rNeraca, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rBarangSerial, rPengajuanBarang, rAsset, rAssetHistory, rUsers, rRole, jwtSvc)
 	cDashboard := dashboardController.New(rBarang, rGudang, rBarangMasuk, rBarangKeluar, rStockOpname, rRole, jwtSvc, db)
 	cPengajuanBarang := pengajuanBarangController.New(rPengajuanBarang, rBarang, rGudang, rUsers, rRole, jwtSvc, rNotification, rPengajuanTemplate)
@@ -190,6 +205,9 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		StockOpnameController:       cStockOpname,
 		AssetController:             cAsset,
 		BarangRusakController:       cBarangRusak,
+		ReturController:             cRetur,
+		KabelController:             cKabel,
+		NeracaController:            cNeraca,
 		TaskController:              cTask,
 		AppInfoController:           appinfoController.New(cfg, jwtSvc, rMaintenance, rNotification),
 		TrashController:             trashController.New(db, jwtSvc),
