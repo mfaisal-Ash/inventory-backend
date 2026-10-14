@@ -57,6 +57,10 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 
 	api := app.Group("/stockrsd")
 
+	// Activity History: mencatat semua aksi tulis user yang sudah login. Harus
+	// dipasang sebelum route mana pun didaftarkan.
+	api.Use(middleware.ActivityLogger(deps.ActivityRepo))
+
 	deps.CaptchaController.RegisterRoutes(api)
 	deps.HumanCheckController.RegisterRoutes(api)
 	deps.SecurityController.RegisterRoutes(api)
@@ -77,6 +81,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 		deps.AuthController,
 		deps.UserController,
 		deps.RoleController,
+		deps.ActivityController,
 	}
 	for _, r := range alwaysOn {
 		r.RegisterRoutes(api)

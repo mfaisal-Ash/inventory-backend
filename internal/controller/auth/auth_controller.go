@@ -59,6 +59,10 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 		return nil, err
 	}
 
+	// Dibaca middleware Activity History supaya login tercatat atas nama user ini.
+	c.Locals(constant.CtxUserID, u.ID)
+	c.Locals(constant.CtxRoleName, r.Name)
+
 	refresh, expiry, err := h.jwtSvc.GenerateRefreshToken(u.ID)
 	if err != nil {
 		return nil, err

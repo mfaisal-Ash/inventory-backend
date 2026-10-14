@@ -63,6 +63,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Notification{},
 		&model.NotificationRead{},
 		&model.NotificationDismissed{},
+		&model.ActivityLog{},
 	); err != nil {
 		return err
 	}

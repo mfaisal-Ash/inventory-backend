@@ -12,6 +12,7 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/skucode"
@@ -582,7 +583,14 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	})
 }
 
+// RingkasanStok: GET /barang/ringkasan-stok[?sampai=YYYY-MM-DD]
+// Tanpa `sampai` = stok real-time saat ini. Dengan `sampai` = posisi stok
+// pada akhir tanggal itu (dipakai pilihan periode Bulan/Tahun di Stok
+// Barang). Tanggal di masa depan otomatis dibatasi ke hari ini.
 func (h *Controller) RingkasanStok(c *fiber.Ctx) error {
+	if raw := strings.TrimSpace(c.Query("sampai")); raw != "" {
+		return h.ringkasanStokPerTanggal(c, raw)
+	}
 	rows, err := barangstokgudang.ListAll(h.db)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil ringkasan stok", nil)
@@ -596,6 +604,31 @@ func (h *Controller) RingkasanStok(c *fiber.Ctx) error {
 		})
 	}
 	return utils.OK(c, "ringkasan stok berhasil diambil", out)
+}
+
+func (h *Controller) ringkasanStokPerTanggal(c *fiber.Ctx, raw string) error {
+	t, err := time.ParseInLocation("2006-01-02", raw, time.Local)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "format sampai harus YYYY-MM-DD", nil)
+	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	if t.After(today) {
+		t = today
+	}
+	rows, err := neracaRepo.StokPerTanggal(h.db, t)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung stok per periode", nil)
+	}
+	out := make([]RingkasanStokRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, RingkasanStokRow{
+			BarangID: r.BarangID, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
+			Merek: r.Merek, Tipe: r.Tipe,
+			GudangID: r.GudangID, NamaGudang: r.NamaGudang, Stok: r.Stok,
+		})
+	}
+	return utils.OK(c, "ringkasan stok per periode berhasil diambil", out)
 }
 
 // NextSKU menyarankan kode barang berformat

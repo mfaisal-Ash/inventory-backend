@@ -89,7 +89,7 @@ func New(db *gorm.DB) Repository { return &repository{db: db} }
 const maxRows = 5000
 
 // Semua kejadian stok dalam satu CTE. delta bertanda (masuk +, keluar -).
-const eventsCTE = `
+const evCTE = `
 WITH ev AS (
 	SELECT bmi.barang_id, bm.gudang_id, COALESCE(bm.completed_at, bm.tanggal) AS ts, 'masuk' AS kind, bmi.qty AS delta
 	FROM barang_masuk_items bmi JOIN barang_masuk bm ON bm.id = bmi.barang_masuk_id
@@ -113,7 +113,9 @@ WITH ev AS (
 	SELECT soi.barang_id, so.gudang_id, COALESCE(so.completed_at, so.tanggal), 'opname', soi.selisih
 	FROM stock_opname_items soi JOIN stock_opname so ON so.id = soi.stock_opname_id
 	WHERE so.status = @soSelesai
-),
+)`
+
+const eventsCTE = evCTE + `,
 agg AS (
 	SELECT barang_id, gudang_id,
 		COALESCE(SUM(delta) FILTER (WHERE kind = 'masuk'  AND ts >= @dari AND ts < @sampai), 0) AS masuk,
@@ -152,6 +154,60 @@ WHERE (@gudangID = 0 OR p.gudang_id = @gudangID)
   AND (@search = '' OR b.nama ILIKE @like OR b.kode_barang ILIKE @like OR b.merek ILIKE @like)
 ORDER BY b.nama, g.nama
 LIMIT @maxRows`
+
+// StokRow: posisi stok satu barang di satu gudang pada tanggal tertentu.
+type StokRow struct {
+	BarangID   uint   `json:"barang_id"`
+	KodeBarang string `json:"kode_barang"`
+	NamaBarang string `json:"nama_barang"`
+	Merek      string `json:"merek"`
+	Tipe       string `json:"tipe"`
+	GudangID   uint   `json:"gudang_id"`
+	NamaGudang string `json:"nama_gudang"`
+	Stok       int    `json:"stok"`
+}
+
+// stokPerTanggalSQL: stok pada akhir hari `sampai` = stok sistem saat ini
+// dikurangi seluruh mutasi yang terjadi SETELAH hari itu (cara hitung yang
+// sama dengan saldo akhir di neraca stok).
+const stokPerTanggalSQL = evCTE + `,
+agg AS (
+	SELECT barang_id, gudang_id,
+		COALESCE(SUM(delta) FILTER (WHERE ts >= @sampai), 0) AS delta_sesudah
+	FROM ev
+	GROUP BY barang_id, gudang_id
+),
+pairs AS (
+	SELECT barang_id, gudang_id FROM barang_stok_gudang
+	UNION
+	SELECT barang_id, gudang_id FROM agg
+)
+SELECT p.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe,
+	p.gudang_id, g.nama AS nama_gudang,
+	(COALESCE(bsg.stok, 0) - COALESCE(a.delta_sesudah, 0)) AS stok
+FROM pairs p
+JOIN barang b ON b.id = p.barang_id
+JOIN gudangs g ON g.id = p.gudang_id
+LEFT JOIN agg a ON a.barang_id = p.barang_id AND a.gudang_id = p.gudang_id
+LEFT JOIN barang_stok_gudang bsg ON bsg.barang_id = p.barang_id AND bsg.gudang_id = p.gudang_id
+WHERE (COALESCE(bsg.stok, 0) - COALESCE(a.delta_sesudah, 0)) > 0
+ORDER BY b.nama, g.nama`
+
+// StokPerTanggal menghitung posisi stok per barang per gudang pada akhir
+// hari `sampai` (jam diabaikan). Dipakai pilihan periode Bulan/Tahun di
+// halaman Stok Barang; mode Real-time tetap memakai barang_stok_gudang.
+func StokPerTanggal(db *gorm.DB, sampai time.Time) ([]StokRow, error) {
+	akhir := time.Date(sampai.Year(), sampai.Month(), sampai.Day(), 0, 0, 0, 0, sampai.Location()).AddDate(0, 0, 1)
+	var rows []StokRow
+	err := db.Raw(stokPerTanggalSQL, map[string]interface{}{
+		"bmSelesai": constant.StatusBMSelesai,
+		"bkSelesai": constant.StatusBKSelesai,
+		"rtSelesai": constant.StatusReturSelesai,
+		"soSelesai": constant.StatusSOSelesai,
+		"sampai":    akhir,
+	}).Scan(&rows).Error
+	return rows, err
+}
 
 type rawRow struct {
 	Row

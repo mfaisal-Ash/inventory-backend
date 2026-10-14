@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	activityController "github.com/mfaisal-Ash/inventory-backend/internal/controller/activity"
 	appinfoController "github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo"
 	assetController "github.com/mfaisal-Ash/inventory-backend/internal/controller/asset_gudang"
 	authController "github.com/mfaisal-Ash/inventory-backend/internal/controller/auth"
@@ -34,6 +35,7 @@ import (
 	trashController "github.com/mfaisal-Ash/inventory-backend/internal/controller/trash"
 	usersController "github.com/mfaisal-Ash/inventory-backend/internal/controller/users"
 	"github.com/mfaisal-Ash/inventory-backend/internal/health"
+	activityLogRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/activity_log"
 	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
 	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
 	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
@@ -76,6 +78,9 @@ type Dependencies struct {
 	UserController *usersController.Controller
 	RoleController *roleController.Controller
 
+	ActivityController *activityController.Controller
+	ActivityRepo       activityLogRepo.Repository
+
 	GudangController *gudangController.Controller
 	BarangController *barangController.Controller
 
@@ -116,6 +121,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rRole := roleRepo.New(db)
 	rUsers := usersRepo.New(db)
 	rNotification := notificationRepo.New(db)
+	rActivityLog := activityLogRepo.New(db)
 	rAuth := authRepo.New(db)
 	jwtSvc.SetSessionChecker(rAuth.CheckSession)
 	rGudang := gudangRepo.New(db)
@@ -164,6 +170,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		StoragePath:   cfg.Storage.Path,
 	})
 	cRole := roleController.New(rRole, jwtSvc)
+	cActivity := activityController.New(rActivityLog, jwtSvc)
 	cGudang := gudangController.New(rGudang, rRole, jwtSvc)
 	cBarang := barangController.New(rBarang, rGudang, rRole, rUsers, jwtSvc, db, rNotification)
 	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rRole, jwtSvc, rNotification)
@@ -197,6 +204,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		AuthController:              cAuth,
 		UserController:              cUsers,
 		RoleController:              cRole,
+		ActivityController:          cActivity,
+		ActivityRepo:                rActivityLog,
 		GudangController:            cGudang,
 		BarangController:            cBarang,
 		BarangMasukController:       cBarangMasuk,
