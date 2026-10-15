@@ -5,7 +5,6 @@ package activitylog
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -47,8 +46,8 @@ var verbs = map[string]string{
 	ActionComplete: "Menyelesaikan",
 	ActionCancel:   "Membatalkan",
 	ActionProtect:  "Mengatur proteksi",
-	ActionLogin:    "Login",
-	ActionLogout:   "Logout",
+	ActionLogin:    "Proses Login",
+	ActionLogout:   "Proses Logout",
 	ActionImport:   "Mengimpor",
 	ActionExport:   "Mengekspor",
 	ActionPrint:    "Mencetak",
@@ -219,27 +218,25 @@ func Classify(method, rel string) Info {
 }
 
 // Describe menyusun kalimat ringkas, mis. "Menambah Barang Masuk (ID 12)".
+// Bila gagal: "Proses Login, GAGAL: username atau password salah."
 func Describe(action, module, entityID string, success bool, errMsg string) string {
 	verb, ok := verbs[action]
 	if !ok {
 		verb = verbs[ActionOther]
 	}
-	label := ModuleLabel(module)
-	var d string
-	switch action {
-	case ActionLogin, ActionLogout:
-		d = verb
-	default:
-		d = verb + " " + label
+	d := verb
+	if action != ActionLogin && action != ActionLogout {
+		d = verb + " " + ModuleLabel(module)
 	}
 	if entityID != "" {
 		d += " (ID " + entityID + ")"
 	}
 	if !success {
-		d += " — GAGAL"
-		if errMsg != "" {
-			d += ": " + errMsg
+		d += ", GAGAL"
+		if msg := strings.TrimRight(strings.TrimSpace(errMsg), ". "); msg != "" {
+			d += ": " + msg
 		}
+		d += "."
 	}
 	return Truncate(d, 480)
 }
@@ -253,59 +250,6 @@ func Truncate(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
-var sensitiveKeys = []string{
-	"password", "passwd", "pass", "token", "secret", "otp", "captcha",
-	"authorization", "pin", "totp", "kata_sandi", "sandi",
-}
-
-func isSensitiveKey(k string) bool {
-	lk := strings.ToLower(k)
-	for _, s := range sensitiveKeys {
-		if strings.Contains(lk, s) {
-			return true
-		}
-	}
-	return false
-}
-
-func mask(v interface{}) interface{} {
-	switch t := v.(type) {
-	case map[string]interface{}:
-		for k, val := range t {
-			if isSensitiveKey(k) {
-				t[k] = "***"
-				continue
-			}
-			t[k] = mask(val)
-		}
-		return t
-	case []interface{}:
-		for i := range t {
-			t[i] = mask(t[i])
-		}
-		return t
-	default:
-		return v
-	}
-}
-
-// SanitizeBody menyamarkan field sensitif (password, token, otp, dst) dari
-// body JSON lalu memotongnya. Body non-JSON tidak disimpan.
-func SanitizeBody(body []byte, maxChars int) string {
-	if len(body) == 0 {
-		return ""
-	}
-	var v interface{}
-	if err := json.Unmarshal(body, &v); err != nil {
-		return ""
-	}
-	out, err := json.Marshal(mask(v))
-	if err != nil {
-		return ""
-	}
-	return Truncate(string(out), maxChars)
-}
-
 // UsernameFromBody mengambil field "username" dari body login (untuk
 // mencatat percobaan login gagal yang user-nya belum teridentifikasi).
 func UsernameFromBody(body []byte) string {
@@ -316,26 +260,4 @@ func UsernameFromBody(body []byte) string {
 		return ""
 	}
 	return Truncate(strings.TrimSpace(v.Username), 50)
-}
-
-// BuildDetail menggabungkan potongan detail jadi satu string JSON.
-func BuildDetail(query, body, errMsg string) string {
-	m := map[string]string{}
-	if query != "" {
-		m["query"] = query
-	}
-	if body != "" {
-		m["body"] = body
-	}
-	if errMsg != "" {
-		m["error"] = errMsg
-	}
-	if len(m) == 0 {
-		return ""
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return fmt.Sprintf("%v", m)
-	}
-	return string(b)
 }

@@ -1,6 +1,7 @@
 package activity_log
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -21,8 +22,12 @@ type Filter struct {
 	Limit   int
 }
 
+// RetentionDays: riwayat yang lebih tua dari ini dihapus otomatis.
+const RetentionDays = 7
+
 type Repository interface {
 	Create(l *model.ActivityLog) error
+	DeleteOlderThan(t time.Time) (int64, error)
 	List(f Filter) ([]model.ActivityLog, int64, error)
 }
 
@@ -34,14 +39,69 @@ func New(db *gorm.DB) Repository { return &repository{db: db} }
 // username & nama lengkap diambil dari tabel users supaya riwayat tetap
 // terbaca walau akunnya nanti diganti namanya.
 func (r *repository) Create(l *model.ActivityLog) error {
-	if l.UserID != nil && l.Username == "" {
-		var u model.User
-		if err := r.db.Select("id", "username", "full_name").First(&u, *l.UserID).Error; err == nil {
-			l.Username = u.Username
-			l.FullName = u.FullName
+	r.fillUser(l)
+	return r.db.Create(l).Error
+}
+
+// fillUser melengkapi nama & role user. Untuk percobaan login gagal (user belum
+// teridentifikasi) akun dicari lewat username yang diketik; bila akunnya ada,
+// role-nya ikut ditampilkan.
+func (r *repository) fillUser(l *model.ActivityLog) {
+	var u model.User
+	switch {
+	case l.UserID != nil && l.Username == "":
+		if err := r.db.Select("id", "username", "full_name", "role_id").First(&u, *l.UserID).Error; err != nil {
+			return
+		}
+	case l.UserID == nil && l.Username != "":
+		if err := r.db.Select("id", "username", "full_name", "role_id").Where("username = ?", l.Username).First(&u).Error; err != nil {
+			return
+		}
+		id := u.ID
+		l.UserID = &id
+	default:
+		if l.UserID != nil && l.RoleName == "" {
+			if err := r.db.Select("id", "username", "full_name", "role_id").First(&u, *l.UserID).Error; err != nil {
+				return
+			}
+		} else {
+			return
 		}
 	}
-	return r.db.Create(l).Error
+	l.Username = u.Username
+	l.FullName = u.FullName
+	if l.RoleName == "" {
+		var role model.Role
+		if err := r.db.Select("id", "name").First(&role, u.RoleID).Error; err == nil {
+			l.RoleName = role.Name
+		}
+	}
+}
+
+func (r *repository) DeleteOlderThan(t time.Time) (int64, error) {
+	res := r.db.Where("created_at < ?", t).Delete(&model.ActivityLog{})
+	return res.RowsAffected, res.Error
+}
+
+// StartPurger menghapus riwayat yang lebih tua dari RetentionDays: sekali saat
+// start, lalu setiap `every`. Berjalan di goroutine sampai proses berhenti.
+func StartPurger(repo Repository, every time.Duration) {
+	purge := func() {
+		cutoff := time.Now().AddDate(0, 0, -RetentionDays)
+		if n, err := repo.DeleteOlderThan(cutoff); err != nil {
+			log.Printf("activity-log: gagal menghapus riwayat lama: %v", err)
+		} else if n > 0 {
+			log.Printf("activity-log: %d riwayat lebih dari %d hari dihapus", n, RetentionDays)
+		}
+	}
+	go func() {
+		purge()
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for range t.C {
+			purge()
+		}
+	}()
 }
 
 func (r *repository) List(f Filter) ([]model.ActivityLog, int64, error) {

@@ -1,9 +1,6 @@
 package activitylog
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestClassify(t *testing.T) {
 	cases := []struct {
@@ -51,31 +48,19 @@ func TestDescribe(t *testing.T) {
 	if got := Describe(ActionUpdate, "barang", "12", true, ""); got != "Mengubah Kelola Barang (ID 12)" {
 		t.Errorf("got %q", got)
 	}
-	if got := Describe(ActionLogin, "auth", "", true, ""); got != "Login" {
+	if got := Describe(ActionLogin, "auth", "", true, ""); got != "Proses Login" {
 		t.Errorf("got %q", got)
 	}
 	got := Describe(ActionDelete, "gudang", "3", false, "dilindungi")
-	if !strings.Contains(got, "GAGAL: dilindungi") {
+	if got != "Menghapus Manajemen Gudang (ID 3), GAGAL: dilindungi." {
 		t.Errorf("got %q", got)
 	}
-}
-
-func TestSanitizeBody(t *testing.T) {
-	in := []byte(`{"username":"budi","password":"rahasia","nested":{"otp_code":"123456","nama":"x"},"list":[{"token":"abc"}]}`)
-	out := SanitizeBody(in, 2000)
-	for _, secret := range []string{"rahasia", "123456", "abc"} {
-		if strings.Contains(out, secret) {
-			t.Errorf("body masih memuat %q: %s", secret, out)
-		}
+	got = Describe(ActionLogin, "auth", "", false, "username atau password salah")
+	if got != "Proses Login, GAGAL: username atau password salah." {
+		t.Errorf("got %q", got)
 	}
-	if !strings.Contains(out, "budi") || !strings.Contains(out, "***") {
-		t.Errorf("hasil tidak sesuai: %s", out)
-	}
-	if SanitizeBody([]byte("bukan json"), 100) != "" {
-		t.Error("body non-JSON harus dikosongkan")
-	}
-	if got := SanitizeBody(in, 10); len([]rune(got)) > 11 {
-		t.Errorf("tidak terpotong: %q", got)
+	if got := Describe(ActionCreate, "kabel", "", false, ""); got != "Menambah Kabel (Meter), GAGAL." {
+		t.Errorf("got %q", got)
 	}
 }
 

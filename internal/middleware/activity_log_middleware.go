@@ -18,10 +18,7 @@ type ActivityRecorder interface {
 	Create(l *model.ActivityLog) error
 }
 
-const (
-	apiPrefix        = "/stockrsd"
-	maxBodyDetailLen = 2000
-)
+const apiPrefix = "/stockrsd"
 
 // ActivityLogger mencatat setiap request TULIS (POST/PUT/PATCH/DELETE) milik
 // user yang sudah login ke tabel activity_logs, termasuk yang gagal. Login
@@ -44,11 +41,12 @@ func ActivityLogger(rec ActivityRecorder) fiber.Handler {
 
 		// Salin body & string dari ctx SEBELUM Next(): Fiber memakai ulang
 		// buffer request setelah handler selesai.
+		// Body hanya dibaca untuk jalur /auth (mengambil username percobaan login);
+		// isi request lain TIDAK disimpan di riwayat.
 		var body []byte
-		if strings.Contains(c.Get(fiber.HeaderContentType), "application/json") {
+		if strings.HasPrefix(rel, "/auth/") && strings.Contains(c.Get(fiber.HeaderContentType), "application/json") {
 			body = append([]byte(nil), c.Body()...)
 		}
-		query := strings.Clone(string(c.Request().URI().QueryString()))
 		ip := strings.Clone(c.IP())
 		ua := activitylog.Truncate(strings.Clone(c.Get(fiber.HeaderUserAgent)), 250)
 		fullPath := strings.Clone(c.Path())
@@ -117,7 +115,7 @@ func ActivityLogger(rec ActivityRecorder) fiber.Handler {
 			Success:     success,
 			IPAddress:   ip,
 			UserAgent:   ua,
-			Detail:      activitylog.BuildDetail(query, activitylog.SanitizeBody(body, maxBodyDetailLen), errMsg),
+			Detail:      errMsg,
 			CreatedAt:   time.Now(),
 		}
 		if userID != 0 {

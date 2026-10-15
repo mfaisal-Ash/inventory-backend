@@ -28,6 +28,11 @@ func New(repo activityRepo.Repository, jwtSvc *utils.JWTService) *Controller {
 	return &Controller{repo: repo, jwtSvc: jwtSvc}
 }
 
+func isSuperAdmin(c *fiber.Ctx) bool {
+	roleName, _ := c.Locals(constant.CtxRoleName).(string)
+	return roleName == constant.RoleSuperAdmin
+}
+
 func parseDate(c *fiber.Ctx, name string) (*time.Time, bool) {
 	raw := strings.TrimSpace(c.Query(name))
 	if raw == "" {
@@ -41,9 +46,11 @@ func parseDate(c *fiber.Ctx, name string) (*time.Time, bool) {
 }
 
 // List: GET /activity-logs?page=&limit=&search=&action=&module=&user_id=&success=&dari=&sampai=
-// Super admin & admin melihat riwayat semua user; karyawan hanya riwayatnya
-// sendiri (filter user_id dipaksa ke dirinya).
+// Khusus super admin (tab Activity History di Manajemen User).
 func (h *Controller) List(c *fiber.Ctx) error {
+	if !isSuperAdmin(c) {
+		return utils.Fail(c, fiber.StatusForbidden, "hanya super admin yang dapat melihat riwayat aktivitas", nil)
+	}
 	p := utils.PaginationFromContext(c)
 
 	dari, ok := parseDate(c, "dari")
@@ -73,14 +80,8 @@ func (h *Controller) List(c *fiber.Ctx) error {
 		f.Success = &v
 	}
 
-	roleName, _ := c.Locals(constant.CtxRoleName).(string)
-	selfID, _ := c.Locals(constant.CtxUserID).(uint)
-	if roleName == constant.RoleSuperAdmin || roleName == constant.RoleAdmin {
-		if uid, err := strconv.ParseUint(c.Query("user_id", "0"), 10, 64); err == nil {
-			f.UserID = uint(uid)
-		}
-	} else {
-		f.UserID = selfID
+	if uid, err := strconv.ParseUint(c.Query("user_id", "0"), 10, 64); err == nil {
+		f.UserID = uint(uid)
 	}
 
 	rows, total, err := h.repo.List(f)
@@ -92,6 +93,9 @@ func (h *Controller) List(c *fiber.Ctx) error {
 
 // Options: GET /activity-logs/options — isi dropdown filter.
 func (h *Controller) Options(c *fiber.Ctx) error {
+	if !isSuperAdmin(c) {
+		return utils.Fail(c, fiber.StatusForbidden, "hanya super admin yang dapat melihat riwayat aktivitas", nil)
+	}
 	return utils.OK(c, "opsi filter berhasil diambil", OptionsResponse{
 		Actions: activitylog.Actions,
 		Modules: activitylog.ModuleOptions(),
@@ -124,7 +128,7 @@ func (h *Controller) Track(c *fiber.Ctx) error {
 		Success:     true,
 		IPAddress:   c.IP(),
 		UserAgent:   activitylog.Truncate(c.Get(fiber.HeaderUserAgent), 250),
-		Detail:      activitylog.BuildDetail("", req.Detail, ""),
+		Detail:      activitylog.Truncate(strings.TrimSpace(req.Detail), 1900),
 		CreatedAt:   time.Now(),
 	}
 	if err := h.repo.Create(entry); err != nil {

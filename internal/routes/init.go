@@ -122,6 +122,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rUsers := usersRepo.New(db)
 	rNotification := notificationRepo.New(db)
 	rActivityLog := activityLogRepo.New(db)
+	activityLogRepo.StartPurger(rActivityLog, time.Hour)
 	rAuth := authRepo.New(db)
 	jwtSvc.SetSessionChecker(rAuth.CheckSession)
 	rGudang := gudangRepo.New(db)
