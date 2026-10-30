@@ -120,9 +120,28 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusNotFound, cons.ErrUsersUserNotFound, nil)
 	}
 
+	// Kendali akun: super admin boleh mengubah siapa pun, sedangkan admin biasa
+	// HANYA boleh mengelola akun karyawan. Akun admin lain dan super admin
+	// hanya bisa diubah/dinonaktifkan oleh super admin. Gagal baca role target
+	// diperlakukan sebagai ditolak (fail-closed).
+	callerRoleName, _ := c.Locals(cons.CtxRoleName).(string)
+	if callerRoleName != cons.RoleSuperAdmin {
+		targetRole, roleErr := h.roleRepo.FindByID(u.RoleID)
+		if roleErr != nil || targetRole.Name != cons.RoleKaryawan {
+			return utils.Fail(c, fiber.StatusForbidden, "akun admin dan super admin hanya bisa dikelola oleh super admin", nil)
+		}
+	}
+
 	var req UpdateUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, cons.ErrPayloadInvalid, nil)
+	}
+
+	// Cegah super admin mengunci dirinya sendiri: tidak boleh menonaktifkan akun
+	// atau mengganti role akunnya sendiri lewat endpoint ini.
+	requesterID, _ := c.Locals(cons.CtxUserID).(uint)
+	if requesterID == u.ID && ((req.IsActive != nil && !*req.IsActive) || (req.RoleID != 0 && req.RoleID != u.RoleID)) {
+		return utils.Fail(c, fiber.StatusForbidden, "tidak bisa menonaktifkan akun atau mengubah role Anda sendiri", nil)
 	}
 
 	if req.Email != "" {
@@ -140,7 +159,6 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		// mempromosikan diri sendiri/user lain jadi super_admin) HARUS
 		// dibatasi super_admin saja — kalau tidak, admin biasa bisa
 		// eskalasi privilese lewat endpoint ini.
-		callerRoleName, _ := c.Locals(cons.CtxRoleName).(string)
 		if callerRoleName != cons.RoleSuperAdmin {
 			return utils.Fail(c, fiber.StatusForbidden, "hanya super admin yang boleh mengubah role user", nil)
 		}
@@ -287,6 +305,10 @@ func (h *Controller) UploadAvatar(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membaca file", nil)
 	}
 
+	if !utils.ImageMatchesType(data, contentType) {
+		return utils.Fail(c, fiber.StatusBadRequest, "isi file bukan gambar jpg/png yang valid", nil)
+	}
+
 	u.AvatarData = data
 	u.AvatarContentType = contentType
 	if err := h.userRepo.Update(u); err != nil {
@@ -388,6 +410,11 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 
 	authed.Get("/:id/avatar", h.ServeAvatar)
 
+	// Kebijakan akses karyawan (jaringan gudang) — hanya super admin. Harus
+	// didaftarkan sebelum "/:id" supaya "access-policy" tidak dianggap sebagai id.
+	authed.Get("/access-policy", middleware.RequireRole(cons.RoleSuperAdmin), h.GetAccessPolicy)
+	authed.Put("/access-policy", middleware.RequireRole(cons.RoleSuperAdmin), h.UpdateAccessPolicy)
+
 	g := authed.Group("", middleware.RequireRole(cons.RoleSuperAdmin, constant.RoleAdmin))
 	g.Get("/", h.List)
 	g.Get("/:id", h.Detail)
@@ -398,4 +425,8 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 
 	g.Get("/:id/sessions", middleware.RequireRole(cons.RoleSuperAdmin), h.UserSessions)
 	g.Delete("/:id/sessions/:sessionId", middleware.RequireRole(cons.RoleSuperAdmin), h.RevokeUserSession)
+
+	// Kendali super admin atas akun admin/karyawan.
+	g.Post("/:id/reset-password", middleware.RequireRole(cons.RoleSuperAdmin), h.ResetPassword)
+	g.Post("/:id/logout-all", middleware.RequireRole(cons.RoleSuperAdmin), h.ForceLogout)
 }

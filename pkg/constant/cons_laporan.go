@@ -12,6 +12,9 @@ const (
 	LaporanFifoFefo        = "FIFO FEFO"
 	LaporanPengajuanBarang = "Pengajuan Barang"
 	LaporanTrackingAset    = "Tracking Aset"
+
+	// LaporanRingkasanGudang: laporan terpadu yang merangkum semua laporan lain.
+	LaporanRingkasanGudang = "Ringkasan Gudang"
 )
 
 const (

@@ -26,7 +26,6 @@ type Controller struct {
 
 	appEnv     string
 
-	allowSelfRegisterRole bool
 	totpIssuer string
 
 	otpReplayGuard *totpReplayGuard
@@ -55,7 +54,6 @@ func New(p Params) *Controller {
 
 		appEnv:     p.Cfg.App.Env,
 
-		allowSelfRegisterRole: p.Cfg.App.AllowSelfRegisterRole,
 		totpIssuer: p.Cfg.TOTP.Issuer,
 
 		otpReplayGuard: newTOTPReplayGuard(otpReplayTTL),

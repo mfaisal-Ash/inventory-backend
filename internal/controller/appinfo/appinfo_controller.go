@@ -8,7 +8,12 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
-const CurrentVersion = "v1.3.0"
+// CurrentVersion diisi otomatis saat build dari tag GitHub lewat
+// -ldflags "-X <modul>/internal/controller/appinfo.CurrentVersion=vX.Y.Z"
+// (lihat workflows/backend-release.yml). Nilai di bawah hanya cadangan untuk
+// `go run` / build lokal tanpa ldflags. Harus `var`, bukan `const`, karena
+// linker Go hanya bisa menimpa variabel string.
+var CurrentVersion = "v1.3.3"
 
 type VersionChanges struct {
 	New []string `json:"new,omitempty"`

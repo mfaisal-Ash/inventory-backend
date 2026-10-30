@@ -3,6 +3,7 @@ package laporan
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -56,27 +57,6 @@ func inRange(t time.Time, dari, sampai *time.Time) bool {
 	return true
 }
 
-func formatRupiah(v int64) string {
-	neg := v < 0
-	s := strconv.FormatInt(v, 10)
-	if neg {
-		s = s[1:]
-	}
-	n := len(s)
-	var parts []string
-	for n > 3 {
-		parts = append([]string{s[n-3:]}, parts...)
-		s = s[:n-3]
-		n = len(s)
-	}
-	parts = append([]string{s}, parts...)
-	res := strings.Join(parts, ".")
-	if neg {
-		res = "-" + res
-	}
-	return res
-}
-
 func orDash(s string) string {
 	if s == "" {
 		return "-"
@@ -103,12 +83,22 @@ func (h *Controller) userLabel(cache map[uint]string, id *uint) string {
 	return name
 }
 
-func (h *Controller) buildStokBarang() (headers []string, rows [][]string, err error) {
+// buildStokBarang: stok per barang dengan metode neraca untuk periode laporan:
+// Saldo Akhir = Saldo Awal + Masuk - Keluar +/- Penyesuaian Opname (lihat neraca_columns.go).
+// "Stok" = stok sistem saat ini. Laporan tidak memuat harga/nilai.
+func (h *Controller) buildStokBarang(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
 	list, _, err := h.barangRepo.List(bigPagination(), barangRepoPkg.Filter{})
 	if err != nil {
 		return nil, nil, err
 	}
-	headers = []string{"Kode Barang", "Nama", "Merek", "Tipe", "Kategori", "Satuan", "Stok", "Stok Minimum", "Harga Beli", "Nilai Inventaris", "Status"}
+	lk, err := h.loadNeraca(dari, sampai)
+	if err != nil {
+		return nil, nil, err
+	}
+	headers = []string{
+		"Kode Barang", "Nama", "Merek", "Tipe", "Kategori", "Satuan", "Stok", "Stok Minimum",
+		"Saldo Awal", "Masuk", "Keluar", "Penyesuaian Opname", "Saldo Akhir", "Status",
+	}
 	for _, b := range list {
 		kategori, satuan := "-", "-"
 		if b.Kategori != nil {
@@ -121,10 +111,12 @@ func (h *Controller) buildStokBarang() (headers []string, rows [][]string, err e
 		if !b.IsActive {
 			status = "Nonaktif"
 		}
+		n := lk.find(b.KodeBarang, "")
 		rows = append(rows, []string{
 			b.KodeBarang, b.Nama, orDash(b.Merek), orDash(b.Tipe), kategori, satuan,
 			strconv.Itoa(b.Stok), strconv.Itoa(b.StokMinimum),
-			formatRupiah(b.HargaBeli), formatRupiah(b.NilaiInventaris()), status,
+			strconv.Itoa(n.SaldoAwal), strconv.Itoa(n.Masuk), strconv.Itoa(n.Keluar),
+			strconv.Itoa(n.Opname), strconv.Itoa(n.SaldoAkhir), status,
 		})
 	}
 	return headers, rows, nil
@@ -172,7 +164,7 @@ func (h *Controller) buildBarangMasuk(dari, sampai *time.Time) (headers []string
 	if err != nil {
 		return nil, nil, err
 	}
-	headers = []string{"Nomor Penerimaan", "Tanggal", "Gudang", "Kode Barang", "Nama Barang", "Merek", "Tipe", "Qty", "Harga Satuan", "Serial Number", "Status", "Diterima Oleh", "Catatan"}
+	headers = []string{"Nomor Penerimaan", "Tanggal", "Gudang", "Kode Barang", "Nama Barang", "Merek", "Tipe", "Qty", "Serial Number", "Status", "Diterima Oleh", "Catatan"}
 	userCache := map[uint]string{}
 	for _, bm := range list {
 		if !inRange(bm.Tanggal, dari, sampai) {
@@ -184,7 +176,7 @@ func (h *Controller) buildBarangMasuk(dari, sampai *time.Time) (headers []string
 		}
 		if len(bm.Items) == 0 {
 			rows = append(rows, []string{
-				bm.NomorPenerimaan, bm.Tanggal.Format(dateFormat), gudang, "-", "-", "-", "-", "-", "-", "-",
+				bm.NomorPenerimaan, bm.Tanggal.Format(dateFormat), gudang, "-", "-", "-", "-", "-", "-",
 				bm.Status, h.userLabel(userCache, bm.DiterimaOleh), bm.Catatan,
 			})
 			continue
@@ -200,7 +192,7 @@ func (h *Controller) buildBarangMasuk(dari, sampai *time.Time) (headers []string
 			}
 			rows = append(rows, []string{
 				bm.NomorPenerimaan, bm.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, merek, tipe,
-				strconv.Itoa(it.Qty), formatRupiah(it.HargaSatuan), sn, bm.Status, h.userLabel(userCache, bm.DiterimaOleh), bm.Catatan,
+				strconv.Itoa(it.Qty), sn, bm.Status, h.userLabel(userCache, bm.DiterimaOleh), bm.Catatan,
 			})
 		}
 	}
@@ -310,6 +302,8 @@ func pengajuanJenisLabel(jenis string) string {
 		return "Barang Masuk"
 	case constant.JenisPengajuanRusak:
 		return "Barang Rusak"
+	case constant.JenisPengajuanBarang:
+		return "Pengajuan Barang"
 	default:
 		return "Barang Keluar"
 	}
@@ -362,6 +356,7 @@ var reportTitles = map[string]string{
 	constant.LaporanFifoFefo:        "Laporan FIFO/FEFO",
 	constant.LaporanPengajuanBarang: "Laporan Pengajuan Barang",
 	constant.LaporanTrackingAset:    "Laporan Tracking Aset",
+	constant.LaporanRingkasanGudang: "Laporan Terpadu Gudang",
 }
 
 // assetHistoryEventLabel: label Indonesia yang enak dibaca untuk tiap
@@ -436,7 +431,7 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 
 	switch tipe {
 	case constant.LaporanStokBarang:
-		headers, rows, err = h.buildStokBarang()
+		headers, rows, err = h.buildStokBarang(dari, sampai)
 	case constant.LaporanBarangMasuk:
 		headers, rows, err = h.buildBarangMasuk(dari, sampai)
 	case constant.LaporanBarangKeluar:
@@ -451,6 +446,17 @@ func (h *Controller) buildReport(tipe string, dari, sampai *time.Time) (title st
 		headers, rows, err = h.buildPengajuanBarang(dari, sampai)
 	case constant.LaporanTrackingAset:
 		headers, rows, err = h.buildLaporanTrackingAset(dari, sampai)
+	case constant.LaporanRingkasanGudang:
+		headers, rows, err = h.buildRingkasanGudang(dari, sampai)
+	}
+	if err != nil {
+		return title, headers, rows, err
+	}
+	// Semua laporan berbasis barang menampilkan hasil neraca (Saldo Awal/Akhir).
+	// Stok Barang sudah memuat kolom neraca lengkap sendiri.
+	// Laporan terpadu sudah memuat neraca di bagian Inventaris.
+	if tipe != constant.LaporanStokBarang && tipe != constant.LaporanRingkasanGudang {
+		headers, rows, err = h.appendNeracaColumns(headers, rows, dari, sampai)
 	}
 	return title, headers, rows, err
 }
@@ -548,9 +554,12 @@ func computeGenericSummary(headers []string, rows [][]string) [][2]string {
 	for colIdx, header := range headers {
 		lower := strings.ToLower(header)
 		switch {
-		case strings.Contains(lower, "nilai") || strings.Contains(lower, "harga") || strings.Contains(lower, "total"):
-			sum := sumCurrencyColumn(rows, colIdx)
-			summary = append(summary, [2]string{"Total " + header, "Rp " + formatRupiah(sum)})
+		case strings.Contains(lower, "harga") || strings.Contains(lower, "nilai") || strings.Contains(lower, "(neraca)"):
+			// Laporan tidak lagi menampilkan total harga/nilai; kolom neraca per baris
+			// tidak dijumlahkan (nilainya berulang untuk tiap transaksi barang yang sama).
+			continue
+		case isNeracaSummaryHeader(header):
+			summary = append(summary, [2]string{"Total " + header, strconv.FormatInt(sumNumericColumn(rows, colIdx), 10)})
 		case strings.Contains(lower, "stok") || strings.Contains(lower, "kuantitas") || strings.Contains(lower, "qty"):
 			sum := sumNumericColumn(rows, colIdx)
 			summary = append(summary, [2]string{"Total " + header, strconv.FormatInt(sum, 10)})
@@ -564,20 +573,13 @@ func computeGenericSummary(headers []string, rows [][]string) [][2]string {
 	return summary
 }
 
-func sumCurrencyColumn(rows [][]string, colIdx int) int64 {
-	var sum int64
-	for _, row := range rows {
-		if colIdx >= len(row) {
-			continue
-		}
-		cleaned := strings.ReplaceAll(row[colIdx], ".", "")
-		cleaned = strings.ReplaceAll(cleaned, ",", "")
-		cleaned = strings.TrimSpace(strings.TrimPrefix(cleaned, "Rp"))
-		if n, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
-			sum += n
-		}
+// isNeracaSummaryHeader: kolom neraca laporan Stok Barang yang dijumlahkan jadi kartu ringkasan.
+func isNeracaSummaryHeader(header string) bool {
+	switch header {
+	case "Saldo Awal", "Masuk", "Keluar", "Penyesuaian Opname", "Saldo Akhir":
+		return true
 	}
-	return sum
+	return false
 }
 
 func sumNumericColumn(rows [][]string, colIdx int) int64 {
@@ -628,7 +630,7 @@ func (h *Controller) Export(c *fiber.Ctx) error {
 	// Summary & chart selalu dihitung dari data MENTAH (sebelum
 	// dikelompokkan) supaya angka totalnya tetap akurat apapun tampilan
 	// tabel/export yang dipilih pengguna.
-	summary := computeGenericSummary(headers, rows)
+	summary := summaryFor(tipe, headers, rows)
 	granularity := normalizeGranularity(c.Query("granularitas", ""))
 	chart := h.buildChart(tipe, headers, rows, granularity)
 	// Tabel/file export mengikuti granularitas yang sama dengan chart:
@@ -760,9 +762,20 @@ func toExportChart(cd *ChartData) *reportexport.ChartData {
 }
 
 func (h *Controller) Types(c *fiber.Ctx) error {
-	types := make([]fiber.Map, 0, len(reportTitles))
-	for key, label := range reportTitles {
-		types = append(types, fiber.Map{"tipe": key, "label": label})
+	keys := make([]string, 0, len(reportTitles))
+	for key := range reportTitles {
+		keys = append(keys, key)
+	}
+	// Urutan tetap: laporan terpadu paling atas, sisanya urut abjad.
+	sort.Slice(keys, func(i, j int) bool {
+		if (keys[i] == constant.LaporanRingkasanGudang) != (keys[j] == constant.LaporanRingkasanGudang) {
+			return keys[i] == constant.LaporanRingkasanGudang
+		}
+		return keys[i] < keys[j]
+	})
+	types := make([]fiber.Map, 0, len(keys))
+	for _, key := range keys {
+		types = append(types, fiber.Map{"tipe": key, "label": reportTitles[key]})
 	}
 	return utils.OK(c, "daftar tipe laporan berhasil diambil", types)
 }
@@ -781,7 +794,7 @@ func (h *Controller) Preview(c *fiber.Ctx) error {
 		}
 		return utils.Fail(c, status, err.Error(), nil)
 	}
-	summaryPairs := computeGenericSummary(headers, rows)
+	summaryPairs := summaryFor(tipe, headers, rows)
 	summary := make([]fiber.Map, 0, len(summaryPairs))
 	for _, kv := range summaryPairs {
 		summary = append(summary, fiber.Map{"label": kv[0], "value": kv[1]})

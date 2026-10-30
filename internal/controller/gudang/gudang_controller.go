@@ -234,6 +234,7 @@ func (h *Controller) CreateGudang(c *fiber.Ctx) error {
 	if err := h.repo.CreateGudang(g); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat gudang", nil)
 	}
+	middleware.InvalidateGeofenceCache()
 	return utils.Created(c, "gudang berhasil dibuat", g)
 }
 
@@ -278,6 +279,7 @@ func (h *Controller) UpdateGudang(c *fiber.Ctx) error {
 	if err := h.repo.UpdateGudang(g); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui gudang", nil)
 	}
+	middleware.InvalidateGeofenceCache()
 	return utils.OK(c, "gudang berhasil diperbarui", g)
 }
 
@@ -298,6 +300,7 @@ func (h *Controller) DeleteGudang(c *fiber.Ctx) error {
 	if err := h.repo.DeleteGudang(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus gudang", nil)
 	}
+	middleware.InvalidateGeofenceCache()
 	return utils.OK(c, "gudang berhasil dihapus", nil)
 }
 

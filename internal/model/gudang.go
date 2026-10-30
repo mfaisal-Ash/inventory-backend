@@ -53,6 +53,9 @@ type Gudang struct {
 
 	UnitTersedia int64 `json:"-" gorm:"-"`
 	SkuTersedia  int64 `json:"-" gorm:"-"`
+	// UnitRusak: unit ber-nomor-seri berstatus rusak yang tercatat di gudang ini
+	// (dipakai rekomendasi kapasitas; bukan bagian dari stok neraca).
+	UnitRusak int64 `json:"-" gorm:"-"`
 }
 
 func (Gudang) TableName() string { return "gudangs" }
@@ -63,9 +66,11 @@ func (g Gudang) MarshalJSON() ([]byte, error) {
 		Alias
 		UnitTersedia int64 `json:"unit_tersedia"`
 		SkuTersedia  int64 `json:"sku_tersedia"`
+		UnitRusak    int64 `json:"unit_rusak"`
 	}{
 		Alias:        Alias(g),
 		UnitTersedia: g.UnitTersedia,
 		SkuTersedia:  g.SkuTersedia,
+		UnitRusak:    g.UnitRusak,
 	})
 }

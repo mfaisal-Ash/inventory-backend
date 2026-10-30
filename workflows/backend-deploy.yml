@@ -11,6 +11,11 @@ name: Deploy Backend
 on:
   push:
     branches: [main]
+    # Push tag juga ikut build + deploy, supaya versi di Settings langsung
+    # berubah walau tag dibuat di commit yang sudah pernah ter-deploy.
+    tags:
+      - "v*.*.*"
+      - "[0-9]*.[0-9]*.[0-9]*"
 
 jobs:
   build:
@@ -18,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # perlu seluruh tag untuk membaca versi terbaru
+          fetch-tags: true
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -39,10 +47,23 @@ jobs:
       - name: Test
         run: go test ./... -v
 
+      # Versi di Settings mengikuti tag GitHub terbaru. Kalau belum ada tag
+      # sama sekali, VERSION kosong dan nilai cadangan di kode dipakai.
+      - name: Resolve version from latest git tag
+        run: |
+          TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [ -n "$TAG" ]; then
+            echo "VERSION=v${TAG#v}" >> "$GITHUB_ENV"   # "1.3.4" -> "v1.3.4"
+          fi
+
       - name: Build binary (linux/amd64)
         run: |
+          LDFLAGS="-s -w"
+          if [ -n "$VERSION" ]; then
+            LDFLAGS="$LDFLAGS -X github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo.CurrentVersion=$VERSION"
+          fi
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-          go build -ldflags="-s -w" -o inventory-backend ./cmd/main.go
+          go build -ldflags="$LDFLAGS" -o inventory-backend ./cmd/main.go
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -46,6 +47,11 @@ func (h *Controller) validateItems(items []ItemRequest) error {
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
 			return fmt.Errorf("barang id %d tidak ditemukan", it.BarangID)
 		}
+		if it.SatuanID != nil && *it.SatuanID != 0 {
+			if _, err := h.gudangRepo.FindSatuanByID(*it.SatuanID); err != nil {
+				return fmt.Errorf("satuan id %d tidak ditemukan", *it.SatuanID)
+			}
+		}
 	}
 	return nil
 }
@@ -77,7 +83,11 @@ func (h *Controller) validateJenisSpecific(req *PengajuanRequest) error {
 func toItemModels(items []ItemRequest) []model.PengajuanBarangItem {
 	out := make([]model.PengajuanBarangItem, 0, len(items))
 	for _, it := range items {
-		out = append(out, model.PengajuanBarangItem{BarangID: it.BarangID, Qty: it.Qty})
+		m := model.PengajuanBarangItem{BarangID: it.BarangID, Qty: it.Qty}
+		if it.SatuanID != nil && *it.SatuanID != 0 {
+			m.SatuanID = it.SatuanID
+		}
+		out = append(out, m)
 	}
 	return out
 }
@@ -129,6 +139,15 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	}
 
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	jenis := normalizeJenis(req.Jenis)
+	var ttdData []byte
+	if strings.TrimSpace(req.TTDPencatat) != "" {
+		if ttdData, err = decodeTTD(req.TTDPencatat); err != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
+		}
+	} else if constant.PengajuanWajibTTD(jenis) {
+		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrPengajuanTTDPencatatWajib, nil)
+	}
 	nomor, err := h.repo.NextNomor()
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor pengajuan", nil)
@@ -147,6 +166,14 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		JabatanPencatat: req.JabatanPencatat,
 		Items:           toItemModels(req.Items),
 	}
+	if ttdData != nil {
+		ttd := h.buildTTD(userID, model.PeranTTDPencatat, req.NamaPencatat, req.JabatanPencatat, ttdData, c.IP())
+		ttd.DokumenHash = pengajuan.ComputeDokumenHash()
+		pengajuan.TandaTangan = []model.PengajuanTandaTangan{*ttd}
+		if pengajuan.NamaPencatat == "" {
+			pengajuan.NamaPencatat = ttd.Nama
+		}
+	}
 	if err := h.repo.Create(pengajuan); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat pengajuan barang", nil)
 	}
@@ -154,7 +181,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		"Pengajuan Barang Baru",
 		fmt.Sprintf("%s (%s) menunggu persetujuan.", pengajuan.NomorPengajuan, pengajuan.Keperluan),
 		"/pengajuan-barang", nil, constant.RoleSuperAdmin)
-	return utils.Created(c, "pengajuan barang berhasil dibuat, menunggu persetujuan", pengajuan)
+	return utils.Created(c, "pengajuan barang berhasil dibuat, menunggu persetujuan"+alurKeterangan(pengajuan), pengajuan)
 }
 
 func (h *Controller) requireDiajukan(id uint) (*model.PengajuanBarang, error) {
@@ -193,7 +220,18 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
-	pengajuan.Jenis = normalizeJenis(req.Jenis)
+	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	jenis := normalizeJenis(req.Jenis)
+	var ttdData []byte
+	if strings.TrimSpace(req.TTDPencatat) != "" {
+		if ttdData, err = decodeTTD(req.TTDPencatat); err != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
+		}
+	} else if constant.PengajuanWajibTTD(jenis) {
+		return utils.Fail(c, fiber.StatusBadRequest, constant.ErrPengajuanTTDPencatatWajib, nil)
+	}
+
+	pengajuan.Jenis = jenis
 	pengajuan.GudangID = req.GudangID
 	pengajuan.Tanggal = tanggal
 	pengajuan.Keperluan = req.Keperluan
@@ -201,8 +239,18 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	pengajuan.TemplateID = req.TemplateID
 	pengajuan.NamaPencatat = req.NamaPencatat
 	pengajuan.JabatanPencatat = req.JabatanPencatat
-	if err := h.repo.Update(pengajuan, toItemModels(req.Items)); err != nil {
+	items := toItemModels(req.Items)
+	pengajuan.Items = items
+	var ttd *model.PengajuanTandaTangan
+	if ttdData != nil {
+		ttd = h.buildTTD(userID, model.PeranTTDPencatat, req.NamaPencatat, req.JabatanPencatat, ttdData, c.IP())
+		ttd.DokumenHash = pengajuan.ComputeDokumenHash()
+	}
+	if err := h.repo.Update(pengajuan, items, ttd); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui pengajuan barang", nil)
+	}
+	if fresh, ferr := h.repo.FindByID(pengajuan.ID); ferr == nil {
+		pengajuan = fresh
 	}
 	return utils.OK(c, "pengajuan barang berhasil diperbarui", pengajuan)
 }
@@ -234,6 +282,8 @@ func setujuiSuccessMessage(pengajuan *model.PengajuanBarang) string {
 			len(pengajuan.BarangRusak))
 	case constant.JenisPengajuanTemplate:
 		return "pengajuan berhasil disetujui"
+	case constant.JenisPengajuanBarang:
+		return "pengajuan barang berhasil disetujui"
 	default:
 		if pengajuan.BarangKeluar != nil && pengajuan.BarangKeluar.Status == constant.StatusBKDraft {
 			return "pengajuan barang disetujui — dokumen barang keluarnya (" + pengajuan.BarangKeluar.NomorPengeluaran +
@@ -252,7 +302,15 @@ func (h *Controller) Setujui(c *fiber.Ctx) error {
 	_ = c.BodyParser(&req)
 
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
-	pengajuan, err := h.repo.Setujui(id, userID, req.NamaGA, req.JabatanGA, req.Catatan)
+	var ttd *model.PengajuanTandaTangan
+	if strings.TrimSpace(req.TTD) != "" {
+		data, derr := decodeTTD(req.TTD)
+		if derr != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, derr.Error(), nil)
+		}
+		ttd = h.buildTTD(userID, model.PeranTTDPenyetuju, req.NamaGA, req.JabatanGA, data, c.IP())
+	}
+	pengajuan, err := h.repo.Setujui(id, userID, req.NamaGA, req.JabatanGA, req.Catatan, ttd)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
 	}
@@ -309,8 +367,11 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
 
 	g.Get("/summary", view, h.Summary)
+	// Harus sebelum "/:id" supaya "stok-menipis" tidak dianggap sebagai id.
+	g.Get("/stok-menipis", view, h.StokMenipis)
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
+	g.Get("/:id/ttd/:peran", view, h.ServeTTD)
 	g.Post("/", tambah, h.Create)
 	g.Put("/:id", edit, h.Update)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)

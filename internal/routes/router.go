@@ -10,10 +10,29 @@ import (
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/controller"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
+	"github.com/mfaisal-Ash/inventory-backend/pkg/netguard"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
 func SetupRouter(deps *Dependencies) *fiber.App {
+	middleware.ConfigureKaryawanNetwork(deps.Cfg.App.KaryawanAllowedNetworks)
+	middleware.ConfigureAdminGudangOnly(deps.Cfg.App.AdminGudangOnly)
+	// Kebijakan yang disimpan super admin lewat aplikasi menimpa nilai dari .env.
+	if deps.AccessPolicyRepo != nil {
+		if policy, err := deps.AccessPolicyRepo.Get(); err != nil {
+			log.Printf("router: gagal memuat kebijakan akses dari database, memakai nilai .env: %v", err)
+		} else if policy != nil {
+			middleware.ConfigureKaryawanNetwork(netguard.Split(policy.KaryawanNetworks))
+			middleware.ConfigureAdminGudangOnly(policy.AdminGudangOnly)
+		}
+	}
+
+	// Admin & karyawan hanya boleh dari sekitar titik koordinat gudang (diambil
+	// dari Manajemen Gudang). Super admin tidak dibatasi.
+	if deps.DB != nil {
+		middleware.ConfigureGeofence(gudangGeofencePoints(deps.DB), deps.Cfg.App.GeofenceRadiusMeters)
+	}
+
 	app := fiber.New(fiber.Config{
 		AppName:                 deps.Cfg.App.Name,
 		ErrorHandler:            globalErrorHandler,

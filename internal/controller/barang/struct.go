@@ -6,6 +6,7 @@ import (
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
@@ -92,6 +93,12 @@ type DetailStokResponse struct {
 	TotalMasuk  int64                      `json:"total_masuk"`
 	TotalKeluar int64                      `json:"total_keluar"`
 	PerGudang   []barangstokgudang.StokRow `json:"per_gudang"`
+
+	// Neraca: stok per gudang dengan metode neraca sepanjang waktu —
+	// Sisa = Stok Awal + Masuk - Keluar (+/- penyesuaian opname). Lihat
+	// package neraca untuk definisi tiap kolom.
+	Neraca      []neracaRepo.Row `json:"neraca"`
+	NeracaTotal neracaRepo.Total `json:"neraca_total"`
 }
 
 type NextSKUResponse struct {

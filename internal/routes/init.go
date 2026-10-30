@@ -37,6 +37,7 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/health"
 	activityLogRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/activity_log"
 	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
+	accessPolicyRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/accesspolicy"
 	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
 	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
 	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
@@ -67,6 +68,7 @@ import (
 )
 
 type Dependencies struct {
+	DB         *gorm.DB
 	Cfg        *config.Config
 	JWTSvc     *utils.JWTService
 	RoleRepo   roleRepo.Repository
@@ -98,6 +100,7 @@ type Dependencies struct {
 	TrashController        *trashController.Controller
 	NotificationController *notificationController.Controller
 	NotificationRepo       notificationRepo.Repository
+	AccessPolicyRepo       accessPolicyRepo.Repository
 
 	LaporanController           *laporanController.Controller
 	DashboardController         *dashboardController.Controller
@@ -140,6 +143,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rNeraca := neracaRepo.New(db)
 	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
+	rAccessPolicy := accessPolicyRepo.New(db)
 	rPengajuanBarang := pengajuanBarangRepo.New(db)
 	rPengajuanTemplate := pengajuanTemplateRepo.New(db)
 
@@ -169,6 +173,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		JWTSvc:        jwtSvc,
 		HumanCheckSvc: humanCheckSvc,
 		StoragePath:   cfg.Storage.Path,
+
+		AccessPolicyRepo: rAccessPolicy,
 	})
 	cRole := roleController.New(rRole, jwtSvc)
 	cActivity := activityController.New(rActivityLog, jwtSvc)
@@ -184,7 +190,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cRetur := returController.New(rRetur, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cKabel := kabelController.New(rKabel, rRole, jwtSvc)
 	cNeraca := neracaController.New(rNeraca, rRole, jwtSvc)
-	cLaporan := laporanController.New(rBarang, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rBarangSerial, rPengajuanBarang, rAsset, rAssetHistory, rUsers, rRole, jwtSvc)
+	cLaporan := laporanController.New(rBarang, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rBarangSerial, rPengajuanBarang, rAsset, rAssetHistory, rUsers, rRole, rNeraca, jwtSvc)
 	cDashboard := dashboardController.New(rBarang, rGudang, rBarangMasuk, rBarangKeluar, rStockOpname, rRole, jwtSvc, db)
 	cPengajuanBarang := pengajuanBarangController.New(rPengajuanBarang, rBarang, rGudang, rUsers, rRole, jwtSvc, rNotification, rPengajuanTemplate)
 	cPengajuanTemplate := pengajuanTemplateController.New(rPengajuanTemplate, jwtSvc)
@@ -197,11 +203,13 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cGeocode := geocodeController.New(geocodingSvc, jwtSvc)
 
 	return &Dependencies{
+		DB:                          db,
 		Cfg:                         cfg,
 		JWTSvc:                      jwtSvc,
 		RoleRepo:                    rRole,
 		GudangRepo:                  rGudang,
 		MaintenanceRepo:             rMaintenance,
+		AccessPolicyRepo:            rAccessPolicy,
 		AuthController:              cAuth,
 		UserController:              cUsers,
 		RoleController:              cRole,

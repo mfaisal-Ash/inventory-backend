@@ -45,6 +45,12 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/trend", view, h.Trend)
 	g.Get("/activity", view, h.Activity)
 	g.Get("/analisa", view, h.Analisa)
+	// Menu Analisa Data: grafik stok per gudang, riwayat terpadu, tab Stok Barang
+	// (neraca per gudang) dan Asset per gudang.
+	g.Get("/stok-grafik", view, h.StokGrafik)
+	g.Get("/riwayat", view, h.Riwayat)
+	g.Get("/stok-gudang", view, h.StokGudang)
+	g.Get("/aset-gudang", view, h.AsetGudang)
 	g.Get("/notifications", view, h.Notifications)
 
 	lg := router.Group("/laporan", middleware.JWTAuth(h.jwtSvc))

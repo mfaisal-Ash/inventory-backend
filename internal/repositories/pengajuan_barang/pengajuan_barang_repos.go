@@ -40,10 +40,16 @@ func preloadPengajuan(q *gorm.DB) *gorm.DB {
 		Preload("Pemroses").
 		Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Satuan").
 		Preload("BarangKeluar").
 		Preload("BarangMasuk").
 		Preload("BarangRusak").
-		Preload("Template")
+		Preload("Template").
+		Preload("TandaTangan", func(db *gorm.DB) *gorm.DB {
+			// Tanpa kolom data (gambar) supaya list/detail tetap ringan.
+			return db.Select("id", "pengajuan_id", "peran", "user_id", "nama", "jabatan",
+				"ip_address", "dokumen_hash", "signed_at").Order("signed_at asc")
+		})
 }
 
 func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.PengajuanBarang, int64, error) {
@@ -75,7 +81,7 @@ func (r *repository) Create(pengajuan *model.PengajuanBarang) error {
 	return r.db.Create(pengajuan).Error
 }
 
-func (r *repository) Update(pengajuan *model.PengajuanBarang, items []model.PengajuanBarangItem) error {
+func (r *repository) Update(pengajuan *model.PengajuanBarang, items []model.PengajuanBarangItem, ttd *model.PengajuanTandaTangan) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var current model.PengajuanBarang
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&current, pengajuan.ID).Error; err != nil {
@@ -93,6 +99,17 @@ func (r *repository) Update(pengajuan *model.PengajuanBarang, items []model.Peng
 		}
 		if len(items) > 0 {
 			if err := tx.Create(&items).Error; err != nil {
+				return err
+			}
+		}
+		// Isi berubah -> tanda tangan lama tidak berlaku lagi.
+		if err := tx.Where("pengajuan_id = ?", pengajuan.ID).Delete(&model.PengajuanTandaTangan{}).Error; err != nil {
+			return err
+		}
+		if ttd != nil {
+			ttd.ID = 0
+			ttd.PengajuanID = pengajuan.ID
+			if err := tx.Create(ttd).Error; err != nil {
 				return err
 			}
 		}
@@ -254,7 +271,7 @@ func (r *repository) setujuiRusak(tx *gorm.DB, pengajuan *model.PengajuanBarang)
 	return map[string]interface{}{}, nil
 }
 
-func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan string) (*model.PengajuanBarang, error) {
+func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan string, ttd *model.PengajuanTandaTangan) (*model.PengajuanBarang, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var pengajuan model.PengajuanBarang
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Preload("Items").First(&pengajuan, id).Error; err != nil {
@@ -267,6 +284,10 @@ func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan st
 			return errors.New("pengajuan ini belum punya daftar barang")
 		}
 
+		if err := r.verifikasiDuaPihak(tx, &pengajuan, userID, ttd); err != nil {
+			return err
+		}
+
 		var extra map[string]interface{}
 		var err error
 		switch pengajuan.Jenis {
@@ -274,7 +295,8 @@ func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan st
 			extra, err = r.setujuiMasuk(tx, &pengajuan)
 		case constant.JenisPengajuanRusak:
 			extra, err = r.setujuiRusak(tx, &pengajuan)
-		case constant.JenisPengajuanTemplate:
+		case constant.JenisPengajuanTemplate, constant.JenisPengajuanBarang:
+			// Tidak ada dokumen/stok yang berubah — hanya status yang jadi "disetujui".
 			extra, err = r.setujuiTemplate()
 		default:
 			extra, err = r.setujuiKeluar(tx, &pengajuan, userID)
@@ -295,12 +317,102 @@ func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan st
 		for k, v := range extra {
 			updates[k] = v
 		}
+		if ttd != nil {
+			ttd.ID = 0
+			ttd.PengajuanID = id
+			ttd.Peran = model.PeranTTDPenyetuju
+			ttd.UserID = userID
+			ttd.SignedAt = now
+			if err := tx.Create(ttd).Error; err != nil {
+				return err
+			}
+		}
 		return tx.Model(&model.PengajuanBarang{}).Where("id = ?", id).Updates(updates).Error
 	})
 	if err != nil {
 		return nil, err
 	}
 	return r.FindByID(id)
+}
+
+// verifikasiDuaPihak menegakkan alur "pengaju tanda tangan -> penyetuju tanda
+// tangan" untuk jenis yang wajib TTD. Dipanggil di dalam transaksi Setujui,
+// setelah baris pengajuan dikunci (FOR UPDATE).
+func (r *repository) verifikasiDuaPihak(tx *gorm.DB, pengajuan *model.PengajuanBarang, userID uint, ttd *model.PengajuanTandaTangan) error {
+	var pencatat *model.PengajuanTandaTangan
+	if constant.PengajuanWajibTTD(pengajuan.Jenis) {
+		var found model.PengajuanTandaTangan
+		err := tx.Where("pengajuan_id = ? AND peran = ?", pengajuan.ID, model.PeranTTDPencatat).First(&found).Error
+		switch {
+		case err == nil:
+			pencatat = &found
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		}
+	}
+	return CekDuaPihak(pengajuan, userID, ttd, pencatat)
+}
+
+// CekDuaPihak adalah aturan murni (tanpa database) untuk persetujuan dua pihak:
+//   - ttd penyetuju wajib ada,
+//   - penyetuju bukan orang yang sama dengan pengaju,
+//   - pengaju sudah tanda tangan DAN isi pengajuan sekarang masih sama persis
+//     dengan yang ia tandatangani (dicocokkan lewat sidik jari dokumen).
+//
+// Untuk jenis yang tidak wajib TTD, fungsi ini hanya mengisi DokumenHash pada
+// ttd (kalau ada) dan tidak menolak apa pun. pencatat = tanda tangan pengaju
+// yang tersimpan (nil kalau belum ada).
+func CekDuaPihak(pengajuan *model.PengajuanBarang, userID uint, ttd, pencatat *model.PengajuanTandaTangan) error {
+	hash := pengajuan.ComputeDokumenHash()
+	if ttd != nil {
+		ttd.DokumenHash = hash
+	}
+	if !constant.PengajuanWajibTTD(pengajuan.Jenis) {
+		return nil
+	}
+	if ttd == nil || len(ttd.Data) == 0 {
+		return errors.New(constant.ErrPengajuanTTDPenyetujuWajib)
+	}
+	if pengajuan.DiajukanOleh == userID {
+		return errors.New(constant.ErrPengajuanPenyetujuSamaDgnPengaju)
+	}
+	if pencatat == nil || pencatat.DokumenHash != hash {
+		return errors.New(constant.ErrPengajuanTTDPencatatHilang)
+	}
+	return nil
+}
+
+func (r *repository) FindTandaTangan(pengajuanID uint, peran string) (*model.PengajuanTandaTangan, error) {
+	var t model.PengajuanTandaTangan
+	if err := r.db.Where("pengajuan_id = ? AND peran = ?", pengajuanID, peran).First(&t).Error; err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *repository) OpenMasukByBarang(barangIDs []uint) (map[uint]string, error) {
+	out := make(map[uint]string, len(barangIDs))
+	if len(barangIDs) == 0 {
+		return out, nil
+	}
+	type row struct {
+		BarangID       uint
+		NomorPengajuan string
+	}
+	var rows []row
+	err := r.db.Table("pengajuan_barang_items AS i").
+		Select("i.barang_id AS barang_id, p.nomor_pengajuan AS nomor_pengajuan").
+		Joins("JOIN pengajuan_barang p ON p.id = i.pengajuan_id").
+		Where("p.jenis = ? AND p.status = ? AND i.barang_id IN ?", constant.JenisPengajuanMasuk, constant.StatusPengajuanDiajukan, barangIDs).
+		Order("p.id asc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, rw := range rows {
+		out[rw.BarangID] = rw.NomorPengajuan // pengajuan terbaru menimpa yang lama
+	}
+	return out, nil
 }
 
 func (r *repository) Tolak(id uint, userID uint, namaGA, jabatanGA, catatan string) (*model.PengajuanBarang, error) {

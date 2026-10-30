@@ -111,8 +111,8 @@ mengunduh binary dari asset rilis tersebut.
    komentar di kedua file untuk perbedaannya).
 2. Setiap kali siap rilis versi baru:
    ```bash
-   # update CurrentVersion di internal/controller/appinfo/appinfo_controller.go
-   # + tambah entri baru di changelogData & changelog.yml
+   # tambah entri baru di changelogData & changelog.yml
+   # (CurrentVersion TIDAK perlu diubah — dibakar otomatis dari nama tag)
    git commit -am "chore: rilis v1.4.0"
    git push origin main
    git tag v1.4.0
@@ -122,9 +122,11 @@ mengunduh binary dari asset rilis tersebut.
    `gowms-backend-linux-amd64.sha256`, lalu publish sebagai GitHub Release
    dengan tag yang sama.
 
-**Penting:** nilai tag (`v1.4.0`) harus bisa dibandingkan apa adanya dengan
-`CurrentVersion` yang dibakar ke binary lewat `selfupdate.CompareVersions`
-(lihat `pkg/selfupdate/github.go` untuk aturan toleransinya).
+**Penting:** versi di menu Settings (`GET /app/version`) kini diisi otomatis
+dari nama tag lewat `-ldflags -X ...appinfo.CurrentVersion=<tag>`, jadi tag,
+versi di Settings, dan hasil `selfupdate.CompareVersions` selalu sama. Gunakan
+format `vMAJOR.MINOR.PATCH` (mis. `v1.4.0`); lihat `pkg/selfupdate/github.go`
+untuk aturan toleransinya.
 
 ## 6. (Opsional) Repo privat
 

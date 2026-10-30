@@ -507,6 +507,14 @@ func (h *Controller) DetailStok(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil stok per gudang", nil)
 	}
+	neracaRes, err := neracaRepo.New(h.db).Hitung(neracaRepo.Filter{
+		Dari:     time.Date(2000, 1, 1, 0, 0, 0, 0, time.Local),
+		Sampai:   startOfToday(),
+		BarangID: id,
+	})
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung neraca stok", nil)
+	}
 	return utils.OK(c, "detail stok barang berhasil diambil", DetailStokResponse{
 		BarangID:    b.ID,
 		KodeBarang:  b.KodeBarang,
@@ -515,7 +523,14 @@ func (h *Controller) DetailStok(c *fiber.Ctx) error {
 		TotalMasuk:  masuk,
 		TotalKeluar: keluar,
 		PerGudang:   perGudang,
+		Neraca:      neracaRes.Rows,
+		NeracaTotal: neracaRes.Total,
 	})
+}
+
+func startOfToday() time.Time {
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
 }
 
 func (h *Controller) UpdateStatus(c *fiber.Ctx) error {

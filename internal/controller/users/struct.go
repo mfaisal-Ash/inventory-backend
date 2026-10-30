@@ -3,6 +3,7 @@ package users
 import (
 	"time"
 
+	accessPolicyRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/accesspolicy"
 	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
@@ -17,6 +18,8 @@ type Controller struct {
 	jwtSvc        *utils.JWTService
 	humanCheckSvc *humancheck.Service
 	storagePath   string
+
+	accessPolicyRepo accessPolicyRepo.Repository
 }
 
 type Params struct {
@@ -26,6 +29,9 @@ type Params struct {
 	JWTSvc        *utils.JWTService
 	HumanCheckSvc *humancheck.Service
 	StoragePath   string
+
+	// AccessPolicyRepo: penyimpanan kebijakan akses karyawan (jaringan gudang).
+	AccessPolicyRepo accessPolicyRepo.Repository
 }
 
 func New(p Params) *Controller {
@@ -36,6 +42,8 @@ func New(p Params) *Controller {
 		jwtSvc:        p.JWTSvc,
 		humanCheckSvc: p.HumanCheckSvc,
 		storagePath:   p.StoragePath,
+
+		accessPolicyRepo: p.AccessPolicyRepo,
 	}
 }
 
@@ -90,6 +98,30 @@ type SessionResponse struct {
 	Location       string `json:"location"`
 	CreatedAt      string `json:"created_at"`
 	LastActiveAt   string `json:"last_active_at,omitempty"`
+}
+
+type ResetPasswordRequest struct {
+	NewPassword string `json:"new_password" validate:"required,min=8"`
+}
+
+type UpdateAccessPolicyRequest struct {
+	// KaryawanNetworks: daftar IP/CIDR gudang. Boleh dikirim sebagai array
+	// berisi satu entri per elemen atau beberapa entri dipisah koma/spasi.
+	// Array kosong = pembatasan dimatikan.
+	KaryawanNetworks []string `json:"karyawan_networks"`
+	// AdminGudangOnly: true = akun admin ikut dibatasi ke jaringan gudang. Nil =
+	// biarkan nilai yang sedang berlaku.
+	AdminGudangOnly *bool `json:"admin_gudang_only"`
+}
+
+type AccessPolicyResponse struct {
+	KaryawanNetworks []string   `json:"karyawan_networks"`
+	Restricted       bool       `json:"restricted"`
+	AdminGudangOnly  bool       `json:"admin_gudang_only"`
+	ClientIP         string     `json:"client_ip"`
+	ClientIPAllowed  bool       `json:"client_ip_allowed"`
+	Source           string     `json:"source"`
+	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
 }
 
 type SessionListResponse struct {

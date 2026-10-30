@@ -13,5 +13,12 @@ swag:
 run: swag
 	go run ./cmd/main.go
 
+# VERSION diambil dari tag git terbaru (kosong kalau belum ada tag -> nilai
+# cadangan di appinfo_controller.go dipakai). Bisa ditimpa: make build VERSION=v1.4.0
+RAW_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null)
+VERSION ?= $(if $(RAW_TAG),v$(patsubst v%,%,$(RAW_TAG)))
+PKG := github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo
+LDFLAGS := -s -w $(if $(VERSION),-X $(PKG).CurrentVersion=$(VERSION))
+
 build: swag
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o gowms-backend ./cmd/main.go
+	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o gowms-backend ./cmd/main.go

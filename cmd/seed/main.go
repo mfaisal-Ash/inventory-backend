@@ -118,10 +118,10 @@ func findOrCreateGudang(db *gorm.DB, nama, alamat string) model.Gudang {
 	return g
 }
 
-func findOrCreateGudangDenganKode(db *gorm.DB, nama, alamat, kode string) model.Gudang {
+func findOrCreateGudangDenganKode(db *gorm.DB, nama, alamat, kode string, lat, lng float64) model.Gudang {
 	var g model.Gudang
 	if db.Where("nama = ?", nama).First(&g).Error == gorm.ErrRecordNotFound {
-		g = model.Gudang{Nama: nama, Alamat: alamat, Kode: kode}
+		g = model.Gudang{Nama: nama, Alamat: alamat, Kode: kode, Latitude: &lat, Longitude: &lng}
 		db.Create(&g)
 		return g
 	}
@@ -211,8 +211,8 @@ func seedSampleData(db *gorm.DB, adminID uint) {
 
 	kat := findOrCreateKategori(db, "Alkes")
 	sat := findOrCreateSatuan(db, "Box", "bx")
-	g1 := findOrCreateGudangDenganKode(db, "Gudang 1 Cimahi", "Cimahi -7.02090991881257, 107.64954118009624", "BBU")
-	g2 := findOrCreateGudangDenganKode(db, "Gudang 2 Bandung Lt.3", "Bandung Lt.3 -6.922156836137817, 107.61645745311088", "MAHANG")
+	g1 := findOrCreateGudangDenganKode(db, "Gudang 1 Cimahi", "Cimahi -7.017319591938903, 107.648896219795", "BBU", -7.017319591938903, 107.648896219795)
+	g2 := findOrCreateGudangDenganKode(db, "Gudang 2 Bandung Lt.3", "Bandung Lt.3 -6.922156836137817, 107.61645745311088", "MAHANG", -6.922156836137817, 107.61645745311088)
 	seedBarang(db, kat.ID, sat.ID)
 
 	now := time.Now()

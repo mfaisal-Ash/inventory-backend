@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -22,8 +23,9 @@ const (
 	maxFailedLoginAttempts = 10
 	lockDuration           = 15 * time.Minute
 
-	accountInactiveMessage = "Akun kamu terkunci, hubungi admin supaya bisa dibuka lagi akunnya."
-	otpCodeReusedMessage   = "kode sudah tidak bisa digunakan, coba gunakan kode yang baru."
+	accountInactiveMessage     = "Akun kamu terkunci, hubungi admin supaya bisa dibuka lagi akunnya."
+	otpCodeReusedMessage       = "kode sudah tidak bisa digunakan, coba gunakan kode yang baru."
+	failedLoginProccessMessage = "gagal memproses login."
 )
 
 func hashToken(token string) string {
@@ -53,10 +55,33 @@ func (h *Controller) buildSessionInfo(c *fiber.Ctx) (device utils.DeviceInfo, ip
 	return device, ip, location
 }
 
+// accessDeniedError: akun (admin/karyawan) mencoba mendapat sesi dari luar
+// area gudang (lokasi koordinat atau jaringan). Pesannya dikirim apa adanya ke
+// pengguna supaya jelas kenapa ditolak.
+type accessDeniedError struct{ msg string }
+
+func (e *accessDeniedError) Error() string { return e.msg }
+
+// failIssueTokens menerjemahkan kegagalan issueTokens menjadi respons HTTP:
+// 403 untuk akses dari luar gudang, selain itu 500 dengan pesan fallback.
+func failIssueTokens(c *fiber.Ctx, err error, fallback string) error {
+	var denied *accessDeniedError
+	if errors.As(err, &denied) {
+		return utils.Fail(c, fiber.StatusForbidden, denied.msg, nil)
+	}
+	return utils.Fail(c, fiber.StatusInternalServerError, fallback, nil)
+}
+
 func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, error) {
 	r, err := h.roleRepo.FindByID(u.RoleID)
 	if err != nil {
 		return nil, err
+	}
+	// Satu-satunya pintu penerbitan token (login, OTP, 2FA, refresh, register):
+	// cek lokasi/jaringan gudang di sini supaya tidak ada jalur yang terlewat.
+	if ok, msg := middleware.AccessAllowsRole(c, r.Name); !ok {
+		log.Printf("auth: sesi '%s' (%s) ditolak dari IP %s: %s", u.Username, r.Name, c.IP(), msg)
+		return nil, &accessDeniedError{msg: msg}
 	}
 
 	// Dibaca middleware Activity History supaya login tercatat atas nama user ini.
@@ -118,23 +143,18 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 }
 
 // resolveRegisterRoleName menentukan role akun baru saat self-register.
-// Role yang dipilih di form dihormati selama ALLOW_SELF_REGISTER_ROLE=true
-// (default), terlepas dari APP_ENV. Nilai di luar daftar role yang dikenal
-// atau flag dimatikan -> dipaksa ke karyawan.
-func (h *Controller) resolveRegisterRoleName(requestedRole string) string {
+// Pendaftar bebas memilih super_admin, admin, atau karyawan. Kosong dianggap
+// karyawan; nama role yang tidak dikenal ditolak. Pembatasan lokasi untuk
+// admin/karyawan tetap berlaku lewat middleware.AccessAllowsRole.
+func (h *Controller) resolveRegisterRoleName(requestedRole string) (string, error) {
 	requestedRole = strings.ToLower(strings.TrimSpace(requestedRole))
 	switch requestedRole {
-	case constant.RoleKaryawan, "":
-		return constant.RoleKaryawan
-	case constant.RoleSuperAdmin, constant.RoleAdmin:
-		if !h.allowSelfRegisterRole {
-			log.Printf("auth: self-register role '%s' ditolak (ALLOW_SELF_REGISTER_ROLE=false), dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
-			return constant.RoleKaryawan
-		}
-		return requestedRole
+	case "":
+		return constant.RoleKaryawan, nil
+	case constant.RoleKaryawan, constant.RoleAdmin, constant.RoleSuperAdmin:
+		return requestedRole, nil
 	default:
-		log.Printf("auth: role '%s' tidak dikenal saat register, dipaksa ke '%s'", requestedRole, constant.RoleKaryawan)
-		return constant.RoleKaryawan
+		return "", fmt.Errorf("role '%s' tidak dikenal", requestedRole)
 	}
 }
 
@@ -169,11 +189,19 @@ func (h *Controller) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	roleName := h.resolveRegisterRoleName(req.RoleName)
+	roleName, roleErr := h.resolveRegisterRoleName(req.RoleName)
+	if roleErr != nil {
+		return utils.Fail(c, fiber.StatusForbidden, roleErr.Error(), nil)
+	}
 	targetRole, err := h.roleRepo.FindByName(roleName)
 	if err != nil {
 		log.Printf("auth: role '%s' belum ada di database, jalankan seeder role dulu: %v", roleName, err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "pendaftaran belum bisa diproses, hubungi administrator", nil)
+	}
+
+	// Jangan buat akun yang tidak akan pernah bisa dipakai dari lokasi ini.
+	if ok, msg := middleware.AccessAllowsRole(c, targetRole.Name); !ok {
+		return utils.Fail(c, fiber.StatusForbidden, msg, nil)
 	}
 
 	hashed, err := utils.HashPassword(req.Password)
@@ -197,29 +225,11 @@ func (h *Controller) Register(c *fiber.Ctx) error {
 
 	res, err := h.issueTokens(c, newUser)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError,
-			"akun berhasil dibuat, tapi gagal memulai sesi. Silakan login manual", nil)
+		return failIssueTokens(c, err, "akun berhasil dibuat, tapi gagal memulai sesi. Silakan login manual")
 	}
 	return utils.Created(c, "akun berhasil dibuat", res)
 }
 
-// ForgotPassword: alur lupa password satu-langkah TANPA verifikasi
-// kepemilikan akun via OTP. Sistem ini SEBELUMNYA sempat punya alur OTP
-// (kode 6 digit dikirim via WhatsApp, lihat riwayat/git log kalau perlu
-// referensinya) yang menutup celah account-takeover di bawah — tapi
-// seluruh fitur OTP WhatsApp itu (endpoint, pkg/wa, pkg/passwordreset, CLI
-// pairing whatsmeow) sudah dihapus sepenuhnya atas permintaan eksplisit
-// pemilik sistem, karena pengiriman OTP via WhatsApp tidak bisa diandalkan
-// di lingkungan ini. Endpoint ini sekarang satu-satunya alur lupa password
-// yang tersedia.
-//
-// PERINGATAN KEAMANAN: endpoint ini HANYA mensyaratkan username/email yang
-// benar + lolos human-check (anti-bot), TIDAK ADA bukti bahwa yang
-// mengajukan benar-benar pemilik akun tersebut. Siapa pun yang tahu atau
-// menebak username seseorang bisa mengganti passwordnya lewat sini.
-// Pertimbangkan menambahkan verifikasi kepemilikan akun lagi (via email,
-// WhatsApp, atau kanal lain) kalau sistem ini nanti dipakai di luar
-// lingkungan internal/terpercaya.
 func (h *Controller) ForgotPassword(c *fiber.Ctx) error {
 	var req ForgotPasswordRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -230,17 +240,14 @@ func (h *Controller) ForgotPassword(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "verifikasi gagal: "+err.Error(), nil)
 	}
 
+	const resetDenied = "reset password tidak dapat diproses, username/email tidak ditemukan atau akun nonaktif"
 	u, err := h.userRepo.FindByUsername(req.Identifier)
 	if err != nil {
 		u, err = h.userRepo.FindByEmail(req.Identifier)
 	}
-	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "akun dengan username tersebut tidak ditemukan", nil)
+	if err != nil || !u.IsActive {
+		return utils.Fail(c, fiber.StatusForbidden, resetDenied, nil)
 	}
-	if !u.IsActive {
-		return utils.Fail(c, fiber.StatusForbidden, "akun anda tidak aktif, hubungi administrator", nil)
-	}
-
 	hashed, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengenkripsi password baru", nil)
@@ -270,6 +277,9 @@ func (h *Controller) Login(c *fiber.Ctx) error {
 	if h.loginLockedOrInactive(c, u) {
 		return nil
 	}
+	if h.loginOutsideGudang(c, u) {
+		return nil
+	}
 	if err := h.userRepo.ResetFailedLogin(u.ID); err != nil {
 		log.Printf("auth: gagal reset failed_login_attempts untuk user %d: %v", u.ID, err)
 	}
@@ -277,7 +287,7 @@ func (h *Controller) Login(c *fiber.Ctx) error {
 	if !u.Is2FAEnabled {
 		res, err := h.issueTokens(c, u)
 		if err != nil {
-			return utils.Fail(c, fiber.StatusInternalServerError, "gagal memproses login", nil)
+			return failIssueTokens(c, err, failedLoginProccessMessage)
 		}
 		return utils.OK(c, "login berhasil", res)
 	}
@@ -315,6 +325,26 @@ func (h *Controller) loginLockedOrInactive(c *fiber.Ctx, u *model.User) bool {
 		return true
 	}
 	return false
+}
+
+// loginOutsideGudang menolak login akun admin/karyawan yang datang dari luar
+// area gudang (titik koordinat di Manajemen Gudang, plus daftar jaringan gudang
+// kalau diatur). Dicek setelah password terverifikasi supaya pesannya tidak
+// bocor ke orang yang tidak punya kredensial. Super admin tidak dibatasi.
+func (h *Controller) loginOutsideGudang(c *fiber.Ctx, u *model.User) bool {
+	r, err := h.roleRepo.FindByID(u.RoleID)
+	if err != nil {
+		// Fail-closed: role tidak terbaca -> jangan lanjutkan login.
+		_ = utils.Fail(c, fiber.StatusInternalServerError, "gagal memproses login", nil)
+		return true
+	}
+	ok, msg := middleware.AccessAllowsRole(c, r.Name)
+	if ok {
+		return false
+	}
+	log.Printf("auth: login '%s' (%s) ditolak dari IP %s: %s", u.Username, r.Name, c.IP(), msg)
+	_ = utils.Fail(c, fiber.StatusForbidden, msg, nil)
+	return true
 }
 
 func (h *Controller) StartTwoFactorSetup(c *fiber.Ctx) error {
@@ -419,7 +449,7 @@ func (h *Controller) ConfirmSetup2FA(c *fiber.Ctx) error {
 	u.Is2FAEnabled = true
 	res, err := h.issueTokens(c, u)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menerbitkan sesi", nil)
+		return failIssueTokens(c, err, "gagal menerbitkan sesi")
 	}
 	return utils.OK(c, "Two Factor Authentication berhasil diaktifkan", res)
 }
@@ -444,16 +474,30 @@ func (h *Controller) VerifyOTP(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
 	}
+	// Tanpa ini kode OTP 6 digit bisa ditebak tanpa batas selama pendingToken
+	// masih berlaku. Pakai penghitung gagal-login yang sama dengan password.
+	if h.loginLockedOrInactive(c, u) {
+		return nil
+	}
+	if h.loginOutsideGudang(c, u) {
+		return nil
+	}
 	if !h.verifyOTPCode(req, u.TOTPSecret) {
+		if rerr := h.userRepo.RegisterFailedLogin(u.ID, maxFailedLoginAttempts, lockDuration); rerr != nil {
+			log.Printf("auth: gagal mencatat OTP salah untuk user %d: %v", u.ID, rerr)
+		}
 		return utils.Fail(c, fiber.StatusBadRequest, "Kode OTP salah atau sudah kedaluwarsa", nil)
 	}
 	if !h.otpReplayGuard.checkAndMark(u.ID, req.OTPCode) {
 		return utils.Fail(c, fiber.StatusBadRequest, "Kode OTP ini sudah pernah dipakai, silakan gunakan kode baru", nil)
 	}
 
+	if rerr := h.userRepo.ResetFailedLogin(u.ID); rerr != nil {
+		log.Printf("auth: gagal reset penghitung gagal-login user %d: %v", u.ID, rerr)
+	}
 	res, err := h.issueTokens(c, u)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menerbitkan sesi", nil)
+		return failIssueTokens(c, err, "gagal menerbitkan sesi")
 	}
 	return utils.OK(c, "Verifikasi OTP Berhasil", res)
 }
@@ -479,10 +523,14 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
 	}
+	// Akun yang dinonaktifkan tidak boleh memperpanjang sesi lewat refresh token.
+	if !u.IsActive {
+		return utils.Fail(c, fiber.StatusForbidden, accountInactiveMessage, nil)
+	}
 
 	res, err := h.issueTokens(c, u)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui token", nil)
+		return failIssueTokens(c, err, "gagal memperbarui token")
 	}
 	// issueTokens membuat BARIS SESI BARU (rotasi token, dengan LastActiveAt
 	// = sekarang). Cabut baris lama supaya tidak menumpuk baris "aktif"

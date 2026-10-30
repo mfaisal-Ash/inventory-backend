@@ -54,7 +54,8 @@ const (
 type Precision string
 
 const (
-	PrecisionStreet  Precision = "street" // ketemu sampai level jalan/nomor rumah
+	PrecisionHouse   Precision = "house"  // cocok sampai nomor rumah/bangunan
+	PrecisionStreet  Precision = "street" // cocok sampai nama jalan saja (titik di tengah jalan, bisa meleset ratusan meter)
 	PrecisionArea    Precision = "area"   // ketemu sampai level kelurahan/desa/kecamatan
 	PrecisionRegion  Precision = "region" // cuma ketemu level kabupaten/kota/provinsi
 	PrecisionUnknown Precision = "unknown"
@@ -132,7 +133,11 @@ func (s *Service) Geocode(ctx context.Context, rawAddress string) (*Result, erro
 
 	parsed := parseIndonesianAddress(original)
 
-	result, err := s.tryStructured(ctx, parsed)
+	result, err := s.tryStructured(ctx, parsed, true)
+	if err != nil && parsed.houseNumber != "" {
+		// Nomor rumah tidak dikenal OSM: coba lagi level jalan saja.
+		result, err = s.tryStructured(ctx, parsed, false)
+	}
 	if err != nil {
 		result, err = s.tryFreeTextCandidates(ctx, parsed)
 	}
@@ -147,7 +152,7 @@ func (s *Service) Geocode(ctx context.Context, rawAddress string) (*Result, erro
 // tryStructured mencoba parameter terstruktur Nominatim. Ini bisa gagal
 // total (0 hasil) kalau data OSM di area tersebut tidak ditag serapi itu —
 // makanya selalu ada fallback tryFreeTextCandidates setelahnya.
-func (s *Service) tryStructured(ctx context.Context, parsed parsedAddress) (*Result, error) {
+func (s *Service) tryStructured(ctx context.Context, parsed parsedAddress, withNumber bool) (*Result, error) {
 	cityValue := parsed.city()
 	if parsed.street == "" && cityValue == "" && parsed.county == "" {
 		return nil, errNoMatch
@@ -158,7 +163,12 @@ func (s *Service) tryStructured(ctx context.Context, parsed parsedAddress) (*Res
 	values.Set("addressdetails", "1")
 	values.Set("countrycodes", "id")
 	if parsed.street != "" {
-		values.Set("street", parsed.street)
+		street := parsed.street
+		if withNumber && parsed.houseNumber != "" {
+			// Format yang dikenal Nominatim: "<nomor> <nama jalan>".
+			street = parsed.houseNumber + " " + parsed.street
+		}
+		values.Set("street", street)
 	}
 	if cityValue != "" {
 		values.Set("city", cityValue)
@@ -235,6 +245,9 @@ type nominatimAddr struct {
 }
 
 func classifyPrecision(addr nominatimAddr) Precision {
+	if addr.HouseNumber != "" {
+		return PrecisionHouse
+	}
 	if addr.Road != "" {
 		return PrecisionStreet
 	}
@@ -251,7 +264,7 @@ func classifyPrecision(addr nominatimAddr) Precision {
 // yang dikembalikan Nominatim untuk satu query (bukan cuma ambil elemen
 // pertama begitu saja).
 func bestOf(items []nominatimItem) *Result {
-	rank := map[Precision]int{PrecisionStreet: 3, PrecisionArea: 2, PrecisionRegion: 1, PrecisionUnknown: 0}
+	rank := map[Precision]int{PrecisionHouse: 4, PrecisionStreet: 3, PrecisionArea: 2, PrecisionRegion: 1, PrecisionUnknown: 0}
 	best := items[0]
 	bestPrecision := classifyPrecision(best.Address)
 	for _, item := range items[1:] {
@@ -340,12 +353,13 @@ func normalizeForCache(address string) string {
 // --- Parsing alamat Indonesia ---
 
 type parsedAddress struct {
-	street     string
-	village    string
-	district   string // kecamatan
-	county     string // kabupaten/kota
-	state      string // provinsi
-	postalcode string
+	street      string // nama jalan tanpa nomor, "Jl." sudah dibuka jadi "Jalan"
+	houseNumber string // nomor rumah pertama dari "No.141-149" -> "141"
+	village     string
+	district    string // kecamatan
+	county      string // kabupaten/kota
+	state       string // provinsi
+	postalcode  string
 	// cleanedParts: seluruh segmen (dipisah koma) setelah dibersihkan dari
 	// notasi RT/RW/No. administratif, urutan tetap seperti aslinya —
 	// dipakai buat membangun kandidat query bebas-teks.
@@ -363,7 +377,24 @@ var (
 	kecPrefixRe  = regexp.MustCompile(`(?i)^kec(?:amatan)?\.?\s+`)
 	kabPrefixRe  = regexp.MustCompile(`(?i)^kab(?:upaten)?\.?\s+`)
 	kotaPrefixRe = regexp.MustCompile(`(?i)^kota\.?\s+`)
+
+	// "No.141-149", "No 12A", "Nomor 7" -> nomor pertama (141 / 12A / 7).
+	houseNoRe = regexp.MustCompile(`(?i)\b(?:no|nomor)\.?\s*(\d+[a-z]?)(?:\s*[-–/]\s*\d+[a-z]?)?`)
+	// "Jl.", "Jln", "Jl" di awal nama jalan -> "Jalan".
+	jalanPrefixRe = regexp.MustCompile(`(?i)^(?:jl|jln)\.?\s+`)
 )
+
+// splitStreet memisahkan segmen jalan menjadi nama jalan (ejaan "Jalan ...") dan nomor rumah.
+func splitStreet(segment string) (name, number string) {
+	name = segment
+	if m := houseNoRe.FindStringSubmatchIndex(segment); m != nil {
+		number = segment[m[2]:m[3]]
+		name = segment[:m[0]] + " " + segment[m[1]:]
+	}
+	name = multiSpaceRe.ReplaceAllString(strings.Trim(strings.TrimSpace(name), ",.- "), " ")
+	name = jalanPrefixRe.ReplaceAllString(name, "Jalan ")
+	return strings.TrimSpace(name), number
+}
 
 // stripAdministrativeNoise membuang notasi RT/RW/"No.RT.." dari satu
 // segmen alamat TANPA membuang nama jalan/tempat yang menyertainya —
@@ -394,7 +425,10 @@ func parseIndonesianAddress(raw string) parsedAddress {
 		return result
 	}
 
-	result.street = cleaned[0]
+	result.street, result.houseNumber = splitStreet(cleaned[0])
+	if result.street == "" {
+		result.street = cleaned[0]
+	}
 
 	// Segmen terakhir biasanya "Provinsi KODEPOS" (mis. "Jawa Barat 40375").
 	last := cleaned[len(cleaned)-1]
@@ -440,6 +474,19 @@ func (p parsedAddress) city() string {
 
 func buildFreeTextCandidates(p parsedAddress) []string {
 	var candidates []string
+
+	// 0) Dengan nomor rumah (nomor di depan nama jalan), lalu tanpa nomor, lalu
+	//    hanya jalan + kota — query yang lebih pendek sering lebih cocok di OSM.
+	if p.street != "" && len(p.cleanedParts) > 1 {
+		rest := strings.Join(p.cleanedParts[1:], ", ")
+		if p.houseNumber != "" {
+			candidates = append(candidates, p.houseNumber+" "+p.street+", "+rest)
+		}
+		candidates = append(candidates, p.street+", "+rest)
+		if p.county != "" {
+			candidates = append(candidates, p.street+", "+p.county)
+		}
+	}
 
 	// 1) Alamat penuh yang sudah dibersihkan, utuh — supaya nama jalan
 	//    tetap ikut dicoba di level paling spesifik dulu.

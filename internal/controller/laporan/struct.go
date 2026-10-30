@@ -8,6 +8,7 @@ import (
 	barangMasukRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
 	barangSerialRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	pengajuanBarangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_barang"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	stockOpnameRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
@@ -29,6 +30,7 @@ type Controller struct {
 	assetHistoryRepo assetHistoryRepo.Repository
 	usersRepo        usersRepo.Repository
 	roleRepo         role.Repository
+	neracaRepo       neracaRepo.Repository
 	jwtSvc           *utils.JWTService
 }
 
@@ -36,13 +38,13 @@ func New(barangRepo barangRepo.Repository, barangMasukRepo barangMasukRepo.Repos
 	barangKeluarRepo barangKeluarRepo.Repository, stockOpnameRepo stockOpnameRepo.Repository, barangRusakRepo barangRusakRepo.Repository,
 	barangSerialRepo barangSerialRepo.Repository, pengajuanRepo pengajuanBarangRepo.Repository,
 	assetRepo assetRepo.Repository, assetHistoryRepo assetHistoryRepo.Repository, usersRepo usersRepo.Repository,
-	roleRepo role.Repository, jwtSvc *utils.JWTService) *Controller {
+	roleRepo role.Repository, neracaRepo neracaRepo.Repository, jwtSvc *utils.JWTService) *Controller {
 	return &Controller{
 		barangRepo: barangRepo, barangMasukRepo: barangMasukRepo,
 		barangKeluarRepo: barangKeluarRepo, stockOpnameRepo: stockOpnameRepo, barangRusakRepo: barangRusakRepo,
 		barangSerialRepo: barangSerialRepo, pengajuanRepo: pengajuanRepo,
 		assetRepo: assetRepo, assetHistoryRepo: assetHistoryRepo, usersRepo: usersRepo,
-		roleRepo: roleRepo, jwtSvc: jwtSvc,
+		roleRepo: roleRepo, neracaRepo: neracaRepo, jwtSvc: jwtSvc,
 	}
 }
 

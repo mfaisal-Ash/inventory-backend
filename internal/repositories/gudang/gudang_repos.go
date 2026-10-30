@@ -135,11 +135,29 @@ func (r *repository) populateUnitCounts(list []model.Gudang) error {
 	for _, row := range rows {
 		counts[row.GudangID] = row
 	}
+
+	// Unit rusak per gudang (nomor seri berstatus rusak) untuk rekomendasi kapasitas.
+	var rusakRows []struct {
+		GudangID uint
+		Jumlah   int64
+	}
+	if err := r.db.Table("barang_serials").
+		Select("gudang_id, COUNT(*) AS jumlah").
+		Where("gudang_id IN ? AND status = ? AND deleted_at IS NULL", ids, constant.StatusSerialRusak).
+		Group("gudang_id").
+		Scan(&rusakRows).Error; err != nil {
+		return err
+	}
+	rusak := make(map[uint]int64, len(rusakRows))
+	for _, rr := range rusakRows {
+		rusak[rr.GudangID] = rr.Jumlah
+	}
 	for i := range list {
 		if c, ok := counts[list[i].ID]; ok {
 			list[i].UnitTersedia = c.UnitCount
 			list[i].SkuTersedia = c.SkuCount
 		}
+		list[i].UnitRusak = rusak[list[i].ID]
 	}
 	return nil
 }

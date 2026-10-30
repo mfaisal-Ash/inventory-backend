@@ -7,10 +7,11 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
-// Kabel memakai izin modul Barang Keluar (view/tambah/edit): pemakaian kabel
-// adalah barang keluar dalam satuan meter, jadi tidak perlu modul RBAC baru
-// yang harus di-seed ulang ke role yang sudah ada.
-const Module = constant.ModuleBarangKeluar
+// Kabel adalah tab di halaman Kelola Barang, jadi izinnya (view/tambah/edit)
+// mengikuti modul Kelola Barang — sebelumnya memakai modul Barang Keluar saat
+// kabel masih punya menu sendiri. Tidak perlu seed ulang: role operasional
+// bawaan sudah punya izin Kelola Barang.
+const Module = constant.ModuleKelolaBarang
 
 type Controller struct {
 	repo     kabelRepo.Repository

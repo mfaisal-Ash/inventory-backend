@@ -47,15 +47,17 @@ func New(
 type ItemRequest struct {
 	BarangID uint `json:"barang_id" validate:"required"`
 	Qty      int  `json:"qty" validate:"required,min=1"`
+	// SatuanID: opsional, merujuk ke master satuan (mis. roll, meter).
+	SatuanID *uint `json:"satuan_id" validate:"omitempty"`
 }
 
 type PengajuanRequest struct {
-	// Jenis: "masuk" | "keluar" | "rusak" | "template" — opsional, default
+	// Jenis: "masuk" | "keluar" | "rusak" | "pengajuan" | "template" — opsional, default
 	// "keluar" agar kompatibel dengan klien lama yang belum mengirim field
 	// ini. "template" menggantikan jenis "umum" (pengajuan ke atasan) yang
 	// dulu ada di sini — sekarang berbasis formulir yang diunggah admin,
 	// lihat TemplateID.
-	Jenis     string `json:"jenis" validate:"omitempty,oneof=masuk keluar rusak template"`
+	Jenis     string `json:"jenis" validate:"omitempty,oneof=masuk keluar rusak pengajuan template"`
 	GudangID  uint   `json:"gudang_id" validate:"required"`
 	Tanggal   string `json:"tanggal" validate:"required"`
 	Keperluan string `json:"keperluan" validate:"required,max=255"`
@@ -81,6 +83,12 @@ type PengajuanRequest struct {
 	// elemen (dive) kalau ada, sedangkan wajib-tidaknya jumlah elemen
 	// divalidasi manual di controller sesuai Jenis.
 	Items []ItemRequest `json:"items" validate:"omitempty,dive"`
+
+	// TTDPencatat: tanda tangan digital pengaju (pihak gudang) — data URL PNG
+	// ("data:image/png;base64,...") dari kanvas tanda tangan. WAJIB untuk jenis
+	// "masuk" (alur restock dua pihak), opsional untuk jenis lain. Setiap kali
+	// pengajuan diedit, tanda tangan harus dikirim ulang karena isinya berubah.
+	TTDPencatat string `json:"ttd_pencatat" validate:"omitempty,max=450000"`
 }
 
 type ProsesRequest struct {
@@ -89,6 +97,10 @@ type ProsesRequest struct {
 	NamaGA    string `json:"nama_ga" validate:"max=150"`
 	JabatanGA string `json:"jabatan_ga" validate:"max=100"`
 	Catatan   string `json:"catatan" validate:"max=255"`
+
+	// TTD: tanda tangan digital penyetuju (pihak kedua), format sama dengan
+	// PengajuanRequest.TTDPencatat. Wajib untuk jenis "masuk".
+	TTD string `json:"ttd" validate:"omitempty,max=450000"`
 }
 
 type TolakRequest struct {

@@ -32,10 +32,19 @@ type AppConfig struct {
 	Port           string
 	TrustedProxies []string
 
-	// AllowSelfRegisterRole: kalau true, pendaftar boleh memilih role
-	// (super_admin/admin/karyawan) sendiri lewat form register. Kalau false,
-	// semua pendaftar baru dipaksa jadi karyawan.
-	AllowSelfRegisterRole bool
+	// GeofenceRadiusMeters: radius (meter) di sekitar titik koordinat gudang
+	// (Manajemen Gudang) tempat akun admin & karyawan boleh dipakai. Super admin
+	// tidak dibatasi lokasi. Default 200 m.
+	GeofenceRadiusMeters float64
+
+	// AdminGudangOnly: nilai awal pembatasan admin ke jaringan gudang. Begitu
+	// super admin menyimpan kebijakan lewat aplikasi, nilai di database yang dipakai.
+	AdminGudangOnly bool
+
+	// KaryawanAllowedNetworks: daftar CIDR/IP jaringan gudang (mis.
+	// "192.168.1.0/24,203.0.113.10"). Kalau diisi, akun role karyawan hanya
+	// bisa login & memakai API dari IP di daftar ini. Kosong = tanpa batas.
+	KaryawanAllowedNetworks []string
 }
 
 func (a AppConfig) ListenAddress() string {
@@ -131,13 +140,15 @@ func Load() *Config {
 			Port:           getEnv("APP_PORT", "8080"),
 			TrustedProxies: getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 
-			AllowSelfRegisterRole: getEnvAsBool("ALLOW_SELF_REGISTER_ROLE", true),
+			GeofenceRadiusMeters:     getEnvAsFloat("GEOFENCE_RADIUS_METERS", 200),
+			AdminGudangOnly:          getEnvAsBool("ADMIN_GUDANG_ONLY", false),
+			KaryawanAllowedNetworks: getEnvList("KARYAWAN_ALLOWED_NETWORKS", nil),
 		},
 		DB: DBConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", "t4mp4n"),
+			Password: getEnv("DB_PASSWORD", devOnlyDefault("t4mp4n")),
 			Name:     getEnv("DB_NAME", "stockrsd"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
@@ -227,6 +238,9 @@ func validateProductionSecrets(cfg *Config) {
 		"HUMANCHECK_SECRET":  cfg.HumanCheck.Secret,
 		"BOTCHECK_SECRET":    cfg.BotCheck.Secret,
 	}
+	if cfg.DB.Password == "" {
+		log.Fatalf("config: APP_ENV=%s tetapi DB_PASSWORD kosong — set password database sebelum deploy", cfg.App.Env)
+	}
 	var insecure []string
 	for key, value := range actual {
 		if value == weakSecretDefaults[key] || len(value) < 24 {
@@ -239,6 +253,16 @@ func validateProductionSecrets(cfg *Config) {
 			strings.Join(insecure, ", "),
 		)
 	}
+}
+
+// devOnlyDefault mengembalikan nilai bawaan hanya di lingkungan development;
+// di luar itu kosong, sehingga password database tidak pernah jatuh ke nilai
+// yang tercantum di kode sumber.
+func devOnlyDefault(value string) string {
+	if getEnv("APP_ENV", "development") == "development" {
+		return value
+	}
+	return ""
 }
 
 func getEnv(key, fallback string) string {
@@ -270,6 +294,15 @@ func getEnvAsInt(key string, fallback int) int {
 	if v, ok := os.LookupEnv(key); ok {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvAsFloat(key string, fallback float64) float64 {
+	if v, ok := os.LookupEnv(key); ok {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && f > 0 {
+			return f
 		}
 	}
 	return fallback

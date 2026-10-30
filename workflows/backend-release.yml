@@ -14,8 +14,10 @@
 #      di VPS mana pun yang mengaktifkan AUTO_UPDATE_ENABLED=true
 #
 # Jadi alur rilis yang disarankan:
-#   1. Selesai kerja di main, update CurrentVersion (appinfo_controller.go)
-#      + changelogData + changelog.yml ke versi baru, mis. v1.4.0
+#   1. Selesai kerja di main, tambah entri changelogData + changelog.yml
+#      untuk versi baru, mis. v1.4.0 (CurrentVersion TIDAK perlu diubah
+#      manual lagi — nilainya dibakar otomatis dari nama tag, lihat langkah
+#      build di bawah)
 #   2. `git tag v1.4.0 && git push origin v1.4.0`
 #   3. Workflow ini otomatis build + publish rilis GitHub v1.4.0 dengan
 #      asset inventory-backend-linux-amd64 + checksum-nya
@@ -32,7 +34,8 @@ name: Release Backend
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v*.*.*"                   # v1.3.4
+      - "[0-9]*.[0-9]*.[0-9]*"     # 1.3.4 (tanpa "v", seperti tag 1.3.3 yang ada sekarang)
 
 permissions:
   contents: write
@@ -68,10 +71,17 @@ jobs:
       # (CGO_ENABLED=0, -ldflags="-s -w") supaya binary rilis yang diunduh
       # self-update.sh identik dengan yang biasa didorong lewat deploy.yml —
       # tidak ada jalur build kedua yang bisa diam-diam berbeda perilaku.
+      # Versi di menu Settings (GET /app/version) = nama tag yang memicu
+      # workflow ini. -X menimpa appinfo.CurrentVersion saat link, jadi
+      # tag, versi di Settings, dan perbandingan "Cek Update" selalu sama.
+      # Tag boleh "1.3.4" atau "v1.3.4"; versi yang ditampilkan selalu "v1.3.4".
       - name: Build binary (linux/amd64)
         run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="v${TAG#v}"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-          go build -ldflags="-s -w" -o inventory-backend-linux-amd64 ./cmd/main.go
+          go build -ldflags="-s -w -X github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo.CurrentVersion=$VERSION" \
+          -o inventory-backend-linux-amd64 ./cmd/main.go
 
       - name: Generate checksum
         run: sha256sum inventory-backend-linux-amd64 > inventory-backend-linux-amd64.sha256

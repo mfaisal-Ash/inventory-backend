@@ -255,6 +255,10 @@ func (h *Controller) UploadFoto(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membaca file foto", nil)
 	}
 
+	if !utils.ImageMatchesType(data, contentType) {
+		return utils.Fail(c, fiber.StatusBadRequest, "isi file bukan gambar jpg/png yang valid", nil)
+	}
+
 	b.FotoData = data
 	b.FotoContentType = contentType
 	if err := h.repo.Update(b); err != nil {
