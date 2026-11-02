@@ -34,8 +34,11 @@ type neracaTotals struct {
 
 func (t *neracaTotals) add(r neracaRepo.Row) {
 	t.SaldoAwal += r.SaldoAwal
-	t.Masuk += r.Masuk
-	t.Keluar += r.Keluar + r.PakaiKabel + r.ReturGanti
+	// Stok awal yang dicatat di Kelola Barang dihitung sebagai masuk, dan
+	// bagian yang sudah keluar sebelum tercatat sebagai keluar, di tanggal
+	// catat barang tersebut.
+	t.Masuk += r.Masuk + r.StokAwalCatat
+	t.Keluar += r.Keluar + r.PakaiKabel + r.ReturGanti + r.KeluarAwal
 	t.Opname += r.Opname
 	t.SaldoAkhir += r.SaldoAkhir
 }

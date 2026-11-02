@@ -6,16 +6,42 @@ import (
 )
 
 func TestFormat(t *testing.T) {
-	p := Periode(time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC))
-	if p != "102026" {
+	p := Periode(time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC))
+	if p != "31102026" {
 		t.Fatalf("periode = %s", p)
 	}
-	got := Format(Prefix(KategoriCode("OP", "Operasional"), ProdukCode("Modem ZTE F670L"), p), 1)
-	if got != "OP-MODEM-102026-001" {
+	got := Format(Prefix(KategoriCode("OP", "Operasional"), ProdukCode("ONT Huawei"), p), 1)
+	if got != "OP-ONT-31102026-01" {
 		t.Fatalf("got %s", got)
 	}
-	if Periode(time.Date(2027, 1, 3, 0, 0, 0, 0, time.UTC)) != "012027" {
-		t.Fatal("periode januari")
+	// Tanggal susulan (bukan hari ini) ikut tanggal yang dipilih pengguna.
+	if Periode(time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)) != "05102026" {
+		t.Fatal("tanggal 5 oktober")
+	}
+	if Periode(time.Date(2027, 1, 3, 0, 0, 0, 0, time.UTC)) != "03012027" {
+		t.Fatal("tanggal januari")
+	}
+	if got := Format("OP-ONT-31102026", 123); got != "OP-ONT-31102026-123" {
+		t.Fatalf("nomor >99: %s", got)
+	}
+}
+
+func TestParseTanggal(t *testing.T) {
+	now := time.Date(2026, 10, 31, 15, 4, 0, 0, time.UTC)
+	if d, err := ParseTanggal("", now); err != nil || d.Day() != 31 {
+		t.Fatalf("kosong harus hari ini: %v %v", d, err)
+	}
+	if d, err := ParseTanggal("2026-10-05", now); err != nil || Periode(d) != "05102026" {
+		t.Fatalf("5 oktober: %v %v", d, err)
+	}
+	if d, err := ParseTanggal("2026-10-05T00:00:00Z", now); err != nil || d.Day() != 5 {
+		t.Fatalf("ISO penuh: %v %v", d, err)
+	}
+	if _, err := ParseTanggal("2026-11-01", now); err == nil {
+		t.Fatal("tanggal masa depan harus ditolak")
+	}
+	if _, err := ParseTanggal("05/10/2026", now); err == nil {
+		t.Fatal("format salah harus ditolak")
 	}
 }
 
@@ -52,17 +78,18 @@ func TestProdukCode(t *testing.T) {
 
 func TestMaxNomor(t *testing.T) {
 	codes := []string{
-		"OP-MODEM-102026-001", "OP-ROUTER-102026-007", "OP-MODEM-092026-050",
-		"ELK-KABEL-102026-012", "OPS-MODEM-102026-099", "BRG-001", "OP-MODEM-102026-abc",
+		"OP-MODEM-31102026-01", "OP-ROUTER-31102026-07", "OP-MODEM-30102026-50",
+		"ELK-KABEL-31102026-12", "OPS-MODEM-31102026-99", "BRG-001", "OP-MODEM-31102026-abc",
+		"OP-MODEM-102026-009", // format lama (MMYYYY) tidak ikut dihitung
 	}
-	if n := MaxNomor(codes, "OP", "102026"); n != 7 {
-		t.Errorf("OP 102026 = %d want 7", n)
+	if n := MaxNomor(codes, "OP", "31102026"); n != 7 {
+		t.Errorf("OP 31102026 = %d want 7", n)
 	}
-	if n := MaxNomor(codes, "ELK", "102026"); n != 12 {
+	if n := MaxNomor(codes, "ELK", "31102026"); n != 12 {
 		t.Errorf("ELK = %d want 12", n)
 	}
-	if n := MaxNomor(codes, "OP", "112026"); n != 0 {
-		t.Errorf("periode baru = %d want 0", n)
+	if n := MaxNomor(codes, "OP", "01112026"); n != 0 {
+		t.Errorf("tanggal baru = %d want 0", n)
 	}
 }
 

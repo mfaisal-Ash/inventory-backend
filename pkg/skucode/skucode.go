@@ -1,17 +1,23 @@
 // Package skucode membentuk kode barang (SKU) dengan format:
 //
-//	<KATEGORI>-<PRODUK>-<MMYYYY>-<NOMOR URUT>
+//	<KATEGORI>-<PRODUK>-<DDMMYYYY>-<NOMOR URUT>
 //
-// Contoh (Oktober 2026): OP-MODEM-102026-001, OP-MODEM-102026-002,
-// ELK-KABEL-102026-001.
+// Contoh (31 Oktober 2026): OP-ONT-31102026-01, OP-MODEM-31102026-02,
+// ELK-KABEL-31102026-01.
 //
 //   - KATEGORI : singkatan kategori (kolom kategori.singkatan; kalau kosong
 //     diturunkan dari nama kategori, lihat KategoriCode).
 //   - PRODUK   : singkatan nama barang (lihat ProdukCode).
-//   - MMYYYY   : periode bulan+tahun saat kode dibuat (real-time).
-//   - NOMOR    : urut per KATEGORI di periode itu — ganti kategori, mulai
-//     lagi dari 001. Produk berbeda dalam satu kategori melanjutkan nomor
-//     yang sama (OP-MODEM-102026-002 lalu OP-ROUTER-102026-003).
+//   - DDMMYYYY : TANGGAL CATAT yang dipilih pengguna di form (bukan jam
+//     server), jadi data susulan bertanggal mundur (mis. 5 Oktober 2026)
+//     mendapat kode bertanggal 05102026.
+//   - NOMOR    : urut per KATEGORI di tanggal itu (minimal 2 digit) — ganti
+//     kategori atau ganti tanggal, mulai lagi dari 01. Produk berbeda dalam
+//     satu kategori di tanggal yang sama melanjutkan nomor yang sama
+//     (OP-MODEM-31102026-01 lalu OP-ROUTER-31102026-02).
+//
+// Kode lama berformat <KATEGORI>-<PRODUK>-<MMYYYY>-<NOMOR> tetap valid dan
+// tidak diubah; hanya kode baru yang memakai format tanggal lengkap.
 package skucode
 
 import (
@@ -25,7 +31,7 @@ import (
 
 const (
 	// Batas panjang tiap segmen supaya total kode muat di kolom
-	// kode_barang (size:30): 6+1+6+1+6+1+4 = 25.
+	// kode_barang (size:30): 6+1+6+1+8+1+4 = 27.
 	MaxKategoriLen = 6
 	MaxProdukLen   = 6
 
@@ -96,26 +102,29 @@ func ProdukCode(nama string) string {
 	return fallbackProduk
 }
 
-// Periode memformat bulan+tahun sebagai MMYYYY (Oktober 2026 -> "102026").
-func Periode(t time.Time) string { return t.Format("012006") }
+// Periode memformat TANGGAL LENGKAP sebagai DDMMYYYY (31 Oktober 2026 ->
+// "31102026"). Nama fungsi dipertahankan supaya pemanggil lama tetap
+// kompatibel; isinya sekarang tanggal, bukan lagi bulan+tahun.
+func Periode(t time.Time) string { return t.Format("02012006") }
 
-// Prefix mengembalikan "<KATEGORI>-<PRODUK>-<MMYYYY>" (tanpa nomor urut).
+// Prefix mengembalikan "<KATEGORI>-<PRODUK>-<DDMMYYYY>" (tanpa nomor urut).
 func Prefix(kategoriCode, produkCode, periode string) string {
 	return kategoriCode + "-" + produkCode + "-" + periode
 }
 
-// Format menempelkan nomor urut (minimal 3 digit) ke prefix.
+// Format menempelkan nomor urut (minimal 2 digit) ke prefix.
 func Format(prefix string, nomor int) string {
-	return fmt.Sprintf("%s-%03d", prefix, nomor)
+	return fmt.Sprintf("%s-%02d", prefix, nomor)
 }
 
-// LikePattern dipakai untuk menyaring kode_barang satu kategori+periode di DB.
+// LikePattern dipakai untuk menyaring kode_barang satu kategori+tanggal di DB.
 func LikePattern(kategoriCode, periode string) string {
 	return kategoriCode + "-%-" + periode + "-%"
 }
 
 // MaxNomor mencari nomor urut terbesar dari daftar kode yang berformat
-// <kategoriCode>-<apa pun>-<periode>-<angka>. Kode berformat lain diabaikan.
+// <kategoriCode>-<apa pun>-<DDMMYYYY>-<angka>. Kode berformat lain (termasuk
+// kode lama ber-MMYYYY) diabaikan.
 func MaxNomor(codes []string, kategoriCode, periode string) int {
 	re := regexp.MustCompile(`^` + regexp.QuoteMeta(kategoriCode) + `-[A-Z0-9]+-` + regexp.QuoteMeta(periode) + `-(\d+)$`)
 	max := 0
@@ -129,6 +138,28 @@ func MaxNomor(codes []string, kategoriCode, periode string) int {
 		}
 	}
 	return max
+}
+
+// ParseTanggal membaca tanggal catat dari form (format YYYY-MM-DD). Kosong =
+// hari ini. Tanggal di masa depan ditolak: stok baru tidak boleh dicatat
+// "dari masa depan" karena merusak perhitungan neraca.
+func ParseTanggal(raw string, now time.Time) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	if raw == "" {
+		return today, nil
+	}
+	if len(raw) > 10 {
+		raw = raw[:10] // terima juga ISO penuh "2026-10-05T00:00:00Z"
+	}
+	t, err := time.ParseInLocation("2006-01-02", raw, now.Location())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("format tanggal harus YYYY-MM-DD")
+	}
+	if t.After(today) {
+		return time.Time{}, fmt.Errorf("tanggal tidak boleh lebih dari hari ini")
+	}
+	return t, nil
 }
 
 var ontWord = regexp.MustCompile(`(?i)(^|[^a-z0-9])ont($|[^a-z0-9])`)

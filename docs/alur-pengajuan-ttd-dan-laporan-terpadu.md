@@ -46,7 +46,7 @@ Jenis pengajuan selain `masuk` tetap berjalan seperti sebelumnya (TTD opsional, 
 
 ## 2. Laporan terpadu
 Tipe baru: `tipe=Ringkasan Gudang` pada `/laporan/tipe`, `/laporan/preview`, dan `/laporan/export` (Excel/PDF/Docs).
-Kolom: `Bagian | Indikator | Nilai | Keterangan`. Bagian: Sorotan (jadi kartu ringkasan), Informasi, Inventaris, Perlu Restock (maks 15 barang paling kritis), Pengajuan Barang, Barang Masuk, Barang Keluar, Barang Rusak, Stock Opname, Tracking Aset, FIFO/FEFO.
+Kolom: `Bagian | Indikator | Jumlah | Keterangan`. Bagian: Sorotan (jadi kartu ringkasan), Informasi, Inventaris, Perlu Restock (maks 15 barang paling kritis), Pengajuan Barang, Barang Masuk, Barang Keluar, Barang Rusak, Stock Opname, Tracking Aset, FIFO/FEFO.
 Angkanya dibangun dari builder laporan masing-masing, jadi sama dengan laporan tunggalnya. `/laporan/tipe` kini berurutan tetap dengan laporan terpadu di paling atas.
 Untuk sidebar: satu menu "Laporan" yang membuka tipe ini sebagai default; laporan lama tetap ada sebagai rincian.
 

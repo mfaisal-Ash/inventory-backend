@@ -29,6 +29,24 @@ type Barang struct {
 
 	IsSerialized bool `json:"is_serialized" gorm:"not null;default:false"`
 
+	// Tanggal = TANGGAL CATAT yang dipilih pengguna di form Kelola Barang
+	// (bisa bertanggal mundur untuk data susulan, tidak boleh di masa
+	// depan). Inilah patokan periode di Neraca & Analisis Data — bukan
+	// created_at (jam server saat baris dibuat). Kode barang (SKU) juga
+	// memuat tanggal ini (DDMMYYYY).
+	Tanggal time.Time `json:"tanggal" gorm:"type:date;not null;default:CURRENT_DATE;index"`
+
+	// Stok awal saat barang dicatat, dipisah supaya selisihnya jelas:
+	//   StokAwal   = Kuantitas yang tercatat pada Tanggal.
+	//   KeluarAwal = bagian Kuantitas yang SUDAH keluar sebelum tercatat
+	//                (Kuantitas - Sisa). Sisa awal = StokAwal - KeluarAwal.
+	// Keduanya masuk ke neraca sebagai kejadian bertanggal Tanggal di gudang
+	// StokAwalGudangID, jadi tidak lagi menumpuk sebagai "selisih tak
+	// terlacak". Barang lama (sebelum fitur ini) bernilai 0.
+	StokAwal         int   `json:"stok_awal" gorm:"not null;default:0"`
+	KeluarAwal       int   `json:"keluar_awal" gorm:"not null;default:0"`
+	StokAwalGudangID *uint `json:"stok_awal_gudang_id"`
+
 	ApprovalStatus string `json:"approval_status" gorm:"size:20;not null;default:'disetujui';index"`
 	DiajukanOleh   *uint  `json:"diajukan_oleh"`
 	DisetujuiOleh  *uint  `json:"disetujui_oleh"`

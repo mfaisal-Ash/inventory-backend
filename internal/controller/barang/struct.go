@@ -37,6 +37,14 @@ type BarangRequest struct {
 
 	Stok int `json:"stok" validate:"min=0"`
 
+	// Tanggal catat (YYYY-MM-DD). Kosong = hari ini. Boleh mundur (data
+	// susulan), tidak boleh lebih dari hari ini.
+	Tanggal string `json:"tanggal" validate:"max=32"`
+	// Kuantitas = jumlah total saat dicatat; Stok (Sisa) = yang masih ada.
+	// Selisihnya (Kuantitas - Sisa) dicatat sebagai KeluarAwal. Kosong/0 =
+	// sama dengan Stok.
+	Kuantitas int `json:"kuantitas" validate:"min=0"`
+
 	StokGudangID uint `json:"stok_gudang_id"`
 	StokMinimum  int  `json:"stok_minimum" validate:"min=0"`
 
@@ -102,6 +110,7 @@ type DetailStokResponse struct {
 }
 
 type NextSKUResponse struct {
+	Tanggal string `json:"tanggal,omitempty"`
 	SKU string `json:"sku"`
 }
 

@@ -799,6 +799,10 @@ func (h *Controller) Preview(c *fiber.Ctx) error {
 	for _, kv := range summaryPairs {
 		summary = append(summary, fiber.Map{"label": kv[0], "value": kv[1]})
 	}
+	if tipe == constant.LaporanRingkasanGudang {
+		// Baris Sorotan sudah jadi kartu ringkasan; jangan diulang di tabel rincian.
+		rows = withoutSorotan(rows)
+	}
 	granularity := normalizeGranularity(c.Query("granularitas", ""))
 	chart := h.buildChart(tipe, headers, rows, granularity)
 	// Tabel pratinjau di layar mengikuti granularitas yang sama dengan

@@ -43,7 +43,14 @@ type Row struct {
 	PakaiKabel int `json:"pakai_kabel"`
 	ReturGanti int `json:"retur_ganti"`
 	Opname     int `json:"opname"`
-	SaldoAkhir int `json:"saldo_akhir"`
+	// StokAwalCatat & KeluarAwal: stok awal barang saat dicatat di Kelola
+	// Barang, bertanggal sesuai tanggal catat yang dipilih pengguna.
+	// StokAwalCatat = Kuantitas; KeluarAwal = bagian yang sudah keluar
+	// sebelum tercatat (Kuantitas - Sisa). Keduanya dihitung dalam periode
+	// kalau tanggal catatnya jatuh di periode itu.
+	StokAwalCatat int `json:"stok_awal_catat"`
+	KeluarAwal    int `json:"keluar_awal"`
+	SaldoAkhir    int `json:"saldo_akhir"`
 
 	// StokSistem = stok barang_stok_gudang saat ini; SelisihTakTerlacak =
 	// StokSistem dikurangi total seluruh mutasi berdokumen sejak awal.
@@ -58,7 +65,10 @@ type Total struct {
 	PakaiKabel int `json:"pakai_kabel"`
 	ReturGanti int `json:"retur_ganti"`
 	Opname     int `json:"opname"`
-	SaldoAkhir int `json:"saldo_akhir"`
+
+	StokAwalCatat int `json:"stok_awal_catat"`
+	KeluarAwal    int `json:"keluar_awal"`
+	SaldoAkhir    int `json:"saldo_akhir"`
 }
 
 type ReturInfo struct {
@@ -76,6 +86,10 @@ type Result struct {
 	// TakTerlacak = jumlah baris yang punya selisih tak terlacak (untuk
 	// peringatan di layar).
 	TakTerlacak int `json:"tak_terlacak"`
+	// SelisihTotal = jumlah SelisihTakTerlacak seluruh baris (bertanda):
+	// stok sistem dikurangi seluruh mutasi berdokumen. Positif = stok di
+	// sistem lebih banyak daripada yang bisa dijelaskan dokumen.
+	SelisihTotal int `json:"selisih_total"`
 }
 
 type Repository interface {
@@ -113,6 +127,14 @@ WITH ev AS (
 	SELECT soi.barang_id, so.gudang_id, COALESCE(so.completed_at, so.tanggal), 'opname', soi.selisih
 	FROM stock_opname_items soi JOIN stock_opname so ON so.id = soi.stock_opname_id
 	WHERE so.status = @soSelesai
+	UNION ALL
+	SELECT b.id, b.stok_awal_gudang_id, b.tanggal::timestamptz, 'awal', b.stok_awal
+	FROM barang b
+	WHERE b.stok_awal > 0 AND b.stok_awal_gudang_id IS NOT NULL AND b.deleted_at IS NULL
+	UNION ALL
+	SELECT b.id, b.stok_awal_gudang_id, b.tanggal::timestamptz, 'keluar_awal', -b.keluar_awal
+	FROM barang b
+	WHERE b.keluar_awal > 0 AND b.stok_awal_gudang_id IS NOT NULL AND b.deleted_at IS NULL
 )`
 
 const eventsCTE = evCTE + `,
@@ -123,6 +145,8 @@ agg AS (
 		COALESCE(-SUM(delta) FILTER (WHERE kind = 'kabel'  AND ts >= @dari AND ts < @sampai), 0) AS pakai_kabel,
 		COALESCE(-SUM(delta) FILTER (WHERE kind = 'retur'  AND ts >= @dari AND ts < @sampai), 0) AS retur_ganti,
 		COALESCE(SUM(delta) FILTER (WHERE kind = 'opname' AND ts >= @dari AND ts < @sampai), 0) AS opname,
+		COALESCE(SUM(delta) FILTER (WHERE kind = 'awal' AND ts >= @dari AND ts < @sampai), 0) AS stok_awal_catat,
+		COALESCE(-SUM(delta) FILTER (WHERE kind = 'keluar_awal' AND ts >= @dari AND ts < @sampai), 0) AS keluar_awal,
 		COALESCE(SUM(delta) FILTER (WHERE ts >= @dari AND ts < @sampai), 0) AS delta_periode,
 		COALESCE(SUM(delta) FILTER (WHERE ts >= @sampai), 0) AS delta_sesudah,
 		COALESCE(SUM(delta), 0) AS delta_total
@@ -139,6 +163,7 @@ SELECT p.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, COALESCE(s.si
 	COALESCE(a.masuk, 0) AS masuk, COALESCE(a.keluar, 0) AS keluar,
 	COALESCE(a.pakai_kabel, 0) AS pakai_kabel, COALESCE(a.retur_ganti, 0) AS retur_ganti,
 	COALESCE(a.opname, 0) AS opname,
+	COALESCE(a.stok_awal_catat, 0) AS stok_awal_catat, COALESCE(a.keluar_awal, 0) AS keluar_awal,
 	COALESCE(a.delta_periode, 0) AS delta_periode,
 	COALESCE(a.delta_sesudah, 0) AS delta_sesudah,
 	COALESCE(a.delta_total, 0) AS delta_total,
@@ -252,11 +277,13 @@ func (r *repository) Hitung(f Filter) (*Result, error) {
 
 		// Baris yang sama sekali tidak bergerak dan kosong tidak perlu tampil.
 		if row.SaldoAwal == 0 && row.SaldoAkhir == 0 && row.Masuk == 0 && row.Keluar == 0 &&
-			row.PakaiKabel == 0 && row.ReturGanti == 0 && row.Opname == 0 {
+			row.PakaiKabel == 0 && row.ReturGanti == 0 && row.Opname == 0 &&
+			row.StokAwalCatat == 0 && row.KeluarAwal == 0 {
 			continue
 		}
 		if row.SelisihTakTerlacak != 0 {
 			res.TakTerlacak++
+			res.SelisihTotal += row.SelisihTakTerlacak
 		}
 		res.Total.SaldoAwal += row.SaldoAwal
 		res.Total.Masuk += row.Masuk
@@ -264,6 +291,8 @@ func (r *repository) Hitung(f Filter) (*Result, error) {
 		res.Total.PakaiKabel += row.PakaiKabel
 		res.Total.ReturGanti += row.ReturGanti
 		res.Total.Opname += row.Opname
+		res.Total.StokAwalCatat += row.StokAwalCatat
+		res.Total.KeluarAwal += row.KeluarAwal
 		res.Total.SaldoAkhir += row.SaldoAkhir
 		res.Rows = append(res.Rows, row)
 	}

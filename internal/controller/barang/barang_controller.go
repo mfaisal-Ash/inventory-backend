@@ -141,7 +141,27 @@ func (h *Controller) getStokGudangAwal(req BarangRequest) (*model.Gudang, error)
 	return h.gudangRepo.FindGudangByID(req.StokGudangID)
 }
 
-func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang) *model.Barang {
+// resolveTanggalKuantitas memvalidasi tanggal catat & kuantitas dari form.
+// Tanggal kosong = hari ini; tanggal mundur (data susulan) boleh, masa depan
+// ditolak. Kuantitas kosong = sama dengan Sisa (Stok); Sisa tidak boleh
+// melebihi Kuantitas. Mengembalikan tanggal, kuantitas, dan KeluarAwal
+// (Kuantitas - Sisa) = bagian yang sudah keluar sebelum tercatat.
+func resolveTanggalKuantitas(req BarangRequest) (time.Time, int, int, error) {
+	tanggal, err := skucode.ParseTanggal(req.Tanggal, time.Now())
+	if err != nil {
+		return time.Time{}, 0, 0, err
+	}
+	kuantitas := req.Kuantitas
+	if kuantitas == 0 {
+		kuantitas = req.Stok
+	}
+	if req.Stok > kuantitas {
+		return time.Time{}, 0, 0, fmt.Errorf("sisa (%d) tidak boleh lebih besar dari kuantitas (%d)", req.Stok, kuantitas)
+	}
+	return tanggal, kuantitas, kuantitas - req.Stok, nil
+}
+
+func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang, tanggal time.Time, kuantitas, keluarAwal int) *model.Barang {
 	b := &model.Barang{
 		KodeBarang:   req.KodeBarang,
 		Nama:         req.Nama,
@@ -156,9 +176,15 @@ func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudan
 		Merek:        req.Merek,
 		Tipe:         req.Tipe,
 		Deskripsi:    req.Deskripsi,
+		Tanggal:      tanggal,
 	}
 	if stokGudang != nil {
 		b.NamaGudang = stokGudang.Nama
+		// Stok awal hanya bisa dicatat di neraca kalau gudangnya diketahui.
+		gid := stokGudang.ID
+		b.StokAwalGudangID = &gid
+		b.StokAwal = kuantitas
+		b.KeluarAwal = keluarAwal
 	}
 	return b
 }
@@ -204,6 +230,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	}
 	req.Tipe = tipe
 
+	tanggal, kuantitas, keluarAwal, err := resolveTanggalKuantitas(req)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+	}
+
 	if _, err := h.repo.FindByKode(req.KodeBarang); err == nil {
 		return utils.Fail(c, fiber.StatusConflict, "kode barang sudah digunakan", nil)
 	}
@@ -216,7 +247,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
-	b := h.buildBarangModel(req, stokGudang)
+	b := h.buildBarangModel(req, stokGudang, tanggal, kuantitas, keluarAwal)
 	h.setApprovalStatus(c, b)
 
 	if err := h.repo.Create(b); err != nil {
@@ -258,6 +289,17 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
 	}
 	req.Tipe = tipe
+
+	// Tanggal catat boleh diubah (mis. data susulan salah tanggal). Kosong =
+	// biarkan tanggal lama. Kejadian stok awal di neraca ikut berpindah ke
+	// tanggal baru karena dibaca langsung dari kolom ini.
+	if strings.TrimSpace(req.Tanggal) != "" {
+		tanggal, err := skucode.ParseTanggal(req.Tanggal, time.Now())
+		if err != nil {
+			return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+		}
+		b.Tanggal = tanggal
+	}
 
 	if req.KodeBarang != b.KodeBarang {
 		if existing, err := h.repo.FindByKode(req.KodeBarang); err == nil && existing.ID != b.ID {
@@ -647,8 +689,10 @@ func (h *Controller) ringkasanStokPerTanggal(c *fiber.Ctx, raw string) error {
 }
 
 // NextSKU menyarankan kode barang berformat
-// <KATEGORI>-<PRODUK>-<MMYYYY>-<NOMOR URUT> (lihat pkg/skucode).
-// Query: kategori_id (wajib) dan nama (wajib, nama barang). Kalau salah satu
+// <KATEGORI>-<PRODUK>-<DDMMYYYY>-<NOMOR URUT> (lihat pkg/skucode), mis.
+// OP-ONT-31102026-01.
+// Query: kategori_id (wajib), nama (wajib, nama barang), tanggal (opsional,
+// YYYY-MM-DD; kosong = hari ini). Kalau salah satu
 // belum ada, sku dikembalikan kosong — form belum cukup data untuk membentuk
 // kode.
 func (h *Controller) NextSKU(c *fiber.Ctx) error {
@@ -662,14 +706,20 @@ func (h *Controller) NextSKU(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "kategori tidak ditemukan", nil)
 	}
 
+	// Tanggal kode = tanggal catat yang dipilih di form (bukan jam server).
+	tanggal, err := skucode.ParseTanggal(c.Query("tanggal"), time.Now())
+	if err != nil {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, err.Error(), nil)
+	}
+
 	katCode := skucode.KategoriCode(kat.Singkatan, kat.Nama)
-	periode := skucode.Periode(time.Now())
+	periode := skucode.Periode(tanggal)
 	nomor, err := h.repo.NextSKUNumber(katCode, periode)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat saran SKU", nil)
 	}
 	sku := skucode.Format(skucode.Prefix(katCode, skucode.ProdukCode(nama), periode), nomor)
-	return utils.OK(c, "saran SKU berhasil dibuat", NextSKUResponse{SKU: sku})
+	return utils.OK(c, "saran SKU berhasil dibuat", NextSKUResponse{SKU: sku, Tanggal: tanggal.Format("2006-01-02")})
 }
 
 func (h *Controller) CheckSKU(c *fiber.Ctx) error {

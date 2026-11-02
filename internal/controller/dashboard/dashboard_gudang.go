@@ -112,6 +112,8 @@ type StokGudangResponse struct {
 	NilaiAkhir  int64                `json:"nilai_akhir"`
 	Retur       neracaRepo.ReturInfo `json:"retur"`
 	TakTerlacak int                  `json:"tak_terlacak"`
+	// SelisihTotal: total selisih tak terlacak (stok sistem - mutasi berdokumen).
+	SelisihTotal int `json:"selisih_total"`
 }
 
 func addTotal(t *neracaRepo.Total, r neracaRepo.Row) {
@@ -121,6 +123,8 @@ func addTotal(t *neracaRepo.Total, r neracaRepo.Row) {
 	t.PakaiKabel += r.PakaiKabel
 	t.ReturGanti += r.ReturGanti
 	t.Opname += r.Opname
+	t.StokAwalCatat += r.StokAwalCatat
+	t.KeluarAwal += r.KeluarAwal
 	t.SaldoAkhir += r.SaldoAkhir
 }
 
@@ -207,7 +211,7 @@ func (h *Controller) StokGudang(c *fiber.Ctx) error {
 	groups, grand, nilai := groupNeracaPerGudang(res.Rows, harga)
 	return utils.OK(c, "stok barang per gudang berhasil disusun", StokGudangResponse{
 		Dari: res.Dari, Sampai: res.Sampai, Gudang: groups, GrandTotal: grand, NilaiAkhir: nilai,
-		Retur: res.Retur, TakTerlacak: res.TakTerlacak,
+		Retur: res.Retur, TakTerlacak: res.TakTerlacak, SelisihTotal: res.SelisihTotal,
 	})
 }
 
