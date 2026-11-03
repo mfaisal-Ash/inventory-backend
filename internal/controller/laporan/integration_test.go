@@ -7,7 +7,6 @@ package laporan
 import (
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -116,7 +115,7 @@ func TestRingkasanGudang_Integrasi(t *testing.T) {
 	// Barang yang paling kritis (stok habis) harus muncul di daftar restock.
 	adaHabis := false
 	for _, r := range rows {
-		if r[0] == bagianRestock && strings.Contains(r[3], "HABIS") {
+		if r[0] == bagianRestock && r[3] == "HABIS — prioritas utama" {
 			adaHabis = true
 		}
 	}

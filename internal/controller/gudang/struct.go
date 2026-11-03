@@ -1,6 +1,8 @@
 package gudang
 
 import (
+	"gorm.io/gorm"
+
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -10,10 +12,11 @@ type Controller struct {
 	repo     gudangRepo.Repository
 	roleRepo role.Repository
 	jwtSvc   *utils.JWTService
+	db       *gorm.DB
 }
 
-func New(repo gudangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService) *Controller {
-	return &Controller{repo: repo, roleRepo: roleRepo, jwtSvc: jwtSvc}
+func New(repo gudangRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, db *gorm.DB) *Controller {
+	return &Controller{repo: repo, roleRepo: roleRepo, jwtSvc: jwtSvc, db: db}
 }
 
 type KategoriRequest struct {

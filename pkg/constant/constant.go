@@ -45,6 +45,7 @@ const (
 	JenisAsetODP          = "odp"
 	JenisAsetModem        = "modem"
 	JenisAsetTransportasi = "transportasi"
+	JenisAsetUmum         = "umum"
 )
 
 const (

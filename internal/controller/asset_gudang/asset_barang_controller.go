@@ -70,9 +70,10 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	odp, _ := h.repo.CountByJenis(constant.JenisAsetODP)
 	modem, _ := h.repo.CountByJenis(constant.JenisAsetModem)
 	transportasi, _ := h.repo.CountByJenis(constant.JenisAsetTransportasi)
+	umum, _ := h.repo.CountByJenis(constant.JenisAsetUmum)
 	return utils.OK(c, "ringkasan aset berhasil diambil", SummaryResponse{
-		Tiang: tiang, Odc: odc, Olt: olt, Ont: ont, Odp: odp, Modem: modem, Transportasi: transportasi,
-		Total: tiang + odc + olt + ont + odp + modem + transportasi,
+		Tiang: tiang, Odc: odc, Olt: olt, Ont: ont, Odp: odp, Modem: modem, Transportasi: transportasi, Umum: umum,
+		Total: tiang + odc + olt + ont + odp + modem + transportasi + umum,
 	})
 }
 
@@ -123,12 +124,27 @@ func validasiTransportasi(req AssetRequest) string {
 	return ""
 }
 
+// validasiUmum: untuk jenis_aset "umum" wajib menyebut jenis perangkatnya
+// (Televisi, Printer, AC, dst) supaya daftar tab Umum bisa dibaca.
+func validasiUmum(jenisAset, jenisUmum string) string {
+	if jenisAset != constant.JenisAsetUmum {
+		return ""
+	}
+	if strings.TrimSpace(jenisUmum) == "" {
+		return "jenis aset umum (mis. Televisi, Printer) wajib diisi"
+	}
+	return ""
+}
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req AssetRequest
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
 	}
 	if msg := validasiTransportasi(req); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
+	}
+	if msg := validasiUmum(req.JenisAset, req.JenisUmum); msg != "" {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
 
@@ -169,6 +185,13 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		JenisTransportasi: req.JenisTransportasi,
 		NomorBPKB:         req.NomorBPKB,
 		TahunKendaraan:    req.TahunKendaraan,
+	}
+	if req.JenisAset == constant.JenisAsetUmum {
+		a.JenisUmum = strings.TrimSpace(req.JenisUmum)
+		a.NomorSeri = strings.TrimSpace(req.NomorSeri)
+		a.LokasiRuang = strings.TrimSpace(req.LokasiRuang)
+		a.PenanggungJawab = strings.TrimSpace(req.PenanggungJawab)
+		a.TahunPerolehan = req.TahunPerolehan
 	}
 
 	if model.JenisAsetPunyaKoordinat(req.JenisAset) {
@@ -223,6 +246,9 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	}); msg != "" {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
+	if msg := validasiUmum(a.JenisAset, req.JenisUmum); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
+	}
 	if req.ParentAssetID != nil {
 		if *req.ParentAssetID == a.ID {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity, "aset tidak bisa jadi induk untuk dirinya sendiri", nil)
@@ -251,6 +277,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	oldJenisTransportasi := a.JenisTransportasi
 	oldNomorBPKB := a.NomorBPKB
 	oldTahunKendaraan := a.TahunKendaraan
+	oldDataUmum := fmt.Sprintf("%s / %s / %s / %s / %d", a.JenisUmum, a.NomorSeri, a.LokasiRuang, a.PenanggungJawab, a.TahunPerolehan)
 
 	a.Nama = req.Nama
 	a.Keterangan = req.Keterangan
@@ -265,6 +292,13 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		a.JenisTransportasi = req.JenisTransportasi
 		a.NomorBPKB = req.NomorBPKB
 		a.TahunKendaraan = req.TahunKendaraan
+	}
+	if a.JenisAset == constant.JenisAsetUmum {
+		a.JenisUmum = strings.TrimSpace(req.JenisUmum)
+		a.NomorSeri = strings.TrimSpace(req.NomorSeri)
+		a.LokasiRuang = strings.TrimSpace(req.LokasiRuang)
+		a.PenanggungJawab = strings.TrimSpace(req.PenanggungJawab)
+		a.TahunPerolehan = req.TahunPerolehan
 	}
 
 	if req.GudangID != 0 && req.GudangID != a.GudangID {
@@ -320,6 +354,12 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 			fmt.Sprintf("%s / %s / %s / %d", oldNopol, oldJenisTransportasi, oldNomorBPKB, oldTahunKendaraan),
 			fmt.Sprintf("%s / %s / %s / %d", a.Nopol, a.JenisTransportasi, a.NomorBPKB, a.TahunKendaraan),
 			"Data transportasi (nopol/jenis/BPKB/tahun) diubah")
+	}
+	if a.JenisAset == constant.JenisAsetUmum {
+		baru := fmt.Sprintf("%s / %s / %s / %s / %d", a.JenisUmum, a.NomorSeri, a.LokasiRuang, a.PenanggungJawab, a.TahunPerolehan)
+		if baru != oldDataUmum {
+			h.logHistory(c, a.ID, "data_umum", oldDataUmum, baru, "Data aset umum (jenis/nomor seri/lokasi ruang/penanggung jawab/tahun) diubah")
+		}
 	}
 	return utils.OK(c, "aset berhasil diperbarui", a)
 }

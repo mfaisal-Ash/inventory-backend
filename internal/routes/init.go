@@ -178,7 +178,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	})
 	cRole := roleController.New(rRole, jwtSvc)
 	cActivity := activityController.New(rActivityLog, jwtSvc)
-	cGudang := gudangController.New(rGudang, rRole, jwtSvc)
+	cGudang := gudangController.New(rGudang, rRole, jwtSvc, db)
 	cBarang := barangController.New(rBarang, rGudang, rRole, rUsers, jwtSvc, db, rNotification)
 	cBarangMasuk := barangMasukController.New(rBarangMasuk, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cBarangKeluar := barangKeluarController.New(rBarangKeluar, rBarang, rGudang, rRole, jwtSvc, rNotification)

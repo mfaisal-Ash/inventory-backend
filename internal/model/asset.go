@@ -47,6 +47,16 @@ type Asset struct {
 	NomorBPKB         string `json:"nomor_bpkb" gorm:"size:50"`
 	TahunKendaraan    int    `json:"tahun_kendaraan" gorm:"not null;default:0"`
 
+	// Data khusus aset JenisAset == "umum": aset perusahaan non-jaringan di
+	// dalam gudang (televisi, printer, AC, laptop, dsb). JenisUmum = jenis
+	// perangkatnya; LokasiRuang = ruangan/posisi di gudang; PenanggungJawab =
+	// pemegang/penanggung jawab aset. Kosong untuk jenis aset lain.
+	JenisUmum       string `json:"jenis_umum" gorm:"size:50"`
+	NomorSeri       string `json:"nomor_seri" gorm:"size:100"`
+	LokasiRuang     string `json:"lokasi_ruang" gorm:"size:150"`
+	PenanggungJawab string `json:"penanggung_jawab" gorm:"size:100"`
+	TahunPerolehan  int    `json:"tahun_perolehan" gorm:"not null;default:0"`
+
 	BarangID *uint   `json:"barang_id" gorm:"index"`
 	Barang   *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
 
@@ -59,7 +69,9 @@ type Asset struct {
 func (Asset) TableName() string { return "assets" }
 
 func JenisAsetPunyaKoordinat(jenisAset string) bool {
-	return jenisAset != "transportasi"
+	// Transportasi (kendaraan bergerak) dan Umum (televisi, printer, dll di dalam
+	// gudang) tidak punya titik koordinat sendiri; keduanya diberi kode BA.
+	return jenisAset != "transportasi" && jenisAset != "umum"
 }
 
 var jenisIndukValid = map[string]map[string]bool{

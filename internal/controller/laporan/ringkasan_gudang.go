@@ -34,7 +34,7 @@ const (
 	maxRestockRows = 15
 )
 
-var ringkasanGudangHeaders = []string{"Bagian", "Indikator", "Jumlah", "Keterangan"}
+var ringkasanGudangHeaders = []string{"Bagian", "Indikator", "Nilai", "Keterangan"}
 
 type ringkasanRows struct{ rows [][]string }
 
@@ -117,32 +117,6 @@ func periodeLabel(dari, sampai *time.Time) string {
 	}
 }
 
-// periodeHari: lama periode laporan dalam hari (inklusif) untuk kolom Jumlah.
-// Periode terbuka (tanpa tanggal awal/akhir) tidak punya lama yang pasti.
-func periodeHari(dari, sampai *time.Time) string {
-	if dari == nil || sampai == nil {
-		return "-"
-	}
-	d := int(startOfLocalDay(*sampai).Sub(startOfLocalDay(*dari)).Hours()/24+0.5) + 1
-	if d < 1 {
-		d = 1
-	}
-	return fmt.Sprintf("%d hari", d)
-}
-
-// withoutSorotan membuang baris "Sorotan" dari tabel rincian: angkanya sudah
-// tampil sebagai kartu ringkasan di atas tabel dan diulang di bagian Inventaris.
-func withoutSorotan(rows [][]string) [][]string {
-	out := make([][]string, 0, len(rows))
-	for _, row := range rows {
-		if len(row) > 0 && row[0] == bagianSorotan {
-			continue
-		}
-		out = append(out, row)
-	}
-	return out
-}
-
 func (h *Controller) buildRingkasanGudang(dari, sampai *time.Time) (headers []string, rows [][]string, err error) {
 	var body, sorotan ringkasanRows
 
@@ -181,8 +155,7 @@ func (h *Controller) buildRingkasanGudang(dari, sampai *time.Time) (headers []st
 	}
 	nilai, nilaiErr := h.barangRepo.SumNilaiInventaris()
 
-	body.add(bagianInfo, "Periode laporan", periodeHari(dari, sampai),
-		periodeLabel(dari, sampai)+". Mutasi stok dihitung pada periode ini; posisi stok = kondisi terkini")
+	body.add(bagianInfo, "Periode laporan", periodeLabel(dari, sampai), "Mutasi stok dihitung pada periode ini; posisi stok = kondisi terkini")
 	body.add(bagianInventaris, "Jenis barang aktif", aktif, "")
 	body.add(bagianInventaris, "Total stok (unit)", totalStok, "")
 	if nilaiErr == nil {
@@ -203,11 +176,11 @@ func (h *Controller) buildRingkasanGudang(dari, sampai *time.Time) (headers []st
 				"Lihat Ringkasan Stok untuk daftar lengkap")
 			break
 		}
-		ket := fmt.Sprintf("Stok minimum %d — Menipis, segera ajukan barang masuk", it.min)
+		ket := "Menipis — segera ajukan barang masuk"
 		if it.stok == 0 {
-			ket = fmt.Sprintf("Stok minimum %d — HABIS, prioritas utama", it.min)
+			ket = "HABIS — prioritas utama"
 		}
-		body.add(bagianRestock, it.label, it.stok, ket)
+		body.add(bagianRestock, it.label, fmt.Sprintf("stok %d / min %d", it.stok, it.min), ket)
 	}
 
 	// ── Pengajuan barang ─────────────────────────────────────────────────────

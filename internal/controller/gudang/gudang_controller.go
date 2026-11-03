@@ -346,6 +346,12 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Put("/satuan/:id", edit, h.UpdateSatuan)
 	g.Delete("/satuan/:id", onlyStaff, edit, h.DeleteSatuan)
 
+	// Detail gudang rinci + pengecekan fisik (checklist sesuai/beda vs sistem).
+	// Rute statis harus di atas "/:id".
+	g.Get("/cek-fisik/riwayat", view, h.RiwayatCekFisik)
+	g.Get("/:id/rincian", view, h.RincianGudang)
+	g.Post("/:id/cek-fisik", edit, h.SimpanCekFisik)
+
 	g.Get("/", view, h.ListGudang)
 	g.Get("/:id", view, h.DetailGudang)
 	g.Post("/", tambah, h.CreateGudang)

@@ -35,7 +35,7 @@ func New(repo assetRepo.Repository, gudangRepo gudangRepo.Repository, portRepo a
 
 type AssetRequest struct {
 	Nama      string   `json:"nama" validate:"required,max=150"`
-	JenisAset string   `json:"jenis_aset" validate:"required,oneof=tiang odc olt ont odp modem transportasi"`
+	JenisAset string   `json:"jenis_aset" validate:"required,oneof=tiang odc olt ont odp modem transportasi umum"`
 	GudangID  uint     `json:"gudang_id" validate:"required"`
 	Latitude  *float64 `json:"latitude" validate:"omitempty,min=-90,max=90"`
 	Longitude *float64 `json:"longitude" validate:"omitempty,min=-180,max=180"`
@@ -56,6 +56,13 @@ type AssetRequest struct {
 	NomorBPKB         string `json:"nomor_bpkb" validate:"max=50"`
 	TahunKendaraan    int    `json:"tahun_kendaraan" validate:"omitempty,min=1950,max=2100"`
 
+	// Khusus jenis_aset == "umum" (televisi, printer, AC, dsb). jenis_umum wajib.
+	JenisUmum       string `json:"jenis_umum" validate:"max=50"`
+	NomorSeri       string `json:"nomor_seri" validate:"max=100"`
+	LokasiRuang     string `json:"lokasi_ruang" validate:"max=150"`
+	PenanggungJawab string `json:"penanggung_jawab" validate:"max=100"`
+	TahunPerolehan  int    `json:"tahun_perolehan" validate:"omitempty,min=1950,max=2100"`
+
 	BarangID   *uint  `json:"barang_id"`
 	Keterangan string `json:"keterangan" validate:"max=500"`
 }
@@ -72,6 +79,7 @@ type SummaryResponse struct {
 	Odp          int64 `json:"odp"`
 	Modem        int64 `json:"modem"`
 	Transportasi int64 `json:"transportasi"`
+	Umum         int64 `json:"umum"`
 	Total        int64 `json:"total"`
 }
 

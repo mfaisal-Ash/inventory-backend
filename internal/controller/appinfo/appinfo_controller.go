@@ -13,7 +13,7 @@ import (
 // (lihat workflows/backend-release.yml). Nilai di bawah hanya cadangan untuk
 // `go run` / build lokal tanpa ldflags. Harus `var`, bukan `const`, karena
 // linker Go hanya bisa menimpa variabel string.
-var CurrentVersion = "v1.3.3"
+var CurrentVersion = "v1.3.4"
 
 type VersionChanges struct {
 	New []string `json:"new,omitempty"`
@@ -27,6 +27,24 @@ type VersionEntry struct {
 }
 
 var changelogData = []VersionEntry{
+	{
+		Version: "v1.3.4",
+		Date:    "2 November 2026",
+		Changes: VersionChanges{
+			New: []string{
+				"Tanggal catat barang bisa dipilih (data susulan bertanggal mundur) dan kode barang berformat KATEGORI-PRODUK-DDMMYYYY-NN",
+				"Neraca & Analisis Data menghitung stok awal dan keluar sebelum tercatat sesuai tanggal catat, plus pilihan periode cepat",
+				"Detail Gudang dengan pengecekan fisik (checklist sesuai/beda dibanding data sistem)",
+				"Tracking Aset mode Sederhana berupa tabel dengan detail rinci",
+				"Tab Umum di Aset Gudang untuk aset perusahaan non-jaringan (televisi, printer, dll)",
+				"Pengecekan Barang dipindah ke menu Manajemen dengan tab Pengecekan Barang, Barang Retur, dan Barang Rusak",
+			},
+			Fix: []string{
+				"Isian Sisa di Tambah Barang tidak lagi diabaikan; selisih Kuantitas dan Sisa tersimpan sebagai keluar sebelum tercatat",
+				"Versi aplikasi disamakan dengan tag rilis terbaru",
+			},
+		},
+	},
 	{
 		Version: "v1.3.0",
 		Date:    "11 Agustus 2026",
