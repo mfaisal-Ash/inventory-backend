@@ -98,7 +98,7 @@ func seed(t *testing.T, db *gorm.DB) {
 	must(t, db.Create(&model.ReturPenggantian{NomorRetur: "RTR-1", BarangID: br.ID, GudangID: gb.ID, Klien: "PT Maju", SerialLama: "SN1", Keluhan: "mati", Status: "dilaporkan", DilaporkanOleh: user.ID}).Error)
 	must(t, db.Create(&model.PengajuanBarang{NomorPengajuan: "PJ-1", Jenis: constant.JenisPengajuanMasuk, GudangID: ga.ID, Tanggal: day(2026, 10, 25),
 		Status: constant.StatusPengajuanDiajukan, Keperluan: "restock", DiajukanOleh: user.ID,
-		Items: []model.PengajuanBarangItem{{BarangID: br.ID, Qty: 50}}}).Error)
+		Items: []model.PengajuanBarangItem{{BarangID: br.ID, Qty: "50"}}}).Error)
 
 	must(t, db.Create(&model.Asset{Nama: "Server 1", JenisAset: "perangkat", GudangID: ga.ID, Status: "aktif", NilaiAset: 5000}).Error)
 	must(t, db.Create(&model.Asset{Nama: "Server 2", JenisAset: "perangkat", GudangID: ga.ID, Status: "rusak", NilaiAset: 3000}).Error)

@@ -3,6 +3,7 @@ package pengajuan_barang
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -138,6 +139,18 @@ func (r *repository) Delete(id uint) error {
 	})
 }
 
+func mustQty(raw string) int { n, _ := qtyInt(raw); return n }
+
+func qtyInt(raw string) (int, error) {
+	for i, r := range raw {
+		if r < '0' || r > '9' {
+			raw = raw[:i]
+			break
+		}
+	}
+	return strconv.Atoi(raw)
+}
+
 // setujuiKeluar: perilaku asli (satu-satunya jenis sebelum fitur ini
 // diperluas) — bikin dokumen BarangKeluar dari daftar barang pengajuan lalu
 // langsung memotong stok (kalau semua barangnya bukan barang ber-nomor-seri)
@@ -146,6 +159,10 @@ func (r *repository) Delete(id uint) error {
 func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang, userID uint) (map[string]interface{}, error) {
 	anySerialized := false
 	for _, item := range pengajuan.Items {
+		qty, err := qtyInt(item.Qty)
+		if err != nil {
+			return nil, fmt.Errorf("qty tidak dapat diproses: %s", qty)
+		}
 		var b model.Barang
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {
 			return nil, err
@@ -158,15 +175,19 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 		if err != nil {
 			return nil, err
 		}
-		if stokGudang < item.Qty {
+		if stokGudang < qty {
 			return nil, fmt.Errorf("%s (barang: %s, tersedia di gudang ini: %d, diajukan: %d)",
-				constant.ErrPengajuanStokTidakCukup, b.Nama, stokGudang, item.Qty)
+				constant.ErrPengajuanStokTidakCukup, b.Nama, stokGudang, qty)
 		}
 	}
 
 	bkItems := make([]model.BarangKeluarItem, 0, len(pengajuan.Items))
 	for _, item := range pengajuan.Items {
-		bkItems = append(bkItems, model.BarangKeluarItem{BarangID: item.BarangID, Qty: item.Qty})
+		qty, err := qtyInt(item.Qty)
+		if err != nil {
+			return nil, err
+		}
+		bkItems = append(bkItems, model.BarangKeluarItem{BarangID: item.BarangID, Qty: qty})
 	}
 	nomorBK, err := docnumber.Next(tx, "BK")
 	if err != nil {
@@ -186,11 +207,15 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 
 	if !anySerialized {
 		for _, item := range pengajuan.Items {
-			if err := tx.Model(&model.Barang{}).Where("id = ?", item.BarangID).
-				Update("stok", gorm.Expr("stok - ?", item.Qty)).Error; err != nil {
+			qty, err := qtyInt(item.Qty)
+			if err != nil {
 				return nil, err
 			}
-			if err := barangstokgudang.AdjustStokGudangTx(tx, item.BarangID, pengajuan.GudangID, -item.Qty); err != nil {
+			if err := tx.Model(&model.Barang{}).Where("id = ?", item.BarangID).
+				Update("stok", gorm.Expr("stok - ?", qty)).Error; err != nil {
+				return nil, err
+			}
+			if err := barangstokgudang.AdjustStokGudangTx(tx, item.BarangID, pengajuan.GudangID, -qty); err != nil {
 				return nil, err
 			}
 		}
@@ -214,7 +239,7 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 func (r *repository) setujuiMasuk(tx *gorm.DB, pengajuan *model.PengajuanBarang) (map[string]interface{}, error) {
 	bmItems := make([]model.BarangMasukItem, 0, len(pengajuan.Items))
 	for _, item := range pengajuan.Items {
-		bmItems = append(bmItems, model.BarangMasukItem{BarangID: item.BarangID, Qty: item.Qty, HargaSatuan: 0})
+		bmItems = append(bmItems, model.BarangMasukItem{BarangID: item.BarangID, Qty: mustQty(item.Qty), HargaSatuan: 0})
 	}
 	nomorBM, err := docnumber.Next(tx, "BM")
 	if err != nil {
@@ -249,12 +274,16 @@ func (r *repository) setujuiTemplate() (map[string]interface{}, error) {
 // menentukan retur/rusak lewat endpoint Inspeksi yang sudah ada.
 func (r *repository) setujuiRusak(tx *gorm.DB, pengajuan *model.PengajuanBarang) (map[string]interface{}, error) {
 	for _, item := range pengajuan.Items {
+		qty, err := qtyInt(item.Qty)
+		if err != nil {
+			return nil, err
+		}
 		var b model.Barang
 		if err := tx.First(&b, item.BarangID).Error; err != nil {
 			return nil, err
 		}
 		barangID := item.BarangID
-		for i := 0; i < item.Qty; i++ {
+		for i := 0; i < qty; i++ {
 			br := &model.BarangRusak{
 				BarangID:       &barangID,
 				LabelBarang:    fmt.Sprintf("%s-%d", pengajuan.NomorPengajuan, i+1),

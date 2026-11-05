@@ -148,7 +148,7 @@ func (PengajuanTandaTangan) TableName() string { return "pengajuan_tanda_tangan"
 func (p *PengajuanBarang) ComputeDokumenHash() string {
 	items := make([]string, 0, len(p.Items))
 	for _, it := range p.Items {
-		entry := fmt.Sprintf("%d:%d", it.BarangID, it.Qty)
+		entry := fmt.Sprintf("%d:%s", it.BarangID, it.Qty)
 		// Satuan hanya ikut hash kalau diisi, supaya hash dokumen lama
 		// (tanpa satuan) tidak berubah dan tanda tangannya tetap valid.
 		if it.SatuanID != nil {
