@@ -1,6 +1,7 @@
 package appinfo
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -10,6 +11,8 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/selfupdate"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
+
+var updateTriggerMu sync.Mutex
 
 type CheckUpdateResponse struct {
 	CurrentVersion  string `json:"current_version"`
@@ -48,6 +51,9 @@ func (h *Controller) CheckUpdate(c *fiber.Ctx) error {
 }
 
 func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
+	if role, _ := c.Locals(constant.CtxRoleName).(string); role != constant.RoleSuperAdmin {
+		return utils.Fail(c, fiber.StatusForbidden, "status update hanya dapat dilihat super admin", nil)
+	}
 	status, err := selfupdate.ReadStatus(h.cfg.SelfUpdate.StatusPath)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membaca status update", nil)
@@ -69,10 +75,15 @@ func (h *Controller) UpdateStatus(c *fiber.Ctx) error {
 		notifyRoleAdmin(h, notifTitle, notifMsg)
 	}
 
+	if role, _ := c.Locals(constant.CtxRoleName).(string); role != constant.RoleSuperAdmin {
+		status.Message = "pembaruan aplikasi sedang diproses"
+	}
 	return utils.OK(c, "status update berhasil diambil", status)
 }
 
 func (h *Controller) TriggerUpdate(c *fiber.Ctx) error {
+	updateTriggerMu.Lock()
+	defer updateTriggerMu.Unlock()
 	if !h.cfg.SelfUpdate.Enabled {
 		return utils.Fail(c, fiber.StatusForbidden,
 			"fitur Update Sekarang belum diaktifkan di server ini — set AUTO_UPDATE_ENABLED=true setelah mengikuti docs/self-update-setup.md", nil)

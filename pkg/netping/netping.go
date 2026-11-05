@@ -6,11 +6,19 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"time"
 )
 
 var ErrInvalidTarget = errors.New("alamat IP aset tidak valid")
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 type Result struct {
 	Online bool
@@ -19,7 +27,12 @@ type Result struct {
 }
 
 func Check(target string, timeout time.Duration) (Result, error) {
-	if net.ParseIP(target) == nil {
+	ip := net.ParseIP(target)
+	if ip == nil || ip.IsLoopback() || ip.IsMulticast() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
+		return Result{}, ErrInvalidTarget
+	}
+	// Do not allow this endpoint to probe cloud metadata or private networks.
+	if ip.IsPrivate() {
 		return Result{}, ErrInvalidTarget
 	}
 	if timeout <= 0 {
@@ -29,12 +42,17 @@ func Check(target string, timeout time.Duration) (Result, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+time.Second)
 	defer cancel()
 
-	waitSecs := strconv.Itoa(int(timeout.Seconds()))
-	if waitSecs == "0" {
-		waitSecs = "1"
+	if timeout > 10*time.Second {
+		timeout = 10 * time.Second
 	}
-
-	cmd := exec.CommandContext(ctx, "ping", "-c", "1", "-W", waitSecs, target)
+	waitSecs := strconv.Itoa(maxInt(1, int(timeout.Seconds())))
+	var args []string
+	if runtime.GOOS == "windows" {
+		args = []string{"-n", "1", "-w", strconv.Itoa(int(timeout / time.Millisecond)), target}
+	} else {
+		args = []string{"-c", "1", "-W", waitSecs, target}
+	}
+	cmd := exec.CommandContext(ctx, "ping", args...)
 	start := time.Now()
 	err := cmd.Run()
 	elapsed := time.Since(start)

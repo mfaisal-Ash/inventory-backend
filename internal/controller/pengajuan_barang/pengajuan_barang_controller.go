@@ -42,8 +42,30 @@ func normalizeJenis(jenis string) string {
 	return jenis
 }
 
-func (h *Controller) validateItems(items []ItemRequest) error {
+func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 	for _, it := range items {
+		if jenis == constant.JenisPengajuanBarang && it.IsSerialized {
+			if len(it.SerialNumbers) != it.Qty {
+				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
+			}
+			seen := make(map[string]bool, len(it.SerialNumbers))
+			for _, sn := range it.SerialNumbers {
+				key := strings.ToLower(strings.TrimSpace(sn))
+				if key == "" || seen[key] {
+					return errors.New("nomor seri wajib diisi dan tidak boleh duplikat dalam satu barang")
+				}
+				seen[key] = true
+			}
+		}
+		if jenis == constant.JenisPengajuanBarang && it.BarangID == 0 {
+			if strings.TrimSpace(it.Kode) == "" || strings.TrimSpace(it.Nama) == "" || strings.TrimSpace(it.Merek) == "" || strings.TrimSpace(it.Tipe) == "" {
+				return errors.New("kode barang, nama, merek/model, dan tipe wajib diisi untuk barang manual")
+			}
+			if it.IsSerialized && len(it.SerialNumbers) != it.Qty {
+				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
+			}
+			continue
+		}
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
 			return fmt.Errorf("barang id %d tidak ditemukan", it.BarangID)
 		}
@@ -77,13 +99,17 @@ func (h *Controller) validateJenisSpecific(req *PengajuanRequest) error {
 	if len(req.Items) == 0 {
 		return errors.New("items wajib diisi minimal satu barang")
 	}
-	return h.validateItems(req.Items)
+	return h.validateItems(req.Items, jenis)
 }
 
 func toItemModels(items []ItemRequest) []model.PengajuanBarangItem {
 	out := make([]model.PengajuanBarangItem, 0, len(items))
 	for _, it := range items {
-		m := model.PengajuanBarangItem{BarangID: it.BarangID, Qty: it.Qty}
+		m := model.PengajuanBarangItem{BarangID: it.BarangID, KodeManual: strings.TrimSpace(it.Kode), Qty: it.Qty, NamaManual: strings.TrimSpace(it.Nama), MerekManual: strings.TrimSpace(it.Merek), TipeManual: strings.TrimSpace(it.Tipe), IsSerialized: it.IsSerialized}
+		if len(it.SerialNumbers) > 0 {
+			m.SerialNumbersRaw = strings.Join(it.SerialNumbers, "\n")
+		}
+
 		if it.SatuanID != nil && *it.SatuanID != 0 {
 			m.SatuanID = it.SatuanID
 		}
@@ -153,14 +179,19 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor pengajuan", nil)
 	}
 	pengajuan := &model.PengajuanBarang{
-		NomorPengajuan:  nomor,
-		Jenis:           normalizeJenis(req.Jenis),
-		GudangID:        req.GudangID,
-		Tanggal:         tanggal,
-		Keperluan:       req.Keperluan,
-		Perihal:         req.Perihal,
-		TemplateID:      req.TemplateID,
-		Status:          constant.StatusPengajuanDiajukan,
+		NomorPengajuan: nomor,
+		Jenis:          normalizeJenis(req.Jenis),
+		GudangID:       req.GudangID,
+		Tanggal:        tanggal,
+		Keperluan:      req.Keperluan,
+		Perihal:        req.Perihal,
+		TemplateID:     req.TemplateID,
+		Status: func() string {
+			if role, _ := c.Locals(constant.CtxRoleName).(string); role == constant.RoleSuperAdmin {
+				return constant.StatusPengajuanDisetujui
+			}
+			return constant.StatusPengajuanDiajukan
+		}(),
 		DiajukanOleh:    userID,
 		NamaPencatat:    req.NamaPencatat,
 		JabatanPencatat: req.JabatanPencatat,
@@ -177,11 +208,14 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	if err := h.repo.Create(pengajuan); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat pengajuan barang", nil)
 	}
-	notification.Notify(h.notifRepo, "pengajuan_barang",
-		"Pengajuan Barang Baru",
-		fmt.Sprintf("%s (%s) menunggu persetujuan.", pengajuan.NomorPengajuan, pengajuan.Keperluan),
-		"/pengajuan-barang", nil, constant.RoleSuperAdmin)
-	return utils.Created(c, "pengajuan barang berhasil dibuat, menunggu persetujuan"+alurKeterangan(pengajuan), pengajuan)
+	if pengajuan.Status == constant.StatusPengajuanDiajukan {
+		notification.Notify(h.notifRepo, "pengajuan_barang",
+			"Pengajuan Barang Baru",
+			fmt.Sprintf("%s (%s) menunggu persetujuan.", pengajuan.NomorPengajuan, pengajuan.Keperluan),
+			"/pengajuan-barang", nil, constant.RoleSuperAdmin)
+		return utils.Created(c, "pengajuan barang berhasil dibuat, menunggu persetujuan"+alurKeterangan(pengajuan), pengajuan)
+	}
+	return utils.Created(c, "pengajuan barang berhasil dibuat dan langsung disetujui", pengajuan)
 }
 
 func (h *Controller) requireDiajukan(id uint) (*model.PengajuanBarang, error) {
@@ -260,8 +294,8 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIDInvalid, nil)
 	}
-	if _, err := h.requireDiajukan(id); err != nil {
-		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	if _, err := h.repo.FindByID(id); err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, constant.ErrPengajuanTidakDitemukan, nil)
 	}
 	if err := h.repo.Delete(id); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus pengajuan barang", nil)

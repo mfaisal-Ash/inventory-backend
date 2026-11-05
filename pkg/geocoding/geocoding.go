@@ -125,6 +125,9 @@ func (s *Service) Geocode(ctx context.Context, rawAddress string) (*Result, erro
 	if original == "" {
 		return nil, fmt.Errorf("alamat kosong")
 	}
+	if len([]rune(original)) > 500 {
+		return nil, fmt.Errorf("alamat terlalu panjang")
+	}
 
 	cacheKey := normalizeForCache(original)
 	if cached, ok := s.getCached(cacheKey); ok {
@@ -201,7 +204,9 @@ func (s *Service) tryFreeTextCandidates(ctx context.Context, parsed parsedAddres
 			continue
 		}
 		if i > 0 {
-			time.Sleep(interCandidateGap)
+			if err := sleepContext(ctx, interCandidateGap); err != nil {
+				return nil, err
+			}
 		}
 		values := url.Values{}
 		values.Set("format", "json")
@@ -292,7 +297,9 @@ func parseFloatSafe(s string) float64 {
 // mengirim request dengan User-Agent yang jelas, dan membatasi ukuran
 // response yang dibaca.
 func (s *Service) request(ctx context.Context, values url.Values) ([]nominatimItem, error) {
-	s.throttle()
+	if err := s.throttle(ctx); err != nil {
+		return nil, err
+	}
 
 	reqURL := baseURL + "?" + values.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
@@ -320,14 +327,28 @@ func (s *Service) request(ctx context.Context, values url.Values) ([]nominatimIt
 	return items, nil
 }
 
-func (s *Service) throttle() {
+func (s *Service) throttle(ctx context.Context) error {
 	s.rateMu.Lock()
 	defer s.rateMu.Unlock()
 	elapsed := time.Since(s.lastRequest)
 	if elapsed < minRequestGap {
-		time.Sleep(minRequestGap - elapsed)
+		if err := sleepContext(ctx, minRequestGap-elapsed); err != nil {
+			return err
+		}
 	}
 	s.lastRequest = time.Now()
+	return nil
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (s *Service) getCached(key string) (*Result, bool) {

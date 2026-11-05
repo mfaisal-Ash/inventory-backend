@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
 var ErrNoReleases = errors.New("selfupdate: repo belum punya rilis resmi di GitHub")
+var validTag = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type Release struct {
 	TagName     string `json:"tag_name"`
@@ -48,17 +51,35 @@ func FetchLatestRelease(owner, repo string) (*Release, error) {
 	}
 
 	var releases []Release
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&releases); err != nil {
 		return nil, fmt.Errorf("gagal membaca response GitHub: %w", err)
 	}
 
+	var latest *Release
 	for _, r := range releases {
-		if r.Prerelease && !r.Draft {
-			release := r
-			return &release, nil
+		if r.Draft || r.Prerelease || !validTag.MatchString(r.TagName) {
+			continue
+		}
+		if !validReleaseURL(r.HTMLURL, owner, repo) {
+			continue
+		}
+		candidate := r
+		if latest == nil || CompareVersions(candidate.TagName, latest.TagName) > 0 {
+			latest = &candidate
 		}
 	}
-	return nil, ErrNoReleases
+	if latest == nil {
+		return nil, ErrNoReleases
+	}
+	return latest, nil
+}
+
+func validReleaseURL(raw, owner, repo string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "github.com" {
+		return false
+	}
+	return u.Path == fmt.Sprintf("/%s/%s/releases/tag/%s", owner, repo, u.Path[strings.LastIndex(u.Path, "/")+1:])
 }
 
 func CompareVersions(a, b string) int {

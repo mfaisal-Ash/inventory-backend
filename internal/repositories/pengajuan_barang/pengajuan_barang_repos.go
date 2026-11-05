@@ -127,8 +127,9 @@ func (r *repository) Delete(id uint) error {
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&current, id).Error; err != nil {
 			return err
 		}
-		if current.Status != constant.StatusPengajuanDiajukan {
-			return errors.New(constant.ErrPengajuanBukanDiajukan)
+		// Hapus jejak tanda tangan pengajuan agar tidak menyisakan record yatim.
+		if err := tx.Where("pengajuan_id = ?", id).Delete(&model.PengajuanTandaTangan{}).Error; err != nil {
+			return err
 		}
 		if err := tx.Where("pengajuan_id = ?", id).Delete(&model.PengajuanBarangItem{}).Error; err != nil {
 			return err

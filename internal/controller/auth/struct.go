@@ -24,7 +24,7 @@ type Controller struct {
 	humanCheckSvc *humancheck.Service
 	geoipSvc      geoip.Resolver
 
-	appEnv     string
+	appEnv string
 
 	totpIssuer string
 
@@ -52,7 +52,7 @@ func New(p Params) *Controller {
 		humanCheckSvc: p.HumanCheckSvc,
 		geoipSvc:      p.GeoipSvc,
 
-		appEnv:     p.Cfg.App.Env,
+		appEnv: p.Cfg.App.Env,
 
 		totpIssuer: p.Cfg.TOTP.Issuer,
 
@@ -137,7 +137,7 @@ type LoginResponse struct {
 	PendingToken string       `json:"pending_token,omitempty"`
 	TokenType    string       `json:"token_type,omitempty"`
 	AccessToken  string       `json:"access_token,omitempty"`
-	RefreshToken string       `json:"refresh_token,omitempty"`
+	RefreshToken string       `json:"-"`
 	User         *UserSummary `json:"user,omitempty"`
 	Session      *SessionInfo `json:"session,omitempty"`
 }

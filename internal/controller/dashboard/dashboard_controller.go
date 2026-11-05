@@ -16,8 +16,9 @@ func (h *Controller) Summary(c *fiber.Ctx) error {
 	totalBarang, _ := h.barangRepo.CountAll()
 	stokMenipis, _ := h.barangRepo.CountStokMenipis()
 	nilaiInventaris, _ := h.barangRepo.SumNilaiInventaris()
+	totalStok, _ := h.barangRepo.SumStok()
 	res.KelolaBarang = KelolaBarangSummary{
-		TotalBarang: totalBarang, StokMenipis: stokMenipis, TotalNilaiInventaris: nilaiInventaris,
+		TotalBarang: totalBarang, StokMenipis: stokMenipis, TotalStok: totalStok, TotalNilaiInventaris: nilaiInventaris,
 	}
 
 	totalGudang, _ := h.gudangRepo.CountGudang()

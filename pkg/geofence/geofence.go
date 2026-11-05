@@ -11,12 +11,7 @@ import (
 // DefaultRadiusMeters: radius default di sekitar titik gudang yang masih dianggap
 // "di dalam gudang". Sengaja tidak terlalu kecil karena GPS di dalam bangunan
 // bisa meleset puluhan meter.
-const DefaultRadiusMeters = 200.0
-
-// maxAccuracyBonusMeters: tambahan toleransi maksimum dari akurasi GPS yang
-// dilaporkan perangkat. Dibatasi supaya perangkat dengan akurasi sangat buruk
-// (mis. 5 km) tidak otomatis lolos.
-const maxAccuracyBonusMeters = 100.0
+const DefaultRadiusMeters = 20.0
 
 const earthRadiusMeters = 6371000.0
 
@@ -85,14 +80,15 @@ func DistanceMeters(lat1, lng1, lat2, lng2 float64) float64 {
 	return 2 * earthRadiusMeters * math.Asin(math.Min(1, math.Sqrt(a)))
 }
 
-// Evaluate memeriksa apakah loc berada dalam radiusMeters (+ toleransi akurasi
-// GPS) dari salah satu points.
-//   - points kosong  -> diizinkan (ReasonNotConfigured): belum ada koordinat
-//     gudang yang diatur, jangan mengunci semua orang.
+// Evaluate memeriksa apakah loc berada dalam radiusMeters dari salah satu titik
+// gudang. Akurasi GPS tidak ditambahkan ke radius: akses hanya boleh jika posisi
+// aktual yang dilaporkan berada di dalam batas 20 meter.
+//   - points kosong  -> ditolak (ReasonNotConfigured): koordinat gudang wajib
+//     diatur sebelum admin/karyawan dapat mengakses aplikasi.
 //   - hasLoc == false -> ditolak (ReasonNoLocation).
 func Evaluate(points []Point, radiusMeters float64, loc Location, hasLoc bool) Result {
 	if len(points) == 0 {
-		return Result{Allowed: true, Reason: ReasonNotConfigured}
+		return Result{Allowed: false, Reason: ReasonNotConfigured}
 	}
 	if !hasLoc {
 		return Result{Allowed: false, Reason: ReasonNoLocation}
@@ -100,8 +96,6 @@ func Evaluate(points []Point, radiusMeters float64, loc Location, hasLoc bool) R
 	if radiusMeters <= 0 {
 		radiusMeters = DefaultRadiusMeters
 	}
-	bonus := math.Min(loc.AccuracyMeters, maxAccuracyBonusMeters)
-
 	best := math.MaxFloat64
 	bestName := ""
 	for _, p := range points {
@@ -111,7 +105,7 @@ func Evaluate(points []Point, radiusMeters float64, loc Location, hasLoc bool) R
 		}
 	}
 	res := Result{DistanceMeters: best, NearestName: bestName}
-	if best <= radiusMeters+bonus {
+	if best <= radiusMeters {
 		res.Allowed, res.Reason = true, ReasonInside
 		return res
 	}

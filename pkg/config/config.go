@@ -140,21 +140,21 @@ func Load() *Config {
 			Port:           getEnv("APP_PORT", "8080"),
 			TrustedProxies: getEnvList("TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 
-			GeofenceRadiusMeters:     getEnvAsFloat("GEOFENCE_RADIUS_METERS", 200),
-			AdminGudangOnly:          getEnvAsBool("ADMIN_GUDANG_ONLY", false),
+			GeofenceRadiusMeters:    getEnvAsFloat("GEOFENCE_RADIUS_METERS", 20),
+			AdminGudangOnly:         getEnvAsBool("ADMIN_GUDANG_ONLY", false),
 			KaryawanAllowedNetworks: getEnvList("KARYAWAN_ALLOWED_NETWORKS", nil),
 		},
 		DB: DBConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", devOnlyDefault("t4mp4n")),
+			Password: getEnv("DB_PASSWORD", ""),
 			Name:     getEnv("DB_NAME", "stockrsd"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		JWT: JWTConfig{
-			AccessSecret:        getEnv("JWT_ACCESS_SECRET", "access-secret"),
-			RefreshSecret:       getEnv("JWT_REFRESH_SECRET", "refresh-secret"),
+			AccessSecret:        getEnv("JWT_ACCESS_SECRET", ""),
+			RefreshSecret:       getEnv("JWT_REFRESH_SECRET", ""),
 			AccessExpiryMinutes: getEnvAsInt("JWT_ACCESS_EXPIRY_MINUTES", 15),
 			RefreshExpiryDays:   getEnvAsInt("JWT_REFRESH_EXPIRY_DAYS", 7),
 		},
@@ -169,17 +169,17 @@ func Load() *Config {
 			Path: getEnv("STORAGE_PATH", "./storage"),
 		},
 		Captcha: CaptchaConfig{
-			Secret:     getEnv("CAPTCHA_SECRET", "change-me-captcha-secret"),
+			Secret:     getEnv("CAPTCHA_SECRET", ""),
 			TTLMinutes: getEnvAsInt("CAPTCHA_TTL_MINUTES", 5),
 		},
 		HumanCheck: HumanCheckConfig{
-			Secret:          getEnv("HUMANCHECK_SECRET", "change-me-humancheck-secret"),
+			Secret:          getEnv("HUMANCHECK_SECRET", ""),
 			TTLMinutes:      getEnvAsInt("HUMANCHECK_TTL_MINUTES", 10),
 			MinDelaySeconds: getEnvAsInt("HUMANCHECK_MIN_DELAY_SECONDS", 2),
 		},
 		BotCheck: BotCheckConfig{
 			Enabled:       getEnvAsBool("BOTCHECK_ENABLED", false),
-			Secret:        getEnv("BOTCHECK_SECRET", "change-me-botcheck-secret"),
+			Secret:        getEnv("BOTCHECK_SECRET", ""),
 			WindowMinutes: getEnvAsInt("BOTCHECK_WINDOW_MINUTES", 60),
 		},
 		SMS: SMSConfig{
@@ -192,17 +192,17 @@ func Load() *Config {
 			BaseURL: getEnv("GEOIP_BASE_URL", "http://ip-api.com"),
 		},
 		Swagger: SwaggerConfig{
-			Enabled:       getEnvAsBool("SWAGGER_ENABLED", getEnv("APP_ENV", "development") != "production"),
+			Enabled:       getEnvAsBool("SWAGGER_ENABLED", false),
 			BasicAuthUser: getEnv("SWAGGER_BASIC_AUTH_USER", ""),
 			BasicAuthPass: getEnv("SWAGGER_BASIC_AUTH_PASS", ""),
 		},
 		SelfUpdate: SelfUpdateConfig{
 			Enabled:     getEnvAsBool("AUTO_UPDATE_ENABLED", false),
-			GitHubOwner: getEnv("AUTO_UPDATE_GITHUB_OWNER", "projsonal"),
-			GitHubRepo:  getEnv("AUTO_UPDATE_GITHUB_REPO", "gowms"),
+			GitHubOwner: getEnv("AUTO_UPDATE_GITHUB_OWNER", "mfaisal-Ash"),
+			GitHubRepo:  getEnv("AUTO_UPDATE_GITHUB_REPO", "inventory-backend"),
 			ScriptPath:  getEnv("AUTO_UPDATE_SCRIPT_PATH", "./deploy/scripts/self-update.sh"),
 			WorkDir:     getEnv("AUTO_UPDATE_WORKDIR", "."),
-			ServiceName: getEnv("AUTO_UPDATE_SERVICE_NAME", "gowms-backend"),
+			ServiceName: getEnv("AUTO_UPDATE_SERVICE_NAME", "inventory-backend"),
 			StatusPath:  getEnv("AUTO_UPDATE_STATUS_PATH", "./var/run/self-update-status.json"),
 		},
 	}
@@ -228,9 +228,6 @@ func validateProductionSecrets(cfg *Config) {
 	// tercantum di kode ini) — siapa pun bisa memalsukan token akses untuk
 	// akun/role manapun. Dengan default aman "development", operator harus
 	// SENGAJA set APP_ENV=development untuk melewati validasi ini.
-	if cfg.App.Env == "development" {
-		return
-	}
 	actual := map[string]string{
 		"JWT_ACCESS_SECRET":  cfg.JWT.AccessSecret,
 		"JWT_REFRESH_SECRET": cfg.JWT.RefreshSecret,
@@ -250,19 +247,16 @@ func validateProductionSecrets(cfg *Config) {
 	if len(insecure) > 0 {
 		log.Fatalf(
 			"config: APP_ENV=production tapi env var berikut masih pakai nilai contoh/terlalu pendek (min 24 karakter): %s — set nilai acak yang kuat sebelum deploy",
-			strings.Join(insecure, ", "),
-		)
+			strings.Join(insecure, ", "))
 	}
-}
-
-// devOnlyDefault mengembalikan nilai bawaan hanya di lingkungan development;
-// di luar itu kosong, sehingga password database tidak pernah jatuh ke nilai
-// yang tercantum di kode sumber.
-func devOnlyDefault(value string) string {
-	if getEnv("APP_ENV", "development") == "development" {
-		return value
+	if cfg.SelfUpdate.Enabled {
+		if cfg.SelfUpdate.GitHubOwner != "mfaisal-Ash" || cfg.SelfUpdate.GitHubRepo != "inventory-backend" || cfg.SelfUpdate.ServiceName != "inventory-backend" {
+			log.Fatalf("config: self-update hanya diizinkan untuk repository dan service resmi")
+		}
+		if !strings.HasPrefix(cfg.SelfUpdate.ScriptPath, "/") || !strings.HasPrefix(cfg.SelfUpdate.WorkDir, "/") || !strings.HasPrefix(cfg.SelfUpdate.StatusPath, "/") {
+			log.Fatalf("config: AUTO_UPDATE_SCRIPT_PATH, AUTO_UPDATE_WORKDIR, dan AUTO_UPDATE_STATUS_PATH harus absolute path")
+		}
 	}
-	return ""
 }
 
 func getEnv(key, fallback string) string {

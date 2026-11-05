@@ -15,20 +15,21 @@ func TestEvaluate(t *testing.T) {
 		want   bool
 		reason Reason
 	}{
-		{"belum ada gudang berkoordinat -> bebas", nil, Location{}, false, true, ReasonNotConfigured},
+		{"belum ada gudang berkoordinat -> ditolak", nil, Location{}, false, false, ReasonNotConfigured},
 		{"tidak kirim lokasi -> ditolak", pts, Location{}, false, false, ReasonNoLocation},
 		{"tepat di titik gudang", pts, Location{Lat: bandung.Lat, Lng: bandung.Lng}, true, true, ReasonInside},
-		{"~100 m dari gudang", pts, Location{Lat: bandung.Lat + 0.0009, Lng: bandung.Lng}, true, true, ReasonInside},
+		{"~10 m dari gudang", pts, Location{Lat: bandung.Lat + 0.00009, Lng: bandung.Lng}, true, true, ReasonInside},
+		{"~100 m dari gudang -> ditolak", pts, Location{Lat: bandung.Lat + 0.0009, Lng: bandung.Lng}, true, false, ReasonOutside},
 		{"~1 km dari gudang -> ditolak", pts, Location{Lat: bandung.Lat + 0.009, Lng: bandung.Lng}, true, false, ReasonOutside},
 		{"Jakarta -> ditolak", pts, Location{Lat: -6.2, Lng: 106.8}, true, false, ReasonOutside},
-		// ~250 m: di luar radius 200, tapi akurasi 100 m menambah toleransi.
-		{"250 m tanpa toleransi -> ditolak", pts, Location{Lat: bandung.Lat + 0.00225, Lng: bandung.Lng}, true, false, ReasonOutside},
-		{"250 m dengan akurasi 100 m -> boleh", pts, Location{Lat: bandung.Lat + 0.00225, Lng: bandung.Lng, AccuracyMeters: 100}, true, true, ReasonInside},
+		// Akurasi GPS tidak memperluas radius keamanan 20 meter.
+		{"250 m -> ditolak", pts, Location{Lat: bandung.Lat + 0.00225, Lng: bandung.Lng}, true, false, ReasonOutside},
+		{"250 m dengan akurasi 100 m -> tetap ditolak", pts, Location{Lat: bandung.Lat + 0.00225, Lng: bandung.Lng, AccuracyMeters: 100}, true, false, ReasonOutside},
 		{"akurasi 5 km tidak otomatis lolos", pts, Location{Lat: bandung.Lat + 0.009, Lng: bandung.Lng, AccuracyMeters: 5000}, true, false, ReasonOutside},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Evaluate(tt.points, 200, tt.loc, tt.hasLoc)
+			got := Evaluate(tt.points, 20, tt.loc, tt.hasLoc)
 			if got.Allowed != tt.want || got.Reason != tt.reason {
 				t.Fatalf("Evaluate = %+v, want allowed=%v reason=%v", got, tt.want, tt.reason)
 			}
@@ -38,7 +39,7 @@ func TestEvaluate(t *testing.T) {
 
 func TestEvaluateMultipleWarehousesUsesNearest(t *testing.T) {
 	jakarta := Point{Name: "Gudang Jakarta", Lat: -6.2, Lng: 106.8}
-	got := Evaluate([]Point{bandung, jakarta}, 200, Location{Lat: -6.2001, Lng: 106.8001}, true)
+	got := Evaluate([]Point{bandung, jakarta}, 20, Location{Lat: -6.2001, Lng: 106.8001}, true)
 	if !got.Allowed || got.NearestName != "Gudang Jakarta" {
 		t.Fatalf("want allowed near Jakarta, got %+v", got)
 	}

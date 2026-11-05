@@ -67,10 +67,12 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	// direktori publik untuk fitur upload berbasis file di masa depan.
 
 	if deps.Cfg.Swagger.Enabled {
-		swaggerRoute := app.Group("/swagger")
-		if deps.Cfg.Swagger.BasicAuthUser != "" {
-			swaggerRoute.Use(middleware.SwaggerBasicAuth(deps.Cfg.Swagger.BasicAuthUser, deps.Cfg.Swagger.BasicAuthPass))
+		// Swagger is an operational/admin surface; never expose it anonymously.
+		if deps.Cfg.Swagger.BasicAuthUser == "" || deps.Cfg.Swagger.BasicAuthPass == "" {
+			panic("swagger enabled but SWAGGER_BASIC_AUTH_USER and SWAGGER_BASIC_AUTH_PASS are required")
 		}
+		swaggerRoute := app.Group("/swagger")
+		swaggerRoute.Use(middleware.SwaggerBasicAuth(deps.Cfg.Swagger.BasicAuthUser, deps.Cfg.Swagger.BasicAuthPass))
 		swaggerRoute.Get("/*", fiberSwagger.HandlerDefault)
 	}
 
@@ -124,6 +126,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 		deps.DashboardController,
 		deps.PengajuanBarangController,
 		deps.PengajuanTemplateController,
+		deps.PengirimanController,
 	}
 	for _, r := range operationalRegistrars {
 		r.RegisterRoutes(operational)

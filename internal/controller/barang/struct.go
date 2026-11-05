@@ -54,6 +54,7 @@ type BarangRequest struct {
 	Merek        string `json:"merek" validate:"max=100"`
 	Tipe         string `json:"tipe" validate:"max=100"`
 	Deskripsi    string `json:"deskripsi" validate:"max=255"`
+	NamaPengaju  string `json:"nama_pengaju" validate:"max=150"`
 }
 
 type AdjustStokRequest struct {
@@ -111,7 +112,7 @@ type DetailStokResponse struct {
 
 type NextSKUResponse struct {
 	Tanggal string `json:"tanggal,omitempty"`
-	SKU string `json:"sku"`
+	SKU     string `json:"sku"`
 }
 
 type CheckSKUResponse struct {

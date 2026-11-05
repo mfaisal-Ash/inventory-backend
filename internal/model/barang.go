@@ -8,9 +8,11 @@ import (
 
 type Barang struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
+	IDBarang    string    `json:"id_barang,omitempty" gorm:"size:20;uniqueIndex"`
 	KodeBarang  string    `json:"kode_barang" gorm:"size:30;uniqueIndex;not null"`
 	Nama        string    `json:"nama" gorm:"size:150;not null;index"`
 	NamaGudang  string    `json:"nama_gudang" gorm:"size:150;not null;index"`
+	NamaPengaju string    `json:"nama_pengaju" gorm:"size:150"`
 	KategoriID  uint      `json:"kategori_id" gorm:"not null;index"`
 	Kategori    *Kategori `json:"kategori,omitempty" gorm:"foreignKey:KategoriID"`
 	SatuanID    uint      `json:"satuan_id" gorm:"not null;index"`
@@ -58,9 +60,8 @@ type Barang struct {
 
 	// Statistik turunan untuk tabel Kelola Barang — diisi controller saat List,
 	// tidak disimpan di DB.
-	TotalKeluar int64  `json:"total_keluar" gorm:"-"`
-	JumlahRusak int64  `json:"jumlah_rusak" gorm:"-"`
-	NamaPengaju string `json:"nama_pengaju" gorm:"-"`
+	TotalKeluar int64 `json:"total_keluar" gorm:"-"`
+	JumlahRusak int64 `json:"jumlah_rusak" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

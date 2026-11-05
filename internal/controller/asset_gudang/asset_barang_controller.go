@@ -3,6 +3,7 @@ package assetgudang
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -136,6 +137,23 @@ func validasiUmum(jenisAset, jenisUmum string) string {
 	return ""
 }
 
+func validateKodeJaringan(jenis, kode string) string {
+	kode = strings.ToUpper(strings.TrimSpace(kode))
+	patterns := map[string]string{
+		constant.JenisAsetTiang: `^RSD-[A-Z0-9]+-T[0-9]+$`,
+		constant.JenisAsetODC:   `^ODC-[A-Z0-9]+-[0-9]+$`,
+		constant.JenisAsetODP:   `^(?:FDB|ODP)-[A-Z0-9]+-D[0-9]+-[0-9]+$`,
+	}
+	pattern, ok := patterns[jenis]
+	if !ok {
+		return ""
+	}
+	if !regexp.MustCompile(pattern).MatchString(kode) {
+		return "kode tidak valid; tiang: RSD-WILAYAH-T01, ODC: ODC-WILAYAH-01, ODP: FDB-WILAYAH-D1-01"
+	}
+	return ""
+}
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req AssetRequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -145,6 +163,9 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
 	if msg := validasiUmum(req.JenisAset, req.JenisUmum); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
+	}
+	if msg := validateKodeJaringan(req.JenisAset, req.KodeBarang); msg != "" {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
 
@@ -179,6 +200,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		ParentAssetID: req.ParentAssetID,
 		JumlahPort:    req.JumlahPort,
 		BarangID:      req.BarangID,
+		KodeBarang:    strings.TrimSpace(req.KodeBarang),
 		Status:        "aktif",
 
 		Nopol:             req.Nopol,
@@ -249,6 +271,9 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	if msg := validasiUmum(a.JenisAset, req.JenisUmum); msg != "" {
 		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
 	}
+	if msg := validateKodeJaringan(a.JenisAset, req.KodeBarang); msg != "" {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, msg, nil)
+	}
 	if req.ParentAssetID != nil {
 		if *req.ParentAssetID == a.ID {
 			return utils.Fail(c, fiber.StatusUnprocessableEntity, "aset tidak bisa jadi induk untuk dirinya sendiri", nil)
@@ -287,6 +312,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	a.ParentAssetID = req.ParentAssetID
 	a.JumlahPort = req.JumlahPort
 	a.BarangID = req.BarangID
+	a.KodeBarang = strings.TrimSpace(req.KodeBarang)
 	if a.JenisAset == constant.JenisAsetTransportasi {
 		a.Nopol = req.Nopol
 		a.JenisTransportasi = req.JenisTransportasi

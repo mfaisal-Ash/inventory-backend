@@ -37,6 +37,7 @@ func New(barangRepo barangRepo.Repository, gudangRepo gudangRepo.Repository,
 type KelolaBarangSummary struct {
 	TotalBarang          int64 `json:"total_barang"`
 	StokMenipis          int64 `json:"stok_menipis"`
+	TotalStok            int64 `json:"total_stok"`
 	TotalNilaiInventaris int64 `json:"total_nilai_inventaris"`
 }
 

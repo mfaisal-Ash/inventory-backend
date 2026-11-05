@@ -92,9 +92,18 @@ func (p *PengajuanBarang) IsFinal() bool {
 type PengajuanBarangItem struct {
 	ID          uint    `json:"id" gorm:"primaryKey"`
 	PengajuanID uint    `json:"pengajuan_id" gorm:"not null;index"`
-	BarangID    uint    `json:"barang_id" gorm:"not null;index"`
+	BarangID    uint    `json:"barang_id,omitempty" gorm:"not null;index"`
+	KodeManual  string  `json:"kode_manual" gorm:"size:100"`
 	Barang      *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
-	Qty         int     `json:"qty" gorm:"not null"`
+	// Manual fields are used by jenis "pengajuan" when the requested item is
+	// not yet registered in Kelola Barang and therefore has no stock record.
+	NamaManual       string   `json:"nama_manual" gorm:"size:150"`
+	MerekManual      string   `json:"merek_manual" gorm:"size:100"`
+	TipeManual       string   `json:"tipe_manual" gorm:"size:100"`
+	IsSerialized     bool     `json:"is_serialized" gorm:"not null;default:false"`
+	SerialNumbers    []string `json:"serial_numbers" gorm:"-"`
+	SerialNumbersRaw string   `json:"-" gorm:"type:text"`
+	Qty              int      `json:"qty" gorm:"not null"`
 
 	// SatuanID: satuan yang dipakai pada qty baris ini (mis. roll, meter, pcs),
 	// diambil dari master satuan. Opsional — kosong berarti memakai satuan

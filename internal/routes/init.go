@@ -14,20 +14,21 @@ import (
 	barangKeluarController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_keluar"
 	barangMasukController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_masuk"
 	barangRusakController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_rusak"
-	returController "github.com/mfaisal-Ash/inventory-backend/internal/controller/retur"
 	barangSerialController "github.com/mfaisal-Ash/inventory-backend/internal/controller/barang_serial"
-	kabelController "github.com/mfaisal-Ash/inventory-backend/internal/controller/kabel"
-	neracaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/neraca"
 	captchaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/captcha"
 	dashboardController "github.com/mfaisal-Ash/inventory-backend/internal/controller/dashboard"
 	geocodeController "github.com/mfaisal-Ash/inventory-backend/internal/controller/geocode"
 	gudangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/gudang"
 	humanCheckController "github.com/mfaisal-Ash/inventory-backend/internal/controller/humancheck"
+	kabelController "github.com/mfaisal-Ash/inventory-backend/internal/controller/kabel"
 	laporanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/laporan"
 	maintenanceController "github.com/mfaisal-Ash/inventory-backend/internal/controller/maintenance"
+	neracaController "github.com/mfaisal-Ash/inventory-backend/internal/controller/neraca"
 	notificationController "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
 	pengajuanBarangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengajuan_barang"
 	pengajuanTemplateController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengajuan_template"
+	pengirimanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengiriman"
+	returController "github.com/mfaisal-Ash/inventory-backend/internal/controller/retur"
 	roleController "github.com/mfaisal-Ash/inventory-backend/internal/controller/role"
 	securityController "github.com/mfaisal-Ash/inventory-backend/internal/controller/security"
 	stockOpnameController "github.com/mfaisal-Ash/inventory-backend/internal/controller/stockOpname"
@@ -35,9 +36,9 @@ import (
 	trashController "github.com/mfaisal-Ash/inventory-backend/internal/controller/trash"
 	usersController "github.com/mfaisal-Ash/inventory-backend/internal/controller/users"
 	"github.com/mfaisal-Ash/inventory-backend/internal/health"
+	accessPolicyRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/accesspolicy"
 	activityLogRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/activity_log"
 	assetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset"
-	accessPolicyRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/accesspolicy"
 	assetHistoryRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_history"
 	assetPortRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/asset_port"
 	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
@@ -45,15 +46,16 @@ import (
 	barangKeluarRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_keluar"
 	barangMasukRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_masuk"
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
-	returRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/retur"
 	barangSerialRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
-	kabelRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/kabel"
-	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	kabelRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/kabel"
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
 	pengajuanBarangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_barang"
 	pengajuanTemplateRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_template"
+	pengirimanRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengiriman"
+	returRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/retur"
 	roleRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	stockOpnameRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
 	taskRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/task"
@@ -106,6 +108,7 @@ type Dependencies struct {
 	DashboardController         *dashboardController.Controller
 	PengajuanBarangController   *pengajuanBarangController.Controller
 	PengajuanTemplateController *pengajuanTemplateController.Controller
+	PengirimanController        *pengirimanController.Controller
 
 	CaptchaController     *captchaController.Controller
 	HumanCheckController  *humanCheckController.Controller
@@ -146,6 +149,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rAccessPolicy := accessPolicyRepo.New(db)
 	rPengajuanBarang := pengajuanBarangRepo.New(db)
 	rPengajuanTemplate := pengajuanTemplateRepo.New(db)
+	rPengiriman := pengirimanRepo.New(db)
 
 	captchaSvc := captcha.NewService(cfg.Captcha.Secret, time.Duration(cfg.Captcha.TTLMinutes)*time.Minute)
 	humanCheckSvc := humancheck.NewService(
@@ -194,6 +198,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cDashboard := dashboardController.New(rBarang, rGudang, rBarangMasuk, rBarangKeluar, rStockOpname, rRole, jwtSvc, db)
 	cPengajuanBarang := pengajuanBarangController.New(rPengajuanBarang, rBarang, rGudang, rUsers, rRole, jwtSvc, rNotification, rPengajuanTemplate)
 	cPengajuanTemplate := pengajuanTemplateController.New(rPengajuanTemplate, jwtSvc)
+	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
 	cCaptcha := captchaController.New(captchaSvc)
 	cHumanCheck := humanCheckController.New(humanCheckSvc)
 	cSecurity := securityController.New(botCheckSvc, captchaSvc)
@@ -235,6 +240,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		DashboardController:         cDashboard,
 		PengajuanBarangController:   cPengajuanBarang,
 		PengajuanTemplateController: cPengajuanTemplate,
+		PengirimanController:        cPengiriman,
 		CaptchaController:           cCaptcha,
 		HumanCheckController:        cHumanCheck,
 		SecurityController:          cSecurity,

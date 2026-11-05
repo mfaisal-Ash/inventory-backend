@@ -45,8 +45,16 @@ func New(
 }
 
 type ItemRequest struct {
-	BarangID uint `json:"barang_id" validate:"required"`
-	Qty      int  `json:"qty" validate:"required,min=1"`
+	BarangID uint   `json:"barang_id" validate:"omitempty"`
+	Kode     string `json:"kode" validate:"max=100"`
+	Qty      int    `json:"qty" validate:"required,min=1"`
+	// Field manual hanya dipakai untuk jenis "pengajuan" ketika barang belum
+	// ada di master Kelola Barang.
+	Nama          string   `json:"nama" validate:"max=150"`
+	Merek         string   `json:"merek" validate:"max=100"`
+	Tipe          string   `json:"tipe" validate:"max=100"`
+	IsSerialized  bool     `json:"is_serialized"`
+	SerialNumbers []string `json:"serial_numbers" validate:"max=500"`
 	// SatuanID: opsional, merujuk ke master satuan (mis. roll, meter).
 	SatuanID *uint `json:"satuan_id" validate:"omitempty"`
 }

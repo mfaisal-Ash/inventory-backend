@@ -24,7 +24,7 @@
 # lihat launch_update.go).
 #
 # Env yang WAJIB diisi oleh pemanggil (launch_update.go):
-#   SELFUPDATE_SERVICE_NAME   nama unit systemd, mis. gowms-backend
+#   SELFUPDATE_SERVICE_NAME   nama unit systemd, mis. inventory-backend
 #   SELFUPDATE_WORKDIR        direktori kerja (juga cwd skrip ini)
 #   SELFUPDATE_STATUS_PATH    path ABSOLUT file status JSON
 #   SELFUPDATE_GITHUB_OWNER   owner repo GitHub, mis. projsonal
@@ -45,17 +45,27 @@ set -Eeuo pipefail
 # 0. Validasi input & siapkan variabel
 # ---------------------------------------------------------------------
 TO_VERSION="${1:?Usage: self-update.sh <tag>}"
+if [[ ! "$TO_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	printf 'tag update tidak valid\n' >&2
+	exit 2
+fi
 SERVICE_NAME="${SELFUPDATE_SERVICE_NAME:?SELFUPDATE_SERVICE_NAME wajib diisi}"
+if [ "$SERVICE_NAME" != "inventory-backend" ]; then
+	printf 'service update tidak diizinkan\n' >&2
+	exit 2
+fi
 WORKDIR="${SELFUPDATE_WORKDIR:?SELFUPDATE_WORKDIR wajib diisi}"
 STATUS_PATH="${SELFUPDATE_STATUS_PATH:?SELFUPDATE_STATUS_PATH wajib diisi}"
 GITHUB_OWNER="${SELFUPDATE_GITHUB_OWNER:?SELFUPDATE_GITHUB_OWNER wajib diisi}"
 GITHUB_REPO="${SELFUPDATE_GITHUB_REPO:?SELFUPDATE_GITHUB_REPO wajib diisi}"
 
-BIN_NAME="${SELFUPDATE_BIN_NAME:-gowms-backend}"
+BIN_NAME="${SELFUPDATE_BIN_NAME:-inventory-backend}"
 HEALTH_URL="${SELFUPDATE_HEALTH_URL:-http://127.0.0.1:8080/health/live}"
 GH_TOKEN="${SELFUPDATE_GH_TOKEN:-}"
 RETRIES="${SELFUPDATE_RETRIES:-10}"
 RETRY_DELAY="${SELFUPDATE_RETRY_DELAY:-3}"
+if ! [[ "$RETRIES" =~ ^[1-9][0-9]?$ ]] || [ "$RETRIES" -gt 30 ]; then RETRIES=10; fi
+if ! [[ "$RETRY_DELAY" =~ ^[1-9][0-9]?$ ]] || [ "$RETRY_DELAY" -gt 30 ]; then RETRY_DELAY=3; fi
 
 cd "$WORKDIR"
 
@@ -166,9 +176,9 @@ on_error() {
 	log "GAGAL pada baris ${BASH_LINENO[0]} (perintah: ${BASH_COMMAND}) — exit code ${exit_code}"
 	if [ "$SWAPPED" = true ]; then
 		rollback
-		write_status "failed" "Update ke ${TO_VERSION} gagal (${BASH_COMMAND}) — sistem dikembalikan otomatis ke versi sebelumnya."
+		write_status "failed" "Update ke ${TO_VERSION} gagal — sistem dikembalikan otomatis ke versi sebelumnya."
 	else
-		write_status "failed" "Update ke ${TO_VERSION} gagal sebelum binary diganti (${BASH_COMMAND}) — versi sebelumnya tetap berjalan tanpa perubahan."
+		write_status "failed" "Update ke ${TO_VERSION} gagal sebelum binary diganti — versi sebelumnya tetap berjalan tanpa perubahan."
 	fi
 	exit "$exit_code"
 }
@@ -211,7 +221,11 @@ curl -fsSL --retry 3 --retry-delay 2 --max-time 30 \
 	"${RELEASE_BASE_URL}/${CHECKSUM_NAME}"
 
 log "memverifikasi checksum..."
-EXPECTED_HASH="$(awk '{print $1}' "${NEW_BIN_PATH}.sha256")"
+EXPECTED_HASH="$(awk 'NF {print $1; exit}' "${NEW_BIN_PATH}.sha256")"
+if ! [[ "$EXPECTED_HASH" =~ ^[A-Fa-f0-9]{64}$ ]]; then
+	log "FATAL: format checksum tidak valid"
+	exit 1
+fi
 ACTUAL_HASH="$(sha256sum "$NEW_BIN_PATH" | awk '{print $1}')"
 if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
 	log "FATAL: checksum tidak cocok (expected=${EXPECTED_HASH} actual=${ACTUAL_HASH}) — binary yang terunduh mungkin korup/di-tampering"

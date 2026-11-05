@@ -24,10 +24,10 @@ func containsWildcard(origins []string) bool {
 
 func CORS(cfg *config.Config) fiber.Handler {
 	origins := cfg.CORS.AllowedOrigins
-	allowCredentials := !containsWildcard(origins)
-	if !allowCredentials {
-		log.Println("middleware: CORS_ALLOWED_ORIGINS=\"*\" terdeteksi — AllowCredentials dimatikan otomatis.")
+	if cfg.App.Env != "development" && containsWildcard(origins) {
+		log.Fatalf("middleware: CORS_ALLOWED_ORIGINS=\"*\" tidak diizinkan di environment %s", cfg.App.Env)
 	}
+	allowCredentials := !containsWildcard(origins)
 
 	return cors.New(cors.Config{
 		AllowOrigins:     strings.Join(origins, ","),

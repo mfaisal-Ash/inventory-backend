@@ -140,7 +140,9 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	// Cegah super admin mengunci dirinya sendiri: tidak boleh menonaktifkan akun
 	// atau mengganti role akunnya sendiri lewat endpoint ini.
 	requesterID, _ := c.Locals(cons.CtxUserID).(uint)
-	if requesterID == u.ID && ((req.IsActive != nil && !*req.IsActive) || (req.RoleID != 0 && req.RoleID != u.RoleID)) {
+	roleChanged := req.RoleID != 0 && req.RoleID != u.RoleID
+	activeChangedToFalse := req.IsActive != nil && !*req.IsActive && u.IsActive
+	if requesterID == u.ID && (activeChangedToFalse || roleChanged) {
 		return utils.Fail(c, fiber.StatusForbidden, "tidak bisa menonaktifkan akun atau mengubah role Anda sendiri", nil)
 	}
 
@@ -170,6 +172,13 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 
 	if err := h.userRepo.Update(u); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, cons.ErrGagalMemperbaruiUser, nil)
+	}
+	// Role changes and deactivation must invalidate every existing access/refresh
+	// session. Otherwise an old JWT can retain its previous privileges until expiry.
+	if roleChanged || activeChangedToFalse {
+		if err := h.authRepo.RevokeAllUserTokens(u.ID); err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "user berhasil diperbarui tetapi sesi aktif gagal dicabut", nil)
+		}
 	}
 	return utils.OK(c, cons.MsgUserBerhasilDiubah, h.toResponseSingle(u))
 }

@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 )
+
+var safeUpdateTag = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type updateScriptParams struct {
 	ScriptPath  string
@@ -20,6 +23,12 @@ type updateScriptParams struct {
 }
 
 func launchUpdateScript(p updateScriptParams) error {
+	if !safeUpdateTag.MatchString(p.ToVersion) {
+		return fmt.Errorf("tag update tidak valid")
+	}
+	if p.ServiceName != "inventory-backend" {
+		return fmt.Errorf("service update tidak diizinkan")
+	}
 	absScript, err := filepath.Abs(p.ScriptPath)
 	if err != nil {
 		return fmt.Errorf("path skrip tidak valid: %w", err)
@@ -43,7 +52,7 @@ func launchUpdateScript(p updateScriptParams) error {
 	}
 	logFile, err := os.OpenFile(
 		filepath.Join(logDir, "self-update-"+p.ToVersion+".log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600,
 	)
 	if err != nil {
 		return fmt.Errorf("gagal membuka file log update: %w", err)
@@ -51,14 +60,16 @@ func launchUpdateScript(p updateScriptParams) error {
 
 	cmd := exec.Command(absScript, p.ToVersion)
 	cmd.Dir = p.WorkDir
-	cmd.Env = append(os.Environ(),
-		"SELFUPDATE_SERVICE_NAME="+p.ServiceName,
-		"SELFUPDATE_WORKDIR="+p.WorkDir,
-		"SELFUPDATE_TO_VERSION="+p.ToVersion,
-		"SELFUPDATE_STATUS_PATH="+absStatusPath,
-		"SELFUPDATE_GITHUB_OWNER="+p.GitHubOwner,
-		"SELFUPDATE_GITHUB_REPO="+p.GitHubRepo,
-	)
+	cmd.Env = []string{
+		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"HOME=/nonexistent",
+		"SELFUPDATE_SERVICE_NAME=" + p.ServiceName,
+		"SELFUPDATE_WORKDIR=" + p.WorkDir,
+		"SELFUPDATE_TO_VERSION=" + p.ToVersion,
+		"SELFUPDATE_STATUS_PATH=" + absStatusPath,
+		"SELFUPDATE_GITHUB_OWNER=" + p.GitHubOwner,
+		"SELFUPDATE_GITHUB_REPO=" + p.GitHubRepo,
+	}
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 

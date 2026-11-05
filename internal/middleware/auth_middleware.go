@@ -13,7 +13,7 @@ const ForcedLogoutMessagePrefix = "akun ini di keluarkan secara paksa oleh "
 
 func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		header := c.Get("Authorization")
+		header := strings.TrimSpace(c.Get("Authorization"))
 		if header == "" || !strings.HasPrefix(header, "Bearer ") {
 			return utils.Fail(c, fiber.StatusUnauthorized, "token tidak ditemukan", nil)
 		}
@@ -25,7 +25,10 @@ func JWTAuth(jwtSvc *utils.JWTService) fiber.Handler {
 		}
 
 		revoked, revokedByUsername, revokeErr := jwtSvc.CheckSession(claims.SessionID)
-		if revokeErr == nil && revoked {
+		if revokeErr != nil {
+			return utils.Fail(c, fiber.StatusServiceUnavailable, "status sesi tidak dapat diverifikasi", nil)
+		}
+		if revoked {
 			if revokedByUsername != "" {
 				return utils.Fail(c, fiber.StatusUnauthorized, ForcedLogoutMessagePrefix+revokedByUsername, nil)
 			}

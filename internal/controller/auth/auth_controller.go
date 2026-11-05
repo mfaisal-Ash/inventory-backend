@@ -112,6 +112,17 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	if err := h.authRepo.SaveRefreshToken(session); err != nil {
 		return nil, err
 	}
+	// Keep the refresh credential out of browser JavaScript. The JSON field is
+	// retained temporarily for backwards compatibility with older clients.
+	c.Cookie(&fiber.Cookie{
+		Name:     "stockrsd_refresh_token",
+		Value:    refresh,
+		Path:     "/stockrsd/auth/refresh",
+		Expires:  expiry,
+		HTTPOnly: true,
+		Secure:   h.appEnv != "development",
+		SameSite: "Lax",
+	})
 
 	access, err := h.jwtSvc.GenerateAccessToken(u.ID, u.RoleID, session.ID, r.Name)
 	if err != nil {
@@ -504,17 +515,26 @@ func (h *Controller) VerifyOTP(c *fiber.Ctx) error {
 
 func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	var req RefreshTokenRequest
-	if !utils.ParseAndValidate(c, &req) {
-		return nil
+	if len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return utils.Fail(c, fiber.StatusBadRequest, "format request tidak valid", nil)
+		}
+	}
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(c.Cookies("stockrsd_refresh_token"))
+	}
+	if refreshToken == "" {
+		return utils.Fail(c, fiber.StatusUnauthorized, "refresh token tidak ditemukan", nil)
 	}
 
-	claims, err := h.jwtSvc.ParseRefreshToken(req.RefreshToken)
+	claims, err := h.jwtSvc.ParseRefreshToken(refreshToken)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusUnauthorized, "refresh token tidak valid atau kedaluwarsa", nil)
 	}
 
 	userID := utils.ParseUintSubject(claims.Subject)
-	oldSession, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(req.RefreshToken))
+	oldSession, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(refreshToken))
 	if err != nil {
 		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah di-revoke", nil)
 	}
@@ -540,6 +560,7 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	// false" di FindActiveRefreshToken).
 	if err := h.authRepo.RevokeSession(userID, oldSession.ID, userID); err != nil {
 		log.Printf("auth: gagal mencabut sesi lama %d setelah refresh: %v", oldSession.ID, err)
+		return utils.Fail(c, fiber.StatusServiceUnavailable, "gagal mengamankan rotasi sesi", nil)
 	}
 	return utils.OK(c, "token berhasil diperbarui", res)
 }
@@ -549,6 +570,7 @@ func (h *Controller) Logout(c *fiber.Ctx) error {
 	if err := h.authRepo.RevokeAllUserTokens(userID); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal logout", nil)
 	}
+	c.Cookie(&fiber.Cookie{Name: "stockrsd_refresh_token", Value: "", Path: "/stockrsd/auth/refresh", MaxAge: -1, HTTPOnly: true, Secure: h.appEnv != "development", SameSite: "Lax"})
 	return utils.OK(c, "logout berhasil", nil)
 }
 

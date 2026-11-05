@@ -64,6 +64,7 @@ type AssetRequest struct {
 	TahunPerolehan  int    `json:"tahun_perolehan" validate:"omitempty,min=1950,max=2100"`
 
 	BarangID   *uint  `json:"barang_id"`
+	KodeBarang string `json:"kode_barang" validate:"max=60"`
 	Keterangan string `json:"keterangan" validate:"max=500"`
 }
 

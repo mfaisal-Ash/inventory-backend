@@ -59,4 +59,5 @@ type Repository interface {
 	CountAll() (int64, error)
 	CountStokMenipis() (int64, error)
 	SumNilaiInventaris() (int64, error)
+	SumStok() (int64, error)
 }

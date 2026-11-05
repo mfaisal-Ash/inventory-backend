@@ -12,8 +12,8 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	barangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang"
-	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/barangstokgudang"
+	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/skucode"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -161,8 +161,18 @@ func resolveTanggalKuantitas(req BarangRequest) (time.Time, int, int, error) {
 	return tanggal, kuantitas, kuantitas - req.Stok, nil
 }
 
-func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang, tanggal time.Time, kuantitas, keluarAwal int) *model.Barang {
+func (h *Controller) nextIDBarang(tanggal time.Time) (string, error) {
+	key := fmt.Sprintf("RSD-%s", tanggal.Format("02012006"))
+	var counter int
+	if err := h.db.Raw(`INSERT INTO document_counters (key, counter, updated_at) VALUES (?, 1, now()) ON CONFLICT (key) DO UPDATE SET counter = document_counters.counter + 1, updated_at = now() RETURNING counter`, key).Scan(&counter).Error; err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s-%02d", key, counter), nil
+}
+
+func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang, tanggal time.Time, kuantitas, keluarAwal int, idBarang string) *model.Barang {
 	b := &model.Barang{
+		IDBarang:     idBarang,
 		KodeBarang:   req.KodeBarang,
 		Nama:         req.Nama,
 		KategoriID:   req.KategoriID,
@@ -176,6 +186,7 @@ func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudan
 		Merek:        req.Merek,
 		Tipe:         req.Tipe,
 		Deskripsi:    req.Deskripsi,
+		NamaPengaju:  strings.TrimSpace(req.NamaPengaju),
 		Tanggal:      tanggal,
 	}
 	if stokGudang != nil {
@@ -190,11 +201,17 @@ func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudan
 }
 
 func (h *Controller) setApprovalStatus(c *fiber.Ctx, b *model.Barang) {
+	// Simpan pembuat untuk semua role agar kolom Nama di Kelola Barang selalu
+	// dapat menampilkan user yang membuat data, termasuk saat dibuat langsung
+	// oleh super admin.
+	userID, ok := c.Locals(constant.CtxUserID).(uint)
+	if ok && userID != 0 {
+		b.DiajukanOleh = &userID
+	}
+
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	if roleName == constant.RoleAdmin || roleName == constant.RoleKaryawan {
-		userID, _ := c.Locals(constant.CtxUserID).(uint)
 		b.ApprovalStatus = constant.ApprovalMenunggu
-		b.DiajukanOleh = &userID
 	}
 }
 
@@ -247,7 +264,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error(), nil)
 	}
 
-	b := h.buildBarangModel(req, stokGudang, tanggal, kuantitas, keluarAwal)
+	idBarang, err := h.nextIDBarang(tanggal)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat ID barang", nil)
+	}
+	b := h.buildBarangModel(req, stokGudang, tanggal, kuantitas, keluarAwal, idBarang)
 	h.setApprovalStatus(c, b)
 
 	if err := h.repo.Create(b); err != nil {

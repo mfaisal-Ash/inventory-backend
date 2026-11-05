@@ -15,7 +15,8 @@ type Asset struct {
 	GudangID uint    `json:"gudang_id" gorm:"not null;index"`
 	Gudang   *Gudang `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
 
-	LabelRSD string `json:"label_rsd" gorm:"size:40;index"`
+	LabelRSD   string `json:"label_rsd" gorm:"size:40;index"`
+	KodeBarang string `json:"kode_barang" gorm:"size:60;index"`
 
 	KodeBA string `json:"kode_ba" gorm:"size:20;index"`
 

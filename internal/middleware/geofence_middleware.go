@@ -93,8 +93,8 @@ func geofenceRoleLabel(role string) string {
 //   - super_admin: tidak pernah dibatasi lokasi (bisa diakses dari mana saja).
 //   - admin, karyawan, dan role lain (fail-closed): hanya boleh dari sekitar titik
 //     koordinat gudang di Manajemen Gudang.
-//   - Kalau belum ada gudang yang punya koordinat, tidak ada pembatasan (supaya
-//     tidak terkunci total sebelum koordinat gudang diisi).
+//   - Kalau belum ada gudang yang punya koordinat, akses ditolak (fail-closed)
+//     sampai super admin mengisi titik koordinat gudang.
 //
 // Mengembalikan (diizinkan, pesan penolakan).
 func GeofenceAllowsRole(c *fiber.Ctx, role string) (bool, string) {
@@ -115,6 +115,8 @@ func GeofenceAllowsRole(c *fiber.Ctx, role string) (bool, string) {
 	switch res.Reason {
 	case geofence.ReasonNoLocation:
 		return false, GeofenceNoLocationMessage
+	case geofence.ReasonNotConfigured:
+		return false, "akses belum tersedia karena koordinat gudang belum ditentukan oleh super admin"
 	case geofence.ReasonOutside:
 		return false, fmt.Sprintf(
 			"akun %s hanya bisa diakses dari titik koordinat gudang. Posisi Anda sekitar %.0f m dari %s (batas %.0f m)",

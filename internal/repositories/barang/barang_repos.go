@@ -184,3 +184,11 @@ func (r *repository) SumNilaiInventaris() (int64, error) {
 		Scan(&total).Error
 	return total, err
 }
+
+func (r *repository) SumStok() (int64, error) {
+	var total int64
+	err := r.db.Model(&model.Barang{}).
+		Select("COALESCE(SUM(stok), 0)").
+		Scan(&total).Error
+	return total, err
+}
