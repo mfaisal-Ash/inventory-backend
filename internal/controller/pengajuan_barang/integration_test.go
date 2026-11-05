@@ -65,7 +65,7 @@ func TestStokMenipisDanTTD_HTTP(t *testing.T) {
 
 	now := time.Now()
 	p := model.PengajuanBarang{NomorPengajuan: "PJ-1", Jenis: constant.JenisPengajuanMasuk, GudangID: g.ID, Tanggal: now,
-		Status: constant.StatusPengajuanDiajukan, DiajukanOleh: u.ID, Items: []model.PengajuanBarangItem{{BarangID: menipis.ID, Qty: 20}}}
+		Status: constant.StatusPengajuanDiajukan, DiajukanOleh: u.ID, Items: []model.PengajuanBarangItem{{BarangID: menipis.ID, Qty: "20"}}}
 	p.TandaTangan = []model.PengajuanTandaTangan{{Peran: model.PeranTTDPencatat, UserID: u.ID, Nama: "U",
 		Data: []byte("PNGDATA"), DokumenHash: p.ComputeDokumenHash(), SignedAt: now}}
 	must(t, db.Create(&p).Error)
