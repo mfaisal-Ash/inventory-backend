@@ -13,7 +13,7 @@ import (
 // (lihat workflows/backend-release.yml). Nilai di bawah hanya cadangan untuk
 // `go run` / build lokal tanpa ldflags. Harus `var`, bukan `const`, karena
 // linker Go hanya bisa menimpa variabel string.
-var CurrentVersion = "v1.3.4"
+var CurrentVersion = "v1.3.7"
 
 type VersionChanges struct {
 	New []string `json:"new,omitempty"`
