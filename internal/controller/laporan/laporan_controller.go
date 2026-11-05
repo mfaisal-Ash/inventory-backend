@@ -288,7 +288,7 @@ func (h *Controller) buildPengajuanBarang(dari, sampai *time.Time) (headers []st
 				kodeBarang, nama = it.Barang.KodeBarang, it.Barang.Nama
 			}
 			rows = append(rows, []string{
-				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, strconv.Itoa(it.Qty),
+				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, it.Qty,
 				p.Keperluan, statusLabel, diajukan, diproses, orDash(p.CatatanProses),
 			})
 		}

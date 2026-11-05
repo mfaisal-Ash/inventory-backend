@@ -13,7 +13,7 @@ func contoh(jenis string, diajukanOleh uint) *model.PengajuanBarang {
 		NomorPengajuan: "PJ-202610-0001", Jenis: jenis, GudangID: 1,
 		Tanggal:   time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
 		Keperluan: "Restock kabel", DiajukanOleh: diajukanOleh,
-		Items: []model.PengajuanBarangItem{{BarangID: 7, Qty: 10}, {BarangID: 3, Qty: 2}},
+		Items: []model.PengajuanBarangItem{{BarangID: 7, Qty: "10"}, {BarangID: 3, Qty: "2"}},
 	}
 }
 
@@ -56,7 +56,7 @@ func TestCekDuaPihak_Penolakan(t *testing.T) {
 		}, constant.ErrPengajuanTTDPencatatHilang},
 		{"isi berubah setelah pengaju tanda tangan", func(p *model.PengajuanBarang) (uint, *model.PengajuanTandaTangan, *model.PengajuanTandaTangan) {
 			sig := pencatatUntuk(p)
-			p.Items[0].Qty = 999 // diubah diam-diam sesudah ditandatangani
+			p.Items[0].Qty = "999" // diubah diam-diam sesudah ditandatangani
 			return 2, ttdContoh(), sig
 		}, constant.ErrPengajuanTTDPencatatHilang},
 	}

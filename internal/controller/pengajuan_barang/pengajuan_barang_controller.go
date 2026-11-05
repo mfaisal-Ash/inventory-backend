@@ -43,6 +43,8 @@ func normalizeJenis(jenis string) string {
 	return jenis
 }
 
+func qtyIntValue(raw string) int { n, _ := strconv.Atoi(strings.Fields(raw)[0]); return n }
+
 var qtyPattern = regexp.MustCompile(`^\d+(?:[.,]\d+)?(?:\s+[[:alnum:][:space:]._/-]+)?$`)
 
 func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
@@ -51,7 +53,7 @@ func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 			return errors.New("qty harus berupa jumlah, contoh: 5 rim atau 1 roll")
 		}
 		if jenis == constant.JenisPengajuanBarang && it.IsSerialized {
-			if len(it.SerialNumbers) != it.Qty {
+			if len(it.SerialNumbers) != qtyIntValue(it.Qty) {
 				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
 			}
 			seen := make(map[string]bool, len(it.SerialNumbers))
@@ -67,7 +69,7 @@ func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 			if strings.TrimSpace(it.Kode) == "" || strings.TrimSpace(it.Nama) == "" || strings.TrimSpace(it.Merek) == "" || strings.TrimSpace(it.Tipe) == "" {
 				return errors.New("kode barang, nama, merek/model, dan tipe wajib diisi untuk barang manual")
 			}
-			if it.IsSerialized && len(it.SerialNumbers) != it.Qty {
+			if it.IsSerialized && len(it.SerialNumbers) != qtyIntValue(it.Qty) {
 				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
 			}
 			continue

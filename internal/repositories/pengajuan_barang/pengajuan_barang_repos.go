@@ -161,7 +161,7 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 	for _, item := range pengajuan.Items {
 		qty, err := qtyInt(item.Qty)
 		if err != nil {
-			return nil, fmt.Errorf("qty tidak dapat diproses: %s", qty)
+			return nil, fmt.Errorf("qty tidak dapat diproses: %s", item.Qty)
 		}
 		var b model.Barang
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {

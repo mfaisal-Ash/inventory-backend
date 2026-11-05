@@ -74,7 +74,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 		must(t, err)
 		p := &model.PengajuanBarang{NomorPengajuan: nomor, Jenis: constant.JenisPengajuanMasuk, GudangID: g.ID,
 			Tanggal: day(2026, 10, 27), Status: constant.StatusPengajuanDiajukan, Keperluan: "restock", DiajukanOleh: pengaju.ID,
-			Items: []model.PengajuanBarangItem{{BarangID: br.ID, Qty: 50}}}
+			Items: []model.PengajuanBarangItem{{BarangID: br.ID, Qty: "50"}}}
 		p.TandaTangan = []model.PengajuanTandaTangan{{Peran: model.PeranTTDPencatat, UserID: pengaju.ID, Nama: "Pengaju",
 			Data: []byte("png-pengaju"), DokumenHash: p.ComputeDokumenHash(), SignedAt: day(2026, 10, 27)}}
 		must(t, repo.Create(p))
@@ -118,7 +118,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 	}
 
 	// Edit isi -> tanda tangan lama gugur, lalu pengaju tanda tangan ulang.
-	p.Items = []model.PengajuanBarangItem{{BarangID: br.ID, Qty: 80}}
+	p.Items = []model.PengajuanBarangItem{{BarangID: br.ID, Qty: "80"}}
 	must(t, repo.Update(p, p.Items, nil))
 	if _, err := repo.Setujui(p.ID, penyetuju.ID, "GA", "Manajer", "", ttd()); err == nil || err.Error() != constant.ErrPengajuanTTDPencatatHilang {
 		t.Fatalf("isi berubah tanpa tanda tangan ulang harus ditolak: %v", err)
