@@ -54,7 +54,7 @@ func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 		}
 		if jenis == constant.JenisPengajuanBarang && it.IsSerialized {
 			if len(it.SerialNumbers) != qtyIntValue(it.Qty) {
-				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
+				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%s)", it.Qty)
 			}
 			seen := make(map[string]bool, len(it.SerialNumbers))
 			for _, sn := range it.SerialNumbers {
@@ -70,7 +70,7 @@ func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 				return errors.New("kode barang, nama, merek/model, dan tipe wajib diisi untuk barang manual")
 			}
 			if it.IsSerialized && len(it.SerialNumbers) != qtyIntValue(it.Qty) {
-				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)
+				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%s)", it.Qty)
 			}
 			continue
 		}

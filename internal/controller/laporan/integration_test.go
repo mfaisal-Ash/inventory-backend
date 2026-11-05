@@ -73,7 +73,7 @@ func TestRingkasanGudang_Integrasi(t *testing.T) {
 	must(t, db.Create(&model.BarangStokGudang{BarangID: b2.ID, GudangID: g.ID, Stok: 0}).Error)
 	now := time.Now()
 	must(t, db.Create(&model.BarangMasuk{NomorPenerimaan: "BM-1", GudangID: g.ID, Status: constant.StatusBMSelesai, Tanggal: now, CompletedAt: &now,
-		Items: []model.BarangMasukItem{{BarangID: b1.ID, Qty: "3", HargaSatuan: 1000}}}).Error)
+		Items: []model.BarangMasukItem{{BarangID: b1.ID, Qty: 3, HargaSatuan: 1000}}}).Error)
 	must(t, db.Create(&model.PengajuanBarang{NomorPengajuan: "PJ-1", Jenis: constant.JenisPengajuanMasuk, GudangID: g.ID, Tanggal: now,
 		Status: constant.StatusPengajuanDiajukan, DiajukanOleh: u.ID, Items: []model.PengajuanBarangItem{{BarangID: b1.ID, Qty: "20"}}}).Error)
 
