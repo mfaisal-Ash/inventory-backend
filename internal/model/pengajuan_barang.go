@@ -103,7 +103,7 @@ type PengajuanBarangItem struct {
 	IsSerialized     bool     `json:"is_serialized" gorm:"not null;default:false"`
 	SerialNumbers    []string `json:"serial_numbers" gorm:"-"`
 	SerialNumbersRaw string   `json:"-" gorm:"type:text"`
-	Qty              int      `json:"qty" gorm:"not null"`
+	Qty              string   `json:"qty" gorm:"size:50;not null"`
 
 	// SatuanID: satuan yang dipakai pada qty baris ini (mis. roll, meter, pcs),
 	// diambil dari master satuan. Opsional — kosong berarti memakai satuan

@@ -3,6 +3,7 @@ package pengajuan_barang
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -42,8 +43,13 @@ func normalizeJenis(jenis string) string {
 	return jenis
 }
 
+var qtyPattern = regexp.MustCompile(`^\d+(?:[.,]\d+)?(?:\s+[[:alnum:][:space:]._/-]+)?$`)
+
 func (h *Controller) validateItems(items []ItemRequest, jenis string) error {
 	for _, it := range items {
+		if strings.TrimSpace(it.Qty) == "" || !qtyPattern.MatchString(strings.TrimSpace(it.Qty)) {
+			return errors.New("qty harus berupa jumlah, contoh: 5 rim atau 1 roll")
+		}
 		if jenis == constant.JenisPengajuanBarang && it.IsSerialized {
 			if len(it.SerialNumbers) != it.Qty {
 				return fmt.Errorf("jumlah nomor seri harus sama dengan qty (%d)", it.Qty)

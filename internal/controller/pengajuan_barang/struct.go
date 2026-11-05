@@ -47,7 +47,7 @@ func New(
 type ItemRequest struct {
 	BarangID uint   `json:"barang_id" validate:"omitempty"`
 	Kode     string `json:"kode" validate:"max=100"`
-	Qty      int    `json:"qty" validate:"required,min=1"`
+	Qty      string `json:"qty" validate:"required,max=50"`
 	// Field manual hanya dipakai untuk jenis "pengajuan" ketika barang belum
 	// ada di master Kelola Barang.
 	Nama          string   `json:"nama" validate:"max=150"`
