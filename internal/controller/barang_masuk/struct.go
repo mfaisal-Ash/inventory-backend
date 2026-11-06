@@ -57,6 +57,15 @@ type ItemSerialInput struct {
 	SerialNumbers     []string `json:"serial_numbers"`
 }
 
+type InspectionRequest struct {
+	Items []InspectionItem `json:"items" validate:"required,min=1,dive"`
+}
+type InspectionItem struct {
+	BarangMasukItemID uint     `json:"barang_masuk_item_id" validate:"required"`
+	ReceivedQty       int      `json:"received_qty" validate:"min=0"`
+	Identifiers       []string `json:"identifiers,omitempty"`
+}
+
 type SummaryResponse struct {
 	TotalDokumen int64 `json:"total_dokumen"`
 	Draft        int64 `json:"draft"`

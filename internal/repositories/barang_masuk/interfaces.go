@@ -36,4 +36,7 @@ type Repository interface {
 	// NextNomor menghasilkan nomor penerimaan berurutan berikutnya
 	// (format BM-YYYYMM-0001) lewat pkg/docnumber.
 	NextNomor() (string, error)
+	PendingInspections(p utils.PaginationParams) ([]model.BarangMasuk, int64, error)
+	Inspect(id uint, userID uint, received map[uint]int, identifiers map[uint][]string) error
+	InspectionHistory(p utils.PaginationParams) ([]model.BarangMasukInspection, int64, error)
 }

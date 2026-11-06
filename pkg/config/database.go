@@ -43,6 +43,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Barang{},
 		&model.BarangMasuk{},
 		&model.BarangMasukItem{},
+		&model.BarangMasukInspection{},
 		&model.BarangKeluar{},
 		&model.BarangKeluarItem{},
 		&model.BarangSerial{},

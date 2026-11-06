@@ -1,6 +1,7 @@
 package barang_masuk
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -201,6 +202,62 @@ func (r *repository) Batalkan(id uint) (*model.BarangMasuk, error) {
 		return nil, errors.New(constant.ErrBMBukanDraft)
 	}
 	return r.FindByID(id)
+}
+
+func (r *repository) PendingInspections(p utils.PaginationParams) ([]model.BarangMasuk, int64, error) {
+	var out []model.BarangMasuk
+	var total int64
+	q := r.db.Model(&model.BarangMasuk{}).Where("status = ?", constant.StatusBMDraft)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := p.Apply(q.Preload("Gudang").Preload("Items").Order("id desc")).Find(&out).Error; err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func (r *repository) Inspect(id uint, userID uint, received map[uint]int, identifiers map[uint][]string) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var bm model.BarangMasuk
+		if err := tx.Preload("Items").First(&bm, id).Error; err != nil {
+			return err
+		}
+		if bm.Status != constant.StatusBMDraft {
+			return errors.New(constant.ErrBMBukanDraft)
+		}
+		for _, item := range bm.Items {
+			qty, ok := received[item.ID]
+			if !ok || qty < 0 || qty > item.Qty {
+				return fmt.Errorf("received_qty tidak valid untuk item %d", item.ID)
+			}
+			b, err := json.Marshal(identifiers[item.ID])
+			if err != nil {
+				return err
+			}
+			row := model.BarangMasukInspection{BarangMasukID: id, BarangMasukItemID: item.ID, ReceivedQty: qty, Identifiers: string(b), InspectedBy: userID, InspectedAt: time.Now()}
+			if err := tx.Create(&row).Error; err != nil {
+				return err
+			}
+		}
+		// Inspeksi hanya mencatat hasil pemeriksaan. Dokumen tetap draft agar
+		// proses Barang Masuk (posting stok dan serial) tetap dilakukan melalui
+		// endpoint penyelesaian yang sudah ada.
+		return nil
+	})
+}
+
+func (r *repository) InspectionHistory(p utils.PaginationParams) ([]model.BarangMasukInspection, int64, error) {
+	var out []model.BarangMasukInspection
+	var total int64
+	q := r.db.Model(&model.BarangMasukInspection{})
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := p.Apply(q.Preload("BarangMasuk").Order("id desc")).Find(&out).Error; err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
 }
 
 func (r *repository) CountByStatus(status string) (int64, error) {

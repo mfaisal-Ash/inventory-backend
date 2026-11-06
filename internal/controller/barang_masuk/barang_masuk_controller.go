@@ -274,6 +274,46 @@ func (h *Controller) Batalkan(c *fiber.Ctx) error {
 	return utils.OK(c, "dokumen barang masuk berhasil dibatalkan", bm)
 }
 
+func (h *Controller) PendingInspection(c *fiber.Ctx) error {
+	p := utils.PaginationFromContext(c)
+	list, total, err := h.repo.PendingInspections(p)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil barang masuk pending inspeksi", nil)
+	}
+	return utils.OKWithMeta(c, "daftar pending inspeksi berhasil diambil", list, utils.BuildPaginationMeta(p, total))
+}
+
+func (h *Controller) Inspect(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
+	}
+	var req InspectionRequest
+	if !utils.ParseAndValidate(c, &req) {
+		return nil
+	}
+	received := make(map[uint]int)
+	identifiers := make(map[uint][]string)
+	for _, item := range req.Items {
+		received[item.BarangMasukItemID] = item.ReceivedQty
+		identifiers[item.BarangMasukItemID] = item.Identifiers
+	}
+	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	if err := h.repo.Inspect(id, userID, received, identifiers); err != nil {
+		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	return utils.OK(c, "inspeksi barang masuk berhasil disimpan", nil)
+}
+
+func (h *Controller) InspectionHistory(c *fiber.Ctx) error {
+	p := utils.PaginationFromContext(c)
+	list, total, err := h.repo.InspectionHistory(p)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil riwayat inspeksi", nil)
+	}
+	return utils.OKWithMeta(c, "riwayat inspeksi berhasil diambil", list, utils.BuildPaginationMeta(p, total))
+}
+
 func (h *Controller) Summary(c *fiber.Ctx) error {
 	total, err := h.repo.CountByStatus("")
 	draft, err2 := h.repo.CountByStatus(constant.StatusBMDraft)
@@ -296,6 +336,9 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	onlySuperAdmin := middleware.RequireRole(constant.RoleSuperAdmin)
 
 	g.Get("/summary", view, h.Summary)
+	g.Get("/inspection/pending", view, h.PendingInspection)
+	g.Get("/inspection/history", view, h.InspectionHistory)
+	g.Patch("/:id/inspection", edit, h.Inspect)
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, h.Create)
