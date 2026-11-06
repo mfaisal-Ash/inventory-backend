@@ -36,7 +36,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:                 deps.Cfg.App.Name,
 		ErrorHandler:            globalErrorHandler,
-		BodyLimit:               4 * 1024 * 1024,
+		BodyLimit:               5 * 1024 * 1024,
 		ReadTimeout:             15 * time.Second,
 		WriteTimeout:            15 * time.Second,
 		IdleTimeout:             60 * time.Second,
