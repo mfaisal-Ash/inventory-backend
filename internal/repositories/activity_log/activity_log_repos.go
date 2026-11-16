@@ -27,6 +27,7 @@ const RetentionDays = 7
 
 type Repository interface {
 	Create(l *model.ActivityLog) error
+	DeleteAll() (int64, error)
 	DeleteOlderThan(t time.Time) (int64, error)
 	List(f Filter) ([]model.ActivityLog, int64, error)
 }
@@ -76,6 +77,11 @@ func (r *repository) fillUser(l *model.ActivityLog) {
 			l.RoleName = role.Name
 		}
 	}
+}
+
+func (r *repository) DeleteAll() (int64, error) {
+	res := r.db.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.ActivityLog{})
+	return res.RowsAffected, res.Error
 }
 
 func (r *repository) DeleteOlderThan(t time.Time) (int64, error) {

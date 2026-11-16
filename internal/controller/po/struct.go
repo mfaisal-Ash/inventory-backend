@@ -4,6 +4,7 @@ import (
 	"time"
 
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	pengajuanRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_barang"
 	poRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"
@@ -11,15 +12,16 @@ import (
 )
 
 type Controller struct {
-	repo         poRepo.Repository
-	supplierRepo supplierRepo.Repository
-	roleRepo     role.Repository
-	jwtSvc       *utils.JWTService
-	notifRepo    notificationRepo.Repository
+	repo          poRepo.Repository
+	supplierRepo  supplierRepo.Repository
+	pengajuanRepo pengajuanRepo.Repository
+	roleRepo      role.Repository
+	jwtSvc        *utils.JWTService
+	notifRepo     notificationRepo.Repository
 }
 
-func New(repo poRepo.Repository, supplierRepo supplierRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
-	return &Controller{repo: repo, supplierRepo: supplierRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
+func New(repo poRepo.Repository, supplierRepo supplierRepo.Repository, pengajuanRepo pengajuanRepo.Repository, roleRepo role.Repository, jwtSvc *utils.JWTService, notifRepo notificationRepo.Repository) *Controller {
+	return &Controller{repo: repo, supplierRepo: supplierRepo, pengajuanRepo: pengajuanRepo, roleRepo: roleRepo, jwtSvc: jwtSvc, notifRepo: notifRepo}
 }
 
 type ItemRequest struct {
@@ -29,7 +31,7 @@ type ItemRequest struct {
 }
 
 type PORequest struct {
-	SupplierID uint `json:"supplier_id" validate:"required"`
+	SupplierID uint `json:"supplier_id"`
 
 	TanggalPO        string        `json:"tanggal_po" validate:"required"`
 	CatatanPengajuan string        `json:"catatan_pengajuan" validate:"max=255"`

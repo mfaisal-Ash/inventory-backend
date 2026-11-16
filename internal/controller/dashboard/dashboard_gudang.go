@@ -81,7 +81,7 @@ func (h *Controller) StokGrafik(c *fiber.Ctx) error {
 		Dari: dari, Sampai: sampai, Granularity: g, GudangID: queryUint(c, "gudang_id"),
 	})
 	if err != nil {
-		log.Printf("dashboard/gudang: %v", err)
+		log.Printf("dashboard/gudang stok-grafik failed granularity=%s dari=%s sampai=%s gudang_id=%d: %v", g, dari.Format(dayLayout), sampai.Format(dayLayout), queryUint(c, "gudang_id"), err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyusun grafik stok", nil)
 	}
 	return utils.OK(c, "grafik stok per gudang berhasil disusun", res)
@@ -209,6 +209,11 @@ func (h *Controller) StokGudang(c *fiber.Ctx) error {
 	}
 
 	groups, grand, nilai := groupNeracaPerGudang(res.Rows, harga)
+	// Pastikan collection selalu berupa array JSON, bukan null, agar frontend
+	// dapat melakukan .length/.map ketika belum ada stok.
+	if groups == nil {
+		groups = []StokGudangGroup{}
+	}
 	return utils.OK(c, "stok barang per gudang berhasil disusun", StokGudangResponse{
 		Dari: res.Dari, Sampai: res.Sampai, Gudang: groups, GrandTotal: grand, NilaiAkhir: nilai,
 		Retur: res.Retur, TakTerlacak: res.TakTerlacak, SelisihTotal: res.SelisihTotal,

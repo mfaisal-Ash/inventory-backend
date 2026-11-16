@@ -57,6 +57,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangKel
 	if err := p.Apply(q.Session(&gorm.Session{}).
 		Preload("Gudang").Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Barang.Satuan").
 		Order("id desc")).
 		Find(&list).Error; err != nil {
 		return nil, 0, err
@@ -71,6 +72,7 @@ func (r *repository) FindByID(id uint) (*model.BarangKeluar, error) {
 	var bk model.BarangKeluar
 	err := r.db.Preload("Gudang").Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Barang.Satuan").
 		First(&bk, id).Error
 	if err != nil {
 		return nil, err

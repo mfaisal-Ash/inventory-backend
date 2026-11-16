@@ -1,29 +1,3 @@
-// Package geocoding menerjemahkan alamat teks (khususnya alamat Indonesia,
-// yang sering memuat notasi RT/RW) menjadi koordinat lintang/bujur lewat
-// Nominatim (OpenStreetMap).
-//
-// Kenapa ini dipindah ke backend (sebelumnya frontend memanggil Nominatim
-// langsung dari browser):
-//  1. Kebijakan penggunaan Nominatim mewajibkan header User-Agent yang jelas
-//     mengidentifikasi aplikasi pemanggil — ini tidak bisa diatur dari
-//     fetch() di browser (User-Agent dikunci oleh browser itu sendiri).
-//  2. Kebijakan penggunaan Nominatim membatasi maksimal 1 request/detik,
-//     dihitung per aplikasi (bukan per user) — cuma bisa ditegakkan dengan
-//     benar kalau semua request lewat satu titik (backend), bukan dari
-//     banyak browser pengguna sekaligus.
-//  3. Caching di sini mengurangi jumlah request keluar untuk alamat yang
-//     sama/mirip yang dicoba berkali-kali.
-//
-// Akar masalah "koordinat tidak akurat" yang dilaporkan: alamat gaya
-// Indonesia sering menulis nomor rumah sebagai "No.RT03/13" (notasi RT/RW
-// dipakai menggantikan nomor rumah biasa). Nominatim tidak mengenal notasi
-// ini sebagai house_number yang valid, jadi pencarian dengan token itu
-// gagal — dan algoritma fallback lama (drop token per token dari kiri)
-// langsung membuang SELURUH segmen jalan ("Jl. Cimuncang No.RT03/13") lalu
-// lompat ke segmen berikutnya (kelurahan/desa), sehingga hasil yang didapat
-// cuma akurat di level kelurahan, bukan level jalan. Perbaikan utama di
-// sini adalah membersihkan notasi RT/RW/No. tersebut TANPA membuang nama
-// jalannya, supaya pencarian tetap mencoba mencocokkan di level jalan dulu.
 package geocoding
 
 import (
@@ -103,23 +77,6 @@ func NewService(appName string) *Service {
 
 var errNoMatch = fmt.Errorf("alamat tidak ditemukan")
 
-// Geocode mencoba menerjemahkan rawAddress ke koordinat. Alur pencariannya:
-//  1. Cek cache.
-//  2. Bersihkan setiap segmen alamat dari notasi RT/RW/"No." administratif
-//     (tanpa membuang nama jalan/tempatnya).
-//  3. Coba query terstruktur (street/city/county/state/postalcode) hasil
-//     parsing heuristik alamat Indonesia — biasanya lebih presisi kalau
-//     datanya cocok dengan tag OSM.
-//  4. Coba query bebas teks dengan alamat yang sudah dibersihkan, utuh
-//     dulu (supaya nama jalan tidak langsung dibuang).
-//  5. Kalau masih gagal, baru turun bertahap: buang segmen paling kiri
-//     satu per satu (fallback lama), sampai akhirnya cuma tersisa
-//     kabupaten/provinsi.
-//
-// Basically: sekarang lebih dari satu strategi dicoba, dan yang dipakai
-// adalah hasil pertama yang ketemu (dengan urutan strategi yang paling
-// mungkin presisi duluan) — bukan asal ambil kecocokan pertama seperti
-// sebelumnya.
 func (s *Service) Geocode(ctx context.Context, rawAddress string) (*Result, error) {
 	original := strings.TrimSpace(rawAddress)
 	if original == "" {

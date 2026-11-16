@@ -3,6 +3,7 @@ package users
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -38,6 +39,56 @@ func (h *Controller) manageableTarget(c *fiber.Ctx) (*model.User, bool) {
 
 // ResetPassword: super admin mengatur ulang password akun admin/karyawan, lalu
 // semua sesi akun itu dicabut dan kunci login (percobaan gagal) dibersihkan.
+func (h *Controller) ListPasswordResetRequests(c *fiber.Ctx) error {
+	items, err := h.resetRepo.ListPending()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memuat permintaan reset password", nil)
+	}
+	return utils.OK(c, "permintaan reset password berhasil dimuat", items)
+}
+
+func (h *Controller) ApprovePasswordReset(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("requestId"), 10, 64)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, cons.ErrIDInvalid, nil)
+	}
+	req, err := h.resetRepo.FindByID(uint(id))
+	if err != nil || req.Status != model.PasswordResetPending || req.User == nil || !req.User.IsActive {
+		return utils.Fail(c, fiber.StatusNotFound, "permintaan reset tidak ditemukan atau sudah diproses", nil)
+	}
+	// Approval menetapkan password yang dikirim oleh Super Admin melalui endpoint
+	// reset terautentikasi; request hanya mengubah status dan mencatat reviewer.
+	now := time.Now()
+	reviewer, _ := c.Locals(cons.CtxUserID).(uint)
+	req.Status = model.PasswordResetApproved
+	req.ReviewedBy = &reviewer
+	req.ReviewedAt = &now
+	if err := h.resetRepo.Update(req); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyetujui permintaan reset", nil)
+	}
+	return utils.OK(c, "permintaan reset disetujui; lanjutkan reset melalui kontrol akun", req)
+}
+
+func (h *Controller) RejectPasswordReset(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("requestId"), 10, 64)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, cons.ErrIDInvalid, nil)
+	}
+	req, err := h.resetRepo.FindByID(uint(id))
+	if err != nil || req.Status != model.PasswordResetPending {
+		return utils.Fail(c, fiber.StatusNotFound, "permintaan reset tidak ditemukan atau sudah diproses", nil)
+	}
+	now := time.Now()
+	reviewer, _ := c.Locals(cons.CtxUserID).(uint)
+	req.Status = model.PasswordResetRejected
+	req.ReviewedBy = &reviewer
+	req.ReviewedAt = &now
+	if err := h.resetRepo.Update(req); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menolak permintaan reset", nil)
+	}
+	return utils.OK(c, "permintaan reset ditolak", nil)
+}
+
 func (h *Controller) ResetPassword(c *fiber.Ctx) error {
 	var req ResetPasswordRequest
 	if !utils.ParseAndValidate(c, &req) {

@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strconv"
@@ -396,9 +397,26 @@ func (h *Controller) RevokeUserSession(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusNotFound, cons.ErrUsersUserNotFound, nil)
 	}
 
+	// Ambil informasi perangkat sebelum sesi dicabut agar pesan konfirmasi
+	// menyebutkan perangkat yang benar-benar terdeteksi.
+	deviceLabel := "perangkat"
+	if sessions, listErr := h.authRepo.ListActiveSessions(uint(id)); listErr == nil {
+		for _, session := range sessions {
+			if session.ID == uint(sessionID) {
+				deviceLabel = session.DeviceType
+				if deviceLabel == "" {
+					deviceLabel = session.Browser
+				}
+				if deviceLabel == "" {
+					deviceLabel = "perangkat"
+				}
+				break
+			}
+		}
+	}
+
 	// Siapa admin yang MELAKUKAN pencabutan ini (bukan pemilik sesinya) —
-	// dicatat supaya perangkat yang di-cabut bisa diberi tahu "di-logout
-	// paksa oleh <username admin ini>" (lihat middleware.JWTAuth).
+	// dicatat supaya perangkat yang di-cabut bisa diberi tahu.
 	revokedByUserID, _ := c.Locals(constant.CtxUserID).(uint)
 
 	if err := h.authRepo.RevokeSession(uint(id), uint(sessionID), revokedByUserID); err != nil {
@@ -407,7 +425,59 @@ func (h *Controller) RevokeUserSession(c *fiber.Ctx) error {
 		}
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mencabut sesi", nil)
 	}
-	return utils.OK(c, "sesi berhasil dicabut, perangkat tsb otomatis ter-logout", nil)
+	return utils.OK(c, fmt.Sprintf("sesi berhasil dicabut, perangkat %s otomatis keluar.", deviceLabel), nil)
+}
+
+func (h *Controller) ServeSignature(c *fiber.Ctx) error {
+	u, err := h.currentUser(c)
+	if err != nil || len(u.SignatureData) == 0 {
+		return utils.Fail(c, fiber.StatusNotFound, "tanda tangan belum tersedia", nil)
+	}
+	c.Set(fiber.HeaderContentType, "image/png")
+	c.Set(fiber.HeaderCacheControl, "private, max-age=300")
+	return c.Send(u.SignatureData)
+}
+
+func (h *Controller) UploadSignature(c *fiber.Ctx) error {
+	u, err := h.currentUser(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, cons.ErrUsersUserNotFound, nil)
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "file tanda tangan wajib diunggah", nil)
+	}
+	if file.Size > 5*1024*1024 {
+		return utils.Fail(c, fiber.StatusBadRequest, "tanda tangan maksimal 5 MB", nil)
+	}
+	data, err := file.Open()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "file tanda tangan tidak dapat dibaca", nil)
+	}
+	defer data.Close()
+	content, err := io.ReadAll(io.LimitReader(data, 5*1024*1024+1))
+	if err != nil || len(content) == 0 || !utils.ImageMatchesType(content, "image/png") {
+		return utils.Fail(c, fiber.StatusBadRequest, "tanda tangan harus berupa PNG transparan", nil)
+	}
+	now := time.Now()
+	u.SignatureData, u.SignatureUpdatedAt = content, &now
+	if err := h.userRepo.Update(u); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan tanda tangan", nil)
+	}
+	return utils.OK(c, "tanda tangan berhasil disimpan", map[string]any{"available": true})
+}
+
+func (h *Controller) DeleteSignature(c *fiber.Ctx) error {
+	u, err := h.currentUser(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusNotFound, cons.ErrUsersUserNotFound, nil)
+	}
+	u.SignatureData = nil
+	u.SignatureUpdatedAt = nil
+	if err := h.userRepo.Update(u); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus tanda tangan", nil)
+	}
+	return utils.OK(c, "tanda tangan berhasil dihapus", nil)
 }
 
 func (h *Controller) RegisterRoutes(router fiber.Router) {
@@ -416,6 +486,9 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	authed.Patch("/me", h.UpdateMe)
 	authed.Post("/me/avatar", h.UploadAvatar)
 	authed.Delete("/me/avatar", h.DeleteAvatar)
+	authed.Post("/me/signature", h.UploadSignature)
+	authed.Get("/me/signature", h.ServeSignature)
+	authed.Delete("/me/signature", h.DeleteSignature)
 
 	authed.Get("/:id/avatar", h.ServeAvatar)
 
@@ -436,6 +509,9 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Delete("/:id/sessions/:sessionId", middleware.RequireRole(cons.RoleSuperAdmin), h.RevokeUserSession)
 
 	// Kendali super admin atas akun admin/karyawan.
+	g.Get("/password-reset-requests", middleware.RequireRole(cons.RoleSuperAdmin), h.ListPasswordResetRequests)
+	g.Post("/password-reset-requests/:requestId/approve", middleware.RequireRole(cons.RoleSuperAdmin), h.ApprovePasswordReset)
+	g.Post("/password-reset-requests/:requestId/reject", middleware.RequireRole(cons.RoleSuperAdmin), h.RejectPasswordReset)
 	g.Post("/:id/reset-password", middleware.RequireRole(cons.RoleSuperAdmin), h.ResetPassword)
 	g.Post("/:id/logout-all", middleware.RequireRole(cons.RoleSuperAdmin), h.ForceLogout)
 }

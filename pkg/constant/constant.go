@@ -54,14 +54,9 @@ const (
 )
 
 const (
-	StatusPengecekan = "pengecekan"
-	StatusRetur      = "retur"
-	StatusRusak      = "rusak"
-	// StatusDisimpanGudang: status akhir untuk barang berstatus "retur" yang
-	// tidak/belum dikirim balik ke supplier — fitur retur-ke-supplier
-	// sebelumnya sudah dihapus dari aplikasi ini, jadi sebagai gantinya
-	// barangnya disimpan sementara kembali ke stok gudang (via endpoint
-	// SimpanKeGudang) supaya tidak menggantung tanpa tindak lanjut.
+	StatusPengecekan     = "pengecekan"
+	StatusRetur          = "retur"
+	StatusRusak          = "rusak"
 	StatusDisimpanGudang = "disimpan_gudang"
 )
 

@@ -28,11 +28,12 @@ import (
 	pengajuanBarangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengajuan_barang"
 	pengajuanTemplateController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengajuan_template"
 	pengirimanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/pengiriman"
+	purchaseOrderController "github.com/mfaisal-Ash/inventory-backend/internal/controller/po"
 	returController "github.com/mfaisal-Ash/inventory-backend/internal/controller/retur"
 	roleController "github.com/mfaisal-Ash/inventory-backend/internal/controller/role"
+	roleChangeController "github.com/mfaisal-Ash/inventory-backend/internal/controller/role_change"
 	securityController "github.com/mfaisal-Ash/inventory-backend/internal/controller/security"
 	stockOpnameController "github.com/mfaisal-Ash/inventory-backend/internal/controller/stockOpname"
-	taskController "github.com/mfaisal-Ash/inventory-backend/internal/controller/task"
 	trashController "github.com/mfaisal-Ash/inventory-backend/internal/controller/trash"
 	usersController "github.com/mfaisal-Ash/inventory-backend/internal/controller/users"
 	"github.com/mfaisal-Ash/inventory-backend/internal/health"
@@ -52,13 +53,15 @@ import (
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
 	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
 	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	passwordresetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/passwordreset"
 	pengajuanBarangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_barang"
 	pengajuanTemplateRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengajuan_template"
 	pengirimanRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/pengiriman"
+	purchaseOrderRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/po"
 	returRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/retur"
 	roleRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	stockOpnameRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/stockOpname"
-	taskRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/task"
+	supplierRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/supplier"
 	usersRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/botcheck"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/captcha"
@@ -78,9 +81,10 @@ type Dependencies struct {
 
 	MaintenanceRepo maintenanceRepo.Repository
 
-	AuthController *authController.Controller
-	UserController *usersController.Controller
-	RoleController *roleController.Controller
+	AuthController       *authController.Controller
+	UserController       *usersController.Controller
+	RoleController       *roleController.Controller
+	RoleChangeController *roleChangeController.Controller
 
 	ActivityController *activityController.Controller
 	ActivityRepo       activityLogRepo.Repository
@@ -97,7 +101,6 @@ type Dependencies struct {
 	ReturController        *returController.Controller
 	KabelController        *kabelController.Controller
 	NeracaController       *neracaController.Controller
-	TaskController         *taskController.Controller
 	AppInfoController      *appinfoController.Controller
 	TrashController        *trashController.Controller
 	NotificationController *notificationController.Controller
@@ -107,6 +110,7 @@ type Dependencies struct {
 	LaporanController           *laporanController.Controller
 	DashboardController         *dashboardController.Controller
 	PengajuanBarangController   *pengajuanBarangController.Controller
+	PurchaseOrderController     *purchaseOrderController.Controller
 	PengajuanTemplateController *pengajuanTemplateController.Controller
 	PengirimanController        *pengirimanController.Controller
 
@@ -130,6 +134,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rActivityLog := activityLogRepo.New(db)
 	activityLogRepo.StartPurger(rActivityLog, time.Hour)
 	rAuth := authRepo.New(db)
+	rPasswordReset := passwordresetRepo.New(db)
 	jwtSvc.SetSessionChecker(rAuth.CheckSession)
 	rGudang := gudangRepo.New(db)
 	rBarang := barangRepo.New(db)
@@ -144,10 +149,11 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rRetur := returRepo.New(db)
 	rKabel := kabelRepo.New(db)
 	rNeraca := neracaRepo.New(db)
-	rTask := taskRepo.New(db)
 	rMaintenance := maintenanceRepo.New(db)
 	rAccessPolicy := accessPolicyRepo.New(db)
 	rPengajuanBarang := pengajuanBarangRepo.New(db)
+	rPurchaseOrder := purchaseOrderRepo.New(db)
+	rSupplier := supplierRepo.New(db)
 	rPengajuanTemplate := pengajuanTemplateRepo.New(db)
 	rPengiriman := pengirimanRepo.New(db)
 
@@ -162,6 +168,8 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 
 	cAuth := authController.New(authController.Params{
 		AuthRepo:      rAuth,
+		ResetRepo:     rPasswordReset,
+		NotifRepo:     rNotification,
 		UserRepo:      rUsers,
 		RoleRepo:      rRole,
 		JWTSvc:        jwtSvc,
@@ -170,10 +178,13 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		Cfg:           cfg,
 		GeoipSvc:      geoipSvc,
 	})
+	cRoleChange := roleChangeController.New(db, jwtSvc)
 	cUsers := usersController.New(usersController.Params{
 		UserRepo:      rUsers,
 		RoleRepo:      rRole,
 		AuthRepo:      rAuth,
+		ResetRepo:     rPasswordReset,
+		NotifRepo:     rNotification,
 		JWTSvc:        jwtSvc,
 		HumanCheckSvc: humanCheckSvc,
 		StoragePath:   cfg.Storage.Path,
@@ -190,13 +201,13 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, rBarang, jwtSvc, rNotification)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rGudang, rRole, jwtSvc, rNotification)
-	cTask := taskController.New(rTask, rRole, jwtSvc)
 	cRetur := returController.New(rRetur, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cKabel := kabelController.New(rKabel, rRole, jwtSvc)
 	cNeraca := neracaController.New(rNeraca, rRole, jwtSvc)
 	cLaporan := laporanController.New(rBarang, rBarangMasuk, rBarangKeluar, rStockOpname, rBarangRusak, rBarangSerial, rPengajuanBarang, rAsset, rAssetHistory, rUsers, rRole, rNeraca, jwtSvc)
 	cDashboard := dashboardController.New(rBarang, rGudang, rBarangMasuk, rBarangKeluar, rStockOpname, rRole, jwtSvc, db)
 	cPengajuanBarang := pengajuanBarangController.New(rPengajuanBarang, rBarang, rGudang, rUsers, rRole, jwtSvc, rNotification, rPengajuanTemplate)
+	cPurchaseOrder := purchaseOrderController.New(rPurchaseOrder, rSupplier, rPengajuanBarang, rRole, jwtSvc, rNotification)
 	cPengajuanTemplate := pengajuanTemplateController.New(rPengajuanTemplate, jwtSvc)
 	cPengiriman := pengirimanController.New(rPengiriman, rGudang, rBarangKeluar, rRole, jwtSvc, rNotification)
 	cCaptcha := captchaController.New(captchaSvc)
@@ -218,6 +229,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		AuthController:              cAuth,
 		UserController:              cUsers,
 		RoleController:              cRole,
+		RoleChangeController:        cRoleChange,
 		ActivityController:          cActivity,
 		ActivityRepo:                rActivityLog,
 		GudangController:            cGudang,
@@ -231,7 +243,6 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		ReturController:             cRetur,
 		KabelController:             cKabel,
 		NeracaController:            cNeraca,
-		TaskController:              cTask,
 		AppInfoController:           appinfoController.New(cfg, jwtSvc, rMaintenance, rNotification),
 		TrashController:             trashController.New(db, jwtSvc),
 		NotificationController:      notificationController.New(rNotification, jwtSvc),
@@ -239,6 +250,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		LaporanController:           cLaporan,
 		DashboardController:         cDashboard,
 		PengajuanBarangController:   cPengajuanBarang,
+		PurchaseOrderController:     cPurchaseOrder,
 		PengajuanTemplateController: cPengajuanTemplate,
 		PengirimanController:        cPengiriman,
 		CaptchaController:           cCaptcha,

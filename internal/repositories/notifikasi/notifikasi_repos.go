@@ -2,6 +2,7 @@ package notifikasi
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
@@ -108,10 +109,24 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 }
 
 func (r *repository) Dismiss(notificationID, userID uint) error {
-	return r.db.Exec(
-		`INSERT INTO notification_dismissed (notification_id, user_id, dismissed_at)
-		 VALUES (?, ?, NOW())
-		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
-		notificationID, userID,
-	).Error
+	if notificationID == 0 || userID == 0 {
+		return gorm.ErrInvalidData
+	}
+
+	// Dismiss hanya menyembunyikan notifikasi untuk user yang sedang login.
+	// Gunakan GORM agar kompatibel dengan PostgreSQL dan SQLite saat testing.
+	var notification model.Notification
+	if err := r.db.Select("id").First(&notification, notificationID).Error; err != nil {
+		// Notifikasi yang sudah tidak ada tidak perlu membuat request gagal.
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}
+
+	row := &model.NotificationDismissed{
+		NotificationID: notificationID,
+		UserID:         userID,
+	}
+	return r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(row).Error
 }

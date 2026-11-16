@@ -194,14 +194,73 @@ func (r *repository) Delete(id uint) error {
 	})
 }
 
+func (r *repository) transition(id, userID uint, from, to, reason string) (*model.StockOpname, error) {
+	var result *model.StockOpname
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var so model.StockOpname
+		if err := tx.First(&so, id).Error; err != nil {
+			return err
+		}
+		if so.Status != from {
+			return errors.New("status stock opname tidak sesuai untuk tindakan ini")
+		}
+		now := time.Now()
+		updates := map[string]interface{}{"status": to}
+		if to == constant.StatusSOSedangDihitung {
+			updates["dilakukan_oleh"] = userID
+		}
+		if to == constant.StatusSOMenungguPemeriksaan {
+			updates["diperiksa_oleh"] = userID
+			updates["diperiksa_pada"] = now
+		}
+		if to == constant.StatusSODitolak {
+			updates["alasan_penolakan"] = reason
+		}
+		if to == constant.StatusSOSelesai {
+			updates["disetujui_oleh"] = userID
+			updates["disetujui_pada"] = now
+		}
+		if err := tx.Model(&so).Updates(updates).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.StockOpnameStatusHistory{StockOpnameID: id, FromStatus: from, ToStatus: to, ChangedBy: userID, Reason: reason}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	result, err = r.FindByID(id)
+	return result, err
+}
+
+func (r *repository) MulaiPenghitungan(id, userID uint) (*model.StockOpname, error) {
+	return r.transition(id, userID, constant.StatusSODraft, constant.StatusSOSedangDihitung, "")
+}
+func (r *repository) KirimPemeriksaan(id, userID uint) (*model.StockOpname, error) {
+	return r.transition(id, userID, constant.StatusSOSedangDihitung, constant.StatusSOMenungguPemeriksaan, "")
+}
+func (r *repository) Setujui(id, userID uint) (*model.StockOpname, error) {
+	return r.Complete(id, userID)
+}
+func (r *repository) Tolak(id, userID uint, reason string) (*model.StockOpname, error) {
+	if reason == "" {
+		return nil, errors.New("alasan penolakan wajib diisi")
+	}
+	return r.transition(id, userID, constant.StatusSOMenungguPemeriksaan, constant.StatusSODitolak, reason)
+}
+func (r *repository) Riwayat(id uint) ([]model.StockOpnameStatusHistory, error) {
+	var rows []model.StockOpnameStatusHistory
+	err := r.db.Where("stock_opname_id = ?", id).Order("created_at asc, id asc").Find(&rows).Error
+	return rows, err
+}
+
 func (r *repository) Complete(id uint, userID uint) (*model.StockOpname, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var so model.StockOpname
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Preload("Items").First(&so, id).Error; err != nil {
 			return err
 		}
-		if so.Status != constant.StatusSODraft {
-			return errors.New(constant.ErrSOBukanDraft)
+		if so.Status != constant.StatusSODraft && so.Status != constant.StatusSOMenungguPemeriksaan {
+			return errors.New("stock opname belum siap diselesaikan atau sudah diproses")
 		}
 
 		for idx := range so.Items {

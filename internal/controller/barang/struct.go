@@ -85,6 +85,7 @@ type SummaryResponse struct {
 
 type RingkasanStokRow struct {
 	BarangID   uint   `json:"barang_id"`
+	IDBarang   string `json:"id_barang"`
 	KodeBarang string `json:"kode_barang"`
 	NamaBarang string `json:"nama_barang"`
 	Merek      string `json:"merek"`
@@ -95,7 +96,7 @@ type RingkasanStokRow struct {
 }
 
 type DetailStokResponse struct {
-	BarangID    uint                       `json:"barang_id"`
+	BarangID    string                     `json:"barang_id"`
 	KodeBarang  string                     `json:"kode_barang"`
 	NamaBarang  string                     `json:"nama_barang"`
 	TotalStok   int                        `json:"total_stok"`

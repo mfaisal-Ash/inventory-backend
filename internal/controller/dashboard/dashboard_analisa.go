@@ -106,6 +106,26 @@ func (h *Controller) Analisa(c *fiber.Ctx) error {
 		Order("value DESC").
 		Scan(&asetPerGudang)
 
+	// Jangan serialisasikan slice kosong sebagai null karena frontend menggunakannya
+	// sebagai collection untuk map/reduce.
+	if kategoriRows == nil {
+		kategoriRows = []KategoriComposition{}
+	}
+	if topRestocked == nil {
+		topRestocked = []BarangRanking{}
+	}
+	if topKeluar == nil {
+		topKeluar = []BarangRanking{}
+	}
+	if asetPerJenis == nil {
+		asetPerJenis = []KategoriComposition{}
+	}
+	if asetPerStatus == nil {
+		asetPerStatus = []KategoriComposition{}
+	}
+	if asetPerGudang == nil {
+		asetPerGudang = []KategoriComposition{}
+	}
 	return utils.OK(c, "analisa data berhasil diambil", AnalisaResponse{
 		TotalSKU:             totalSKU,
 		TotalRestockBulanIni: totalRestock,

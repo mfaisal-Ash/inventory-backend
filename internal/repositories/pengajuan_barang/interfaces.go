@@ -15,6 +15,7 @@ type Filter struct {
 type Repository interface {
 	List(p utils.PaginationParams, f Filter) ([]model.PengajuanBarang, int64, error)
 	FindByID(id uint) (*model.PengajuanBarang, error)
+	MarkPurchaseOrder(id uint) error
 	Create(pengajuan *model.PengajuanBarang) error
 	// Update mengganti isi pengajuan yang masih "diajukan". Karena isinya
 	// berubah, SEMUA tanda tangan lama dibuang (sidik jari dokumennya sudah

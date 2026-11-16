@@ -2,7 +2,7 @@ package utils
 
 import "net/http"
 
-// ImageMatchesType memastikan ISI file benar-benar gambar bertipe want
+// ImageMatchesType memastikan ISI file benar-benar gambar bertipe
 // ("image/jpeg" atau "image/png"), bukan sekadar berekstensi .jpg/.png.
 // Mencegah file lain (HTML, skrip, dsb.) disimpan lalu dilayani sebagai gambar.
 func ImageMatchesType(data []byte, want string) bool {

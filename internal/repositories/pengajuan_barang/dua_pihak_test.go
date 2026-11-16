@@ -13,7 +13,7 @@ func contoh(jenis string, diajukanOleh uint) *model.PengajuanBarang {
 		NomorPengajuan: "PJ-202610-0001", Jenis: jenis, GudangID: 1,
 		Tanggal:   time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
 		Keperluan: "Restock kabel", DiajukanOleh: diajukanOleh,
-		Items: []model.PengajuanBarangItem{{BarangID: 7, Qty: "10"}, {BarangID: 3, Qty: "2"}},
+		Items: []model.PengajuanBarangItem{{BarangID: model.UintPtr(7), Qty: "10"}, {BarangID: model.UintPtr(3), Qty: "2"}},
 	}
 }
 

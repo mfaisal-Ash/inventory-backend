@@ -104,6 +104,13 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 }
 
 func (r *repository) Dismiss(notificationID, userID uint) error {
+	if notificationID == 0 || userID == 0 {
+		return gorm.ErrInvalidData
+	}
+	var notification model.Notification
+	if err := r.db.Select("id").First(&notification, notificationID).Error; err != nil {
+		return err
+	}
 	return r.db.Exec(
 		`INSERT INTO notification_dismissed (notification_id, user_id, dismissed_at)
 		 VALUES (?, ?, NOW())

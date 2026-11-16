@@ -18,6 +18,8 @@ type User struct {
 
 	AvatarData          []byte     `json:"-" gorm:"type:bytea"`
 	AvatarContentType   string     `json:"-" gorm:"size:100"`
+	SignatureData       []byte     `json:"-" gorm:"type:bytea"`
+	SignatureUpdatedAt  *time.Time `json:"-"`
 	RoleID              uint       `json:"role_id" gorm:"not null;index"`
 	Role                *Role      `json:"role,omitempty" gorm:"foreignKey:RoleID"`
 	IsActive            bool       `json:"is_active" gorm:"default:true"`

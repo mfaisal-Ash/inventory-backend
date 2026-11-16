@@ -39,7 +39,11 @@ func (h *Controller) CheckUpdate(c *fiber.Ctx) error {
 	}
 
 	updateAvailable := selfupdate.CompareVersions(release.TagName, CurrentVersion) > 0
-	return utils.OK(c, "berhasil mengecek update", CheckUpdateResponse{
+	message := "berhasil mengecek update"
+	if !updateAvailable {
+		message = "tidak ada update, karena versi sekarang sudah yang terbaru"
+	}
+	return utils.OK(c, message, CheckUpdateResponse{
 		CurrentVersion:    CurrentVersion,
 		LatestVersion:     release.TagName,
 		UpdateAvailable:   updateAvailable,

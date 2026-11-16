@@ -5,6 +5,8 @@ import (
 
 	accessPolicyRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/accesspolicy"
 	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	passwordreset "github.com/mfaisal-Ash/inventory-backend/internal/repositories/passwordreset"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/humancheck"
@@ -15,6 +17,8 @@ type Controller struct {
 	userRepo      users.Repository
 	roleRepo      role.Repository
 	authRepo      authRepo.Repository
+	resetRepo     passwordreset.Repository
+	notifRepo     notificationRepo.Repository
 	jwtSvc        *utils.JWTService
 	humanCheckSvc *humancheck.Service
 	storagePath   string
@@ -26,6 +30,8 @@ type Params struct {
 	UserRepo      users.Repository
 	RoleRepo      role.Repository
 	AuthRepo      authRepo.Repository
+	ResetRepo     passwordreset.Repository
+	NotifRepo     notificationRepo.Repository
 	JWTSvc        *utils.JWTService
 	HumanCheckSvc *humancheck.Service
 	StoragePath   string
@@ -39,6 +45,8 @@ func New(p Params) *Controller {
 		userRepo:      p.UserRepo,
 		roleRepo:      p.RoleRepo,
 		authRepo:      p.AuthRepo,
+		resetRepo:     p.ResetRepo,
+		notifRepo:     p.NotifRepo,
 		jwtSvc:        p.JWTSvc,
 		humanCheckSvc: p.HumanCheckSvc,
 		storagePath:   p.StoragePath,
@@ -49,7 +57,7 @@ func New(p Params) *Controller {
 
 type CreateUserRequest struct {
 	Username    string `json:"username" validate:"required,min=4,max=50"`
-	Email       string `json:"email" validate:"required,email"`
+	Email       string `json:"email" validate:"omitempty,email"`
 	Password    string `json:"password" validate:"required,min=8"`
 	FullName    string `json:"full_name" validate:"required"`
 	PhoneNumber string `json:"phone_number" validate:"omitempty,max=20"`

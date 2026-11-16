@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -72,7 +73,11 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, "id tidak valid", nil)
 	}
+	if userID == 0 {
+		return utils.Fail(c, fiber.StatusUnauthorized, "sesi pengguna tidak valid", nil)
+	}
 	if err := h.repo.Dismiss(uint(id), userID); err != nil {
+		log.Printf("notification dismiss failed notification_id=%d user_id=%d: %v", id, userID, err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus notifikasi", nil)
 	}
 	return utils.OK(c, "notifikasi dihapus dari daftar", nil)

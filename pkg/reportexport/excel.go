@@ -55,6 +55,12 @@ func parseNumericCell(val string) (float64, bool) {
 	}
 	n, err := strconv.ParseFloat(cleaned, 64)
 	if err != nil {
+		// Qty yang sudah memuat satuan ("5 Rim"): pakai angka di depannya.
+		if parts := strings.Fields(strings.TrimSpace(val)); len(parts) >= 2 {
+			if m, err2 := strconv.ParseFloat(parts[0], 64); err2 == nil {
+				return m, true
+			}
+		}
 		return 0, false
 	}
 	return n, true

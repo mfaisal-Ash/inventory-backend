@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -67,6 +68,35 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	return utils.OK(c, "detail purchase order berhasil diambil", po)
 }
 
+func (h *Controller) CreateFromPengajuan(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id pengajuan tidak valid", nil)
+	}
+	p, err := h.pengajuanRepo.FindByID(id)
+	if err != nil || p.Jenis != "pengajuan" || p.Status != "disetujui" {
+		return utils.Fail(c, fiber.StatusConflict, "Purchase Request harus berstatus disetujui", nil)
+	}
+	tanggal := time.Now()
+	items := make([]ItemRequest, 0, len(p.Items))
+	for _, item := range p.Items {
+		if item.BarangID == nil || *item.BarangID == 0 {
+			return utils.Fail(c, fiber.StatusBadRequest, "Purchase Request memiliki barang manual yang belum terdaftar", nil)
+		}
+		items = append(items, ItemRequest{BarangID: *item.BarangID, QtyPesan: qtyIntValue(item.Qty)})
+	}
+	po := &model.PurchaseOrder{NomorPO: generateNomorPO(), PengajuanID: &p.ID, Status: constant.StatusPODraft, TanggalPO: tanggal, CatatanPengajuan: p.Keperluan, Items: toItemModels(items)}
+	if err := h.repo.Create(po); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat purchase order", nil)
+	}
+	if err := h.pengajuanRepo.MarkPurchaseOrder(p.ID); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "purchase order dibuat tetapi referensi pengajuan gagal diperbarui", nil)
+	}
+	return utils.Created(c, "purchase order berhasil dibuat dari Purchase Request", po)
+}
+
+func qtyIntValue(raw string) int { n, _ := strconv.Atoi(strings.Fields(raw)[0]); return n }
+
 func (h *Controller) Create(c *fiber.Ctx) error {
 	var req PORequest
 	if !utils.ParseAndValidate(c, &req) {
@@ -82,7 +112,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 
 	po := &model.PurchaseOrder{
 		NomorPO:          generateNomorPO(),
-		SupplierID:       req.SupplierID,
+		SupplierID:       model.UintPtr(req.SupplierID),
 		Status:           constant.StatusPODraft,
 		TanggalPO:        tanggalPO,
 		CatatanPengajuan: req.CatatanPengajuan,
@@ -136,7 +166,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "supplier tidak ditemukan", nil)
 	}
 
-	po.SupplierID = req.SupplierID
+	po.SupplierID = model.UintPtr(req.SupplierID)
 	po.TanggalPO = tanggalPO
 	po.CatatanPengajuan = req.CatatanPengajuan
 	if err := h.repo.Update(po, toItemModels(req.Items)); err != nil {
@@ -257,6 +287,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, h.Create)
+	g.Post("/from-pengajuan/:id", tambah, h.CreateFromPengajuan)
 	g.Put("/:id", edit, h.Update)
 	g.Delete("/:id", onlyStaff, edit, h.Delete)
 	g.Patch("/:id/ajukan", edit, h.Ajukan)

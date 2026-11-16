@@ -201,14 +201,21 @@ func utcOffsetSeconds() int {
 	return off
 }
 
-const seriesEventsSQL = evCTE + `
+func seriesEventsSQL(db *gorm.DB) string {
+	dayExpr := "((ev.ts AT TIME ZONE 'UTC') + INTERVAL '1 second' * @offset)::date"
+	if db.Dialector.Name() != "postgres" {
+		// SQLite tidak mendukung AT TIME ZONE, INTERVAL, atau ::date.
+		dayExpr = "date(ev.ts)"
+	}
+	return evCTE + `
 SELECT ev.gudang_id,
-	((ev.ts AT TIME ZONE 'UTC') + INTERVAL '1 second' * @offset)::date AS day,
+	` + dayExpr + ` AS day,
 	SUM(ev.delta) AS delta
 FROM ev
 JOIN barang b ON b.id = ev.barang_id AND b.deleted_at IS NULL
 WHERE ev.ts >= @fromTs AND (@gudangID = 0 OR ev.gudang_id = @gudangID)
 GROUP BY 1, 2`
+}
 
 func Series(db *gorm.DB, f SeriesFilter) (*SeriesResult, error) {
 	buckets := BuildBuckets(f.Dari, f.Sampai, f.Granularity)
@@ -236,7 +243,7 @@ func Series(db *gorm.DB, f SeriesFilter) (*SeriesResult, error) {
 		Delta    int
 	}
 	if len(buckets) > 0 {
-		if err := db.Raw(seriesEventsSQL, map[string]interface{}{
+		if err := db.Raw(seriesEventsSQL(db), map[string]interface{}{
 			"bmSelesai": constant.StatusBMSelesai,
 			"bkSelesai": constant.StatusBKSelesai,
 			"rtSelesai": constant.StatusReturSelesai,

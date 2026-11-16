@@ -47,7 +47,7 @@ func (h *Controller) ReportPreview(c *fiber.Ctx) error {
 		         WHERE bk.tanggal BETWEEN ? AND ? ORDER BY bk.tanggal DESC`, from, to).Scan(&rows)
 	case "stock-opname":
 		db.Raw(`SELECT so.nomor_opname AS nomor, so.tanggal, COALESCE(g.nama, '-') AS info, so.status, 0 AS qty
-		         FROM stock_opnames so LEFT JOIN gudangs g ON g.id = so.gudang_id
+		         FROM stock_opname so LEFT JOIN gudangs g ON g.id = so.gudang_id
 		         WHERE so.tanggal BETWEEN ? AND ? ORDER BY so.tanggal DESC`, from, to).Scan(&rows)
 	case "stok":
 		db.Raw(`SELECT b.kode_barang AS nomor, b.updated_at AS tanggal,

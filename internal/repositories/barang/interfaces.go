@@ -6,31 +6,19 @@ import (
 )
 
 type Filter struct {
-	KategoriID  uint
-	SatuanID    uint
-	StokMenipis bool
-	OnlyActive  bool
+	IDKategori uint
+	IDSatuan   uint
+	StatusStok string
+	HanyaAktif bool
+	Merek      string
 
-	// Merek/Tipe: filter tambahan supaya pengguna bisa mempersempit daftar
-	// barang berdasarkan merek/tipe (dipakai bareng search nama/SKU yang
-	// sudah ada) — exact match, bukan ILIKE, karena dropdown filter di
-	// frontend diisi dari nilai merek/tipe yang benar-benar ada.
-	Merek string
-	Tipe  string
+	Status   []string
+	SubmitBy uint
+	// DelegasiTo menambahkan data yang ditugaskan kepada user ke hasil filter.
+	DelegasiTo uint
 
-	ApprovalStatuses []string
-
-	OrSubmittedBy uint
-	// OrDelegatedTo: kalau diisi, item yang didelegasikan_ke user ini juga
-	// ikut muncul di daftar walau approval_status-nya belum masuk
-	// ApprovalStatuses (mis. masih "menunggu") — supaya admin yang didelegasikan
-	// benar-benar bisa MELIHAT & memproses item yang ditugaskan kepadanya.
-	OrDelegatedTo uint
-
-	// OnlyDelegatedTo: dipakai tab/filter "Didelegasikan ke Saya" — kalau
-	// diisi, HANYA item yang didelegasikan ke user ini yang ditampilkan
-	// (menggantikan pelebaran approval-status di atas).
-	OnlyDelegatedTo uint
+	// HanyaDelegasiTo digunakan untuk menampilkan data yang hanya didelegasikan.
+	HanyaDelegasiTo uint
 }
 
 type Repository interface {
@@ -38,6 +26,7 @@ type Repository interface {
 	FindByID(id uint) (*model.Barang, error)
 	FindByKode(kode string) (*model.Barang, error)
 	Create(b *model.Barang) error
+	CreateWithInitialStock(b *model.Barang, gudangID uint, stok int) error
 	Update(b *model.Barang) error
 	Delete(id uint) error
 

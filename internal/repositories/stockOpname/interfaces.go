@@ -25,6 +25,11 @@ type Repository interface {
 	Delete(id uint) error
 
 	Complete(id uint, userID uint) (*model.StockOpname, error)
+	MulaiPenghitungan(id uint, userID uint) (*model.StockOpname, error)
+	KirimPemeriksaan(id uint, userID uint) (*model.StockOpname, error)
+	Setujui(id uint, userID uint) (*model.StockOpname, error)
+	Tolak(id uint, userID uint, reason string) (*model.StockOpname, error)
+	Riwayat(id uint) ([]model.StockOpnameStatusHistory, error)
 	Batalkan(id uint) (*model.StockOpname, error)
 
 	CountByStatus(status string) (int64, error)

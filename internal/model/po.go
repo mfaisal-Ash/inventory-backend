@@ -5,7 +5,8 @@ import "time"
 type PurchaseOrder struct {
 	ID               uint                `json:"id" gorm:"primaryKey"`
 	NomorPO          string              `json:"nomor_po" gorm:"size:30;uniqueIndex;not null"`
-	SupplierID       uint                `json:"supplier_id" gorm:"not null;index"`
+	SupplierID       *uint               `json:"supplier_id,omitempty" gorm:"index"`
+	PengajuanID      *uint               `json:"pengajuan_id,omitempty" gorm:"index"`
 	Supplier         *Supplier           `json:"supplier,omitempty" gorm:"foreignKey:SupplierID"`
 	Status           string              `json:"status" gorm:"size:20;not null;default:'draft';index"`
 	TanggalPO        time.Time           `json:"tanggal_po" gorm:"not null"`

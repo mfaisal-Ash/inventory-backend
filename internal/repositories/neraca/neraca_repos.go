@@ -30,6 +30,7 @@ type Filter struct {
 
 type Row struct {
 	BarangID   uint   `json:"barang_id"`
+	IDBarang   string `json:"id_barang"`
 	KodeBarang string `json:"kode_barang"`
 	NamaBarang string `json:"nama_barang"`
 	Merek      string `json:"merek"`
@@ -128,11 +129,11 @@ WITH ev AS (
 	FROM stock_opname_items soi JOIN stock_opname so ON so.id = soi.stock_opname_id
 	WHERE so.status = @soSelesai
 	UNION ALL
-	SELECT b.id, b.stok_awal_gudang_id, b.tanggal::timestamptz, 'awal', b.stok_awal
+	SELECT b.id, b.stok_awal_gudang_id, b.tanggal, 'awal', b.stok_awal
 	FROM barang b
 	WHERE b.stok_awal > 0 AND b.stok_awal_gudang_id IS NOT NULL AND b.deleted_at IS NULL
 	UNION ALL
-	SELECT b.id, b.stok_awal_gudang_id, b.tanggal::timestamptz, 'keluar_awal', -b.keluar_awal
+	SELECT b.id, b.stok_awal_gudang_id, b.tanggal, 'keluar_awal', -b.keluar_awal
 	FROM barang b
 	WHERE b.keluar_awal > 0 AND b.stok_awal_gudang_id IS NOT NULL AND b.deleted_at IS NULL
 )`
@@ -140,15 +141,15 @@ WITH ev AS (
 const eventsCTE = evCTE + `,
 agg AS (
 	SELECT barang_id, gudang_id,
-		COALESCE(SUM(delta) FILTER (WHERE kind = 'masuk'  AND ts >= @dari AND ts < @sampai), 0) AS masuk,
-		COALESCE(-SUM(delta) FILTER (WHERE kind = 'keluar' AND ts >= @dari AND ts < @sampai), 0) AS keluar,
-		COALESCE(-SUM(delta) FILTER (WHERE kind = 'kabel'  AND ts >= @dari AND ts < @sampai), 0) AS pakai_kabel,
-		COALESCE(-SUM(delta) FILTER (WHERE kind = 'retur'  AND ts >= @dari AND ts < @sampai), 0) AS retur_ganti,
-		COALESCE(SUM(delta) FILTER (WHERE kind = 'opname' AND ts >= @dari AND ts < @sampai), 0) AS opname,
-		COALESCE(SUM(delta) FILTER (WHERE kind = 'awal' AND ts >= @dari AND ts < @sampai), 0) AS stok_awal_catat,
-		COALESCE(-SUM(delta) FILTER (WHERE kind = 'keluar_awal' AND ts >= @dari AND ts < @sampai), 0) AS keluar_awal,
-		COALESCE(SUM(delta) FILTER (WHERE ts >= @dari AND ts < @sampai), 0) AS delta_periode,
-		COALESCE(SUM(delta) FILTER (WHERE ts >= @sampai), 0) AS delta_sesudah,
+		COALESCE(SUM(CASE WHEN kind = 'masuk' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS masuk,
+		COALESCE(-SUM(CASE WHEN kind = 'keluar' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS keluar,
+		COALESCE(-SUM(CASE WHEN kind = 'kabel' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS pakai_kabel,
+		COALESCE(-SUM(CASE WHEN kind = 'retur' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS retur_ganti,
+		COALESCE(SUM(CASE WHEN kind = 'opname' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS opname,
+		COALESCE(SUM(CASE WHEN kind = 'awal' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS stok_awal_catat,
+		COALESCE(-SUM(CASE WHEN kind = 'keluar_awal' AND ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS keluar_awal,
+		COALESCE(SUM(CASE WHEN ts >= @dari AND ts < @sampai THEN delta ELSE 0 END), 0) AS delta_periode,
+		COALESCE(SUM(CASE WHEN ts >= @sampai THEN delta ELSE 0 END), 0) AS delta_sesudah,
 		COALESCE(SUM(delta), 0) AS delta_total
 	FROM ev
 	GROUP BY barang_id, gudang_id
@@ -158,7 +159,7 @@ pairs AS (
 	UNION
 	SELECT barang_id, gudang_id FROM agg
 )
-SELECT p.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, COALESCE(s.singkatan, '') AS satuan,
+SELECT p.barang_id, b.id_barang, b.kode_barang, b.nama AS nama_barang, b.merek, COALESCE(s.singkatan, '') AS satuan,
 	p.gudang_id, g.nama AS nama_gudang,
 	COALESCE(a.masuk, 0) AS masuk, COALESCE(a.keluar, 0) AS keluar,
 	COALESCE(a.pakai_kabel, 0) AS pakai_kabel, COALESCE(a.retur_ganti, 0) AS retur_ganti,
@@ -176,13 +177,14 @@ LEFT JOIN agg a ON a.barang_id = p.barang_id AND a.gudang_id = p.gudang_id
 LEFT JOIN barang_stok_gudang bsg ON bsg.barang_id = p.barang_id AND bsg.gudang_id = p.gudang_id
 WHERE (@gudangID = 0 OR p.gudang_id = @gudangID)
   AND (@barangID = 0 OR p.barang_id = @barangID)
-  AND (@search = '' OR b.nama ILIKE @like OR b.kode_barang ILIKE @like OR b.merek ILIKE @like)
+  AND (@search = '' OR LOWER(b.nama) LIKE LOWER(@like) OR LOWER(b.kode_barang) LIKE LOWER(@like) OR LOWER(b.merek) LIKE LOWER(@like))
 ORDER BY b.nama, g.nama
 LIMIT @maxRows`
 
 // StokRow: posisi stok satu barang di satu gudang pada tanggal tertentu.
 type StokRow struct {
 	BarangID   uint   `json:"barang_id"`
+	IDBarang   string `json:"id_barang"`
 	KodeBarang string `json:"kode_barang"`
 	NamaBarang string `json:"nama_barang"`
 	Merek      string `json:"merek"`
@@ -198,7 +200,7 @@ type StokRow struct {
 const stokPerTanggalSQL = evCTE + `,
 agg AS (
 	SELECT barang_id, gudang_id,
-		COALESCE(SUM(delta) FILTER (WHERE ts >= @sampai), 0) AS delta_sesudah
+		COALESCE(SUM(CASE WHEN ts >= @sampai THEN delta ELSE 0 END), 0) AS delta_sesudah
 	FROM ev
 	GROUP BY barang_id, gudang_id
 ),
@@ -207,7 +209,7 @@ pairs AS (
 	UNION
 	SELECT barang_id, gudang_id FROM agg
 )
-SELECT p.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe,
+SELECT p.barang_id, b.id_barang, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe,
 	p.gudang_id, g.nama AS nama_gudang,
 	(COALESCE(bsg.stok, 0) - COALESCE(a.delta_sesudah, 0)) AS stok
 FROM pairs p

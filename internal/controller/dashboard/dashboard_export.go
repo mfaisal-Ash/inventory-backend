@@ -3,6 +3,7 @@ package dashboard
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -53,7 +54,7 @@ func (h *Controller) ReportExport(c *fiber.Ctx) error {
 		         WHERE bk.tanggal BETWEEN ? AND ? ORDER BY bk.tanggal DESC`, from, to).Scan(&rows)
 	case "stock-opname":
 		db.Raw(`SELECT so.nomor_opname AS nomor, so.tanggal, COALESCE(g.nama, '-') AS info, so.status, 0 AS qty
-		         FROM stock_opnames so LEFT JOIN gudangs g ON g.id = so.gudang_id
+		         FROM stock_opname so LEFT JOIN gudangs g ON g.id = so.gudang_id
 		         WHERE so.tanggal BETWEEN ? AND ? ORDER BY so.tanggal DESC`, from, to).Scan(&rows)
 	case "stok":
 		db.Raw(`SELECT b.kode_barang AS nomor, b.updated_at AS tanggal,
@@ -124,7 +125,7 @@ func (h *Controller) ReportExport(c *fiber.Ctx) error {
 	html := renderReportHTML(title, from, to, shared)
 	if format == "pdf" {
 		c.Set(contentTypeHeader, "text/html; charset=utf-8")
-		c.Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.html"`, filename))
+		c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.html"`, filename))
 		return c.SendString(html)
 	}
 	c.Set(contentTypeHeader, "text/html; charset=utf-8")
@@ -178,7 +179,7 @@ func renderReportHTML(title string, from, to time.Time, rows []struct {
 	  @media print { body { margin: 20px; } header { page-break-inside: avoid; } .no-print { display: none; } }
 	</style></head><body>`)
 	b.WriteString(`<header><div class="brand"><div class="brand-badge">S</div><div><h1>`)
-	b.WriteString(title)
+	b.WriteString(html.EscapeString(title))
 	b.WriteString(`</h1><div style="font-size:12px;color:#8a7b74">StokRSD Warehouse Management System</div></div></div><div style="text-align:right;font-size:11px;color:#8a7b74">Dicetak: `)
 	b.WriteString(time.Now().Format("02 Jan 2006 15:04"))
 	b.WriteString(`</div></header>`)
@@ -188,11 +189,11 @@ func renderReportHTML(title string, from, to time.Time, rows []struct {
 		statusClass := "status-" + r.Status
 		b.WriteString(fmt.Sprintf(`<tr><td>%d</td><td style="font-family:monospace;font-weight:600">%s</td><td>%s</td><td>%s</td><td class="%s">%s</td><td style="text-align:right">%d</td></tr>`,
 			i+1,
-			r.Nomor,
-			r.Tanggal.Format(prettyDateFormat),
-			r.Info,
-			statusClass,
-			r.Status,
+			html.EscapeString(r.Nomor),
+			html.EscapeString(r.Tanggal.Format(prettyDateFormat)),
+			html.EscapeString(r.Info),
+			html.EscapeString(statusClass),
+			html.EscapeString(r.Status),
 			r.Qty))
 	}
 	if len(rows) == 0 {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"image/png"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,9 +18,9 @@ import (
 )
 
 const (
-	maxTTDBytes  = 300 * 1024 // gambar tanda tangan maksimal 300 KB
-	maxTTDPixels = 4_000_000  // batas lebar x tinggi, mencegah "decompression bomb"
-	minTTDInkPx  = 30         // minimal piksel "tinta" supaya kanvas kosong ditolak
+	maxTTDBytes  = 5 * 1024 * 1024 // gambar tanda tangan maksimal 5 MB
+	maxTTDPixels = 4_000_000       // batas lebar x tinggi, mencegah "decompression bomb"
+	minTTDInkPx  = 30              // minimal piksel "tinta" supaya kanvas kosong ditolak
 	pngDataURL   = "data:image/png;base64,"
 	maxLowStock  = 500
 )
@@ -100,10 +101,15 @@ func (h *Controller) ServeTTD(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusNotFound, constant.ErrPengajuanTTDTidakDitemukan, nil)
 	}
+	if len(t.Data) == 0 || !utils.ImageMatchesType(t.Data, "image/png") {
+		return utils.Fail(c, fiber.StatusUnprocessableEntity, constant.ErrPengajuanTTDTidakValid, nil)
+	}
+	// Pastikan respons gambar tidak tertukar dengan envelope JSON error.
+	c.Status(http.StatusOK)
 	c.Set(fiber.HeaderContentType, "image/png")
-	c.Set(fiber.HeaderCacheControl, "private, max-age=300")
+	c.Set(fiber.HeaderCacheControl, "no-store, private")
 	c.Set("X-Content-Type-Options", "nosniff")
-	return c.Send(t.Data)
+	return c.SendStream(bytes.NewReader(t.Data), len(t.Data))
 }
 
 // StokMenipisRow: satu barang yang stoknya sudah di/bawah batas minimum.
@@ -144,9 +150,9 @@ func (h *Controller) StokMenipis(c *fiber.Ctx) error {
 		p.Limit = maxLowStock
 	}
 	list, total, err := h.barangRepo.List(p, barangRepoPkg.Filter{
-		StokMenipis:      true,
-		OnlyActive:       true,
-		ApprovalStatuses: []string{constant.ApprovalDisetujui},
+		StatusStok: "stok menipis",
+		HanyaAktif: true,
+		Status:     []string{constant.ApprovalDisetujui},
 	})
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar stok menipis", nil)

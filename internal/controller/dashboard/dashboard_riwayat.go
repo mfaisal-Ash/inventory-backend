@@ -69,8 +69,8 @@ WHERE rp.deleted_at IS NULL`,
 	jenisPengadaan: `
 SELECT 'pengadaan', p.id::bigint, p.nomor_pengajuan, p.tanggal,
 	p.gudang_id::bigint, COALESCE(g.nama, ''),
-	COALESCE((SELECT string_agg(b.nama, ', ' ORDER BY b.nama) FROM pengajuan_barang_items i JOIN barang b ON b.id = i.barang_id WHERE i.pengajuan_id = p.id), ''),
-	COALESCE((SELECT SUM(i.qty) FROM pengajuan_barang_items i WHERE i.pengajuan_id = p.id), 0)::bigint,
+	COALESCE((SELECT string_agg(COALESCE(b.nama, i.nama_manual), ', ' ORDER BY COALESCE(b.nama, i.nama_manual)) FROM pengajuan_barang_items i LEFT JOIN barang b ON b.id = i.barang_id WHERE i.pengajuan_id = p.id), ''),
+	COALESCE((SELECT SUM(COALESCE(NULLIF(substring(i.qty from '^[0-9]+'), ''), '0')::bigint) FROM pengajuan_barang_items i WHERE i.pengajuan_id = p.id), 0)::bigint,
 	p.status, COALESCE(p.keperluan, '')
 FROM pengajuan_barang p LEFT JOIN gudangs g ON g.id = p.gudang_id
 WHERE p.jenis = '` + constant.JenisPengajuanMasuk + `'`,

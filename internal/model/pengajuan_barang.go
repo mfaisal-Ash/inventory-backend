@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // PengajuanBarang adalah pengajuan pengeluaran barang dari gudang yang harus
@@ -79,8 +81,9 @@ type PengajuanBarang struct {
 	// (lihat PengajuanTandaTangan.Data).
 	TandaTangan []PengajuanTandaTangan `json:"tanda_tangan,omitempty" gorm:"foreignKey:PengajuanID"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (PengajuanBarang) TableName() string { return "pengajuan_barang" }
@@ -90,11 +93,13 @@ func (p *PengajuanBarang) IsFinal() bool {
 }
 
 type PengajuanBarangItem struct {
-	ID          uint    `json:"id" gorm:"primaryKey"`
-	PengajuanID uint    `json:"pengajuan_id" gorm:"not null;index"`
-	BarangID    uint    `json:"barang_id,omitempty" gorm:"not null;index"`
-	KodeManual  string  `json:"kode_manual" gorm:"size:100"`
-	Barang      *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
+	ID          uint `json:"id" gorm:"primaryKey"`
+	PengajuanID uint `json:"pengajuan_id" gorm:"not null;index"`
+	// BarangID nil = barang manual (belum terdaftar di Kelola Barang). Harus
+	// pointer/NULL: nilai 0 melanggar foreign key ke tabel barang -> HTTP 500.
+	BarangID   *uint   `json:"barang_id,omitempty" gorm:"index"`
+	KodeManual string  `json:"kode_manual" gorm:"size:100"`
+	Barang     *Barang `json:"barang,omitempty" gorm:"foreignKey:BarangID"`
 	// Manual fields are used by jenis "pengajuan" when the requested item is
 	// not yet registered in Kelola Barang and therefore has no stock record.
 	NamaManual       string   `json:"nama_manual" gorm:"size:150"`
@@ -113,6 +118,17 @@ type PengajuanBarangItem struct {
 }
 
 func (PengajuanBarangItem) TableName() string { return "pengajuan_barang_items" }
+
+// BarangIDValue mengembalikan ID barang master, atau 0 untuk barang manual.
+func (i PengajuanBarangItem) BarangIDValue() uint {
+	if i.BarangID == nil {
+		return 0
+	}
+	return *i.BarangID
+}
+
+// UintPtr membantu membuat *uint dari literal (dipakai test & controller).
+func UintPtr(v uint) *uint { return &v }
 
 // Peran penanda tangan pada pengajuan barang.
 const (
@@ -148,7 +164,13 @@ func (PengajuanTandaTangan) TableName() string { return "pengajuan_tanda_tangan"
 func (p *PengajuanBarang) ComputeDokumenHash() string {
 	items := make([]string, 0, len(p.Items))
 	for _, it := range p.Items {
-		entry := fmt.Sprintf("%d:%s", it.BarangID, it.Qty)
+		var entry string
+		if it.BarangID != nil {
+			entry = fmt.Sprintf("%d:%s", *it.BarangID, it.Qty)
+		} else {
+			// Barang manual tidak punya ID master: identitasnya kode+nama.
+			entry = fmt.Sprintf("m(%s|%s):%s", it.KodeManual, it.NamaManual, it.Qty)
+		}
 		// Satuan hanya ikut hash kalau diisi, supaya hash dokumen lama
 		// (tanpa satuan) tidak berubah dan tanda tangannya tetap valid.
 		if it.SatuanID != nil {

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	authRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/auth"
+	notificationRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/notifikasi"
+	passwordresetRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/passwordreset"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/role"
 	"github.com/mfaisal-Ash/inventory-backend/internal/repositories/users"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/captcha"
@@ -19,6 +21,8 @@ type Controller struct {
 	userRepo      users.Repository
 	roleRepo      role.Repository
 	authRepo      authRepo.Repository
+	resetRepo     passwordresetRepo.Repository
+	notifRepo     notificationRepo.Repository
 	jwtSvc        *utils.JWTService
 	captchaSvc    *captcha.Service
 	humanCheckSvc *humancheck.Service
@@ -35,6 +39,8 @@ type Params struct {
 	UserRepo      users.Repository
 	RoleRepo      role.Repository
 	AuthRepo      authRepo.Repository
+	ResetRepo     passwordresetRepo.Repository
+	NotifRepo     notificationRepo.Repository
 	JWTSvc        *utils.JWTService
 	CaptchaSvc    *captcha.Service
 	HumanCheckSvc *humancheck.Service
@@ -47,6 +53,8 @@ func New(p Params) *Controller {
 		userRepo:      p.UserRepo,
 		roleRepo:      p.RoleRepo,
 		authRepo:      p.AuthRepo,
+		resetRepo:     p.ResetRepo,
+		notifRepo:     p.NotifRepo,
 		jwtSvc:        p.JWTSvc,
 		captchaSvc:    p.CaptchaSvc,
 		humanCheckSvc: p.HumanCheckSvc,
@@ -81,10 +89,9 @@ type LoginRequest struct {
 // ForgotPasswordRequest: alur lupa password satu langkah — lihat catatan
 // keamanan di Controller.ForgotPassword.
 type ForgotPasswordRequest struct {
-	Identifier              string `json:"identifier" validate:"required"`
-	NewPassword             string `json:"new_password" validate:"required,min=8"`
-	NewPasswordConfirmation string `json:"new_password_confirmation" validate:"required,eqfield=NewPassword"`
-	HumanCheckToken         string `json:"human_check_token" validate:"required"`
+	Identifier      string `json:"identifier" validate:"required"`
+	Reason          string `json:"reason" validate:"max=500"`
+	HumanCheckToken string `json:"human_check_token" validate:"required"`
 }
 
 type Setup2FARequest struct {

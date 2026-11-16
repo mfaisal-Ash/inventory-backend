@@ -60,8 +60,9 @@ type Barang struct {
 
 	// Statistik turunan untuk tabel Kelola Barang — diisi controller saat List,
 	// tidak disimpan di DB.
-	TotalKeluar int64 `json:"total_keluar" gorm:"-"`
-	JumlahRusak int64 `json:"jumlah_rusak" gorm:"-"`
+	TotalKeluar      int64 `json:"total_keluar" gorm:"-"`
+	JumlahRusak      int64 `json:"jumlah_rusak" gorm:"-"`
+	JumlahPengecekan int64 `json:"jumlah_pengecekan" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -21,6 +21,7 @@ type Config struct {
 	BotCheck   BotCheckConfig
 	SMS        SMSConfig
 	GeoIP      GeoIPConfig
+	RemoveBG   RemoveBGConfig
 	Swagger    SwaggerConfig
 	SelfUpdate SelfUpdateConfig
 }
@@ -58,12 +59,14 @@ func (a AppConfig) ListenAddress() string {
 }
 
 type DBConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Name     string
-	SSLMode  string
+	Driver     string
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	Name       string
+	SSLMode    string
+	SQLitePath string
 }
 
 type JWTConfig struct {
@@ -113,6 +116,13 @@ type GeoIPConfig struct {
 	BaseURL string
 }
 
+type RemoveBGConfig struct {
+	Enabled        bool
+	APIKey         string
+	BaseURL        string
+	TimeoutSeconds int
+}
+
 type SwaggerConfig struct {
 	Enabled       bool
 	BasicAuthUser string
@@ -145,12 +155,14 @@ func Load() *Config {
 			KaryawanAllowedNetworks: getEnvList("KARYAWAN_ALLOWED_NETWORKS", nil),
 		},
 		DB: DBConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			User:     getEnv("DB_USER", "postgres"),
-			Password: getEnv("DB_PASSWORD", ""),
-			Name:     getEnv("DB_NAME", "stockrsd"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			Driver:     getEnv("DB_DRIVER", defaultDBDriver()),
+			Host:       getEnv("DB_HOST", "localhost"),
+			Port:       getEnv("DB_PORT", "5432"),
+			User:       getEnv("DB_USER", "postgres"),
+			Password:   getEnv("DB_PASSWORD", ""),
+			Name:       getEnv("DB_NAME", "stockrsd"),
+			SSLMode:    getEnv("DB_SSLMODE", "disable"),
+			SQLitePath: getEnv("SQLITE_PATH", "./data/stockrsd.db"),
 		},
 		JWT: JWTConfig{
 			AccessSecret:        getEnv("JWT_ACCESS_SECRET", ""),
@@ -191,6 +203,12 @@ func Load() *Config {
 			Enabled: getEnvAsBool("GEOIP_ENABLED", false),
 			BaseURL: getEnv("GEOIP_BASE_URL", "http://ip-api.com"),
 		},
+		RemoveBG: RemoveBGConfig{
+			Enabled:        getEnvAsBool("REMOVE_BG_ENABLED", false),
+			APIKey:         getEnv("REMOVE_BG_API_KEY", ""),
+			BaseURL:        getEnv("REMOVE_BG_BASE_URL", "https://api.remove.bg/v1.0/removebg"),
+			TimeoutSeconds: getEnvAsInt("REMOVE_BG_TIMEOUT_SECONDS", 30),
+		},
 		Swagger: SwaggerConfig{
 			Enabled:       getEnvAsBool("SWAGGER_ENABLED", false),
 			BasicAuthUser: getEnv("SWAGGER_BASIC_AUTH_USER", ""),
@@ -219,7 +237,21 @@ var weakSecretDefaults = map[string]string{
 	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
 }
 
+func defaultDBDriver() string {
+	if strings.EqualFold(strings.TrimSpace(getEnv("APP_ENV", "development")), "development") {
+		return "sqlite"
+	}
+	return "postgres"
+}
+
 func validateProductionSecrets(cfg *Config) {
+	// Validasi secret dan password database hanya berlaku di luar development.
+	// Pada lokal, APP_ENV=development memang boleh memakai konfigurasi kosong
+	// agar backend dapat dijalankan tanpa mengisi secret production.
+	if strings.EqualFold(strings.TrimSpace(cfg.App.Env), "development") {
+		return
+	}
+
 	// Fail closed: cek di setiap env SELAIN "development" eksplisit, bukan
 	// hanya saat APP_ENV="production" persis. Sebelumnya, kalau APP_ENV lupa
 	// di-set di sebuah deployment nyata (typo, env var kosong, dsb.), nilai

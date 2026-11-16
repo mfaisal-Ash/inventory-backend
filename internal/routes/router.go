@@ -34,9 +34,10 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	}
 
 	app := fiber.New(fiber.Config{
-		AppName:                 deps.Cfg.App.Name,
-		ErrorHandler:            globalErrorHandler,
-		BodyLimit:               5 * 1024 * 1024,
+		AppName:      deps.Cfg.App.Name,
+		ErrorHandler: globalErrorHandler,
+		// Data URL Base64 lebih besar dari file asli; beri ruang untuk overhead Base64.
+		BodyLimit:               8 * 1024 * 1024,
 		ReadTimeout:             15 * time.Second,
 		WriteTimeout:            15 * time.Second,
 		IdleTimeout:             60 * time.Second,
@@ -50,21 +51,12 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 	app.Use(middleware.SecurityHeaders())
 	app.Use(middleware.CORS(deps.Cfg))
 	app.Use(middleware.GlobalRateLimiter())
+	// Audit dipasang global agar request yang ditolak sebelum autentikasi tetap tercatat.
+	app.Use(middleware.SecurityAudit("./log"))
 
 	app.Get("/health/live", deps.HealthController.Live)
 	app.Get("/health/ready", deps.HealthController.Ready)
 	app.Get("/health", deps.HealthController.Health)
-
-	// Catatan keamanan: dulu ada `app.Static("/uploads", deps.Cfg.Storage.Path)`
-	// di sini yang membuat seluruh isi STORAGE_PATH bisa diakses publik tanpa
-	// login. Setelah ditelusuri, tidak ada kode yang benar-benar menyimpan file
-	// ke folder itu — avatar user, foto barang rusak, dan file template
-	// pengajuan semuanya disimpan sebagai blob di database dan dilayani lewat
-	// endpoint terautentikasi masing-masing (lihat ServeAvatar, ServeFoto, dan
-	// handler download template). STORAGE_PATH cuma dipakai health checker
-	// untuk tes tulis file probe sementara. Jadi mount publik ini dihapus —
-	// tidak ada fitur yang bergantung padanya, dan menghapusnya menutup celah
-	// direktori publik untuk fitur upload berbasis file di masa depan.
 
 	if deps.Cfg.Swagger.Enabled {
 		// Swagger is an operational/admin surface; never expose it anonymously.
@@ -102,6 +94,7 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 		deps.AuthController,
 		deps.UserController,
 		deps.RoleController,
+		deps.RoleChangeController,
 		deps.ActivityController,
 	}
 	for _, r := range alwaysOn {
@@ -121,10 +114,10 @@ func SetupRouter(deps *Dependencies) *fiber.App {
 		deps.ReturController,
 		deps.KabelController,
 		deps.NeracaController,
-		deps.TaskController,
 		deps.LaporanController,
 		deps.DashboardController,
 		deps.PengajuanBarangController,
+		deps.PurchaseOrderController,
 		deps.PengajuanTemplateController,
 		deps.PengirimanController,
 	}

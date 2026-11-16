@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
+	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
@@ -117,7 +117,7 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	c.Cookie(&fiber.Cookie{
 		Name:     "stockrsd_refresh_token",
 		Value:    refresh,
-		Path:     "/stockrsd/auth/refresh",
+		Path:     "/",
 		Expires:  expiry,
 		HTTPOnly: true,
 		Secure:   h.appEnv != "development",
@@ -133,9 +133,9 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	}
 
 	return &LoginResponse{
-		TokenType:    "Bearer",
-		AccessToken:  access,
-		RefreshToken: refresh,
+		TokenType:   "Bearer",
+		AccessToken: access,
+		// Refresh token hanya dikirim melalui HttpOnly cookie, tidak melalui JSON.
 		User: &UserSummary{
 			ID: u.ID, Username: u.Username, Email: u.Email, RoleID: u.RoleID, RoleName: r.Name,
 		},
@@ -153,20 +153,11 @@ func (h *Controller) issueTokens(c *fiber.Ctx, u *model.User) (*LoginResponse, e
 	}, nil
 }
 
-// resolveRegisterRoleName menentukan role akun baru saat self-register.
-// Pendaftar bebas memilih super_admin, admin, atau karyawan. Kosong dianggap
-// karyawan; nama role yang tidak dikenal ditolak. Pembatasan lokasi untuk
-// admin/karyawan tetap berlaku lewat middleware.AccessAllowsRole.
-func (h *Controller) resolveRegisterRoleName(requestedRole string) (string, error) {
-	requestedRole = strings.ToLower(strings.TrimSpace(requestedRole))
-	switch requestedRole {
-	case "":
-		return constant.RoleKaryawan, nil
-	case constant.RoleKaryawan, constant.RoleAdmin, constant.RoleSuperAdmin:
-		return requestedRole, nil
-	default:
-		return "", fmt.Errorf("role '%s' tidak dikenal", requestedRole)
-	}
+// resolveRegisterRoleName: registrasi publik selalu menghasilkan role dengan
+// privilege terendah. Role admin/super_admin hanya boleh diberikan melalui
+// alur administrasi yang terautorisasi, bukan dari input pengguna anonim.
+func (h *Controller) resolveRegisterRoleName(_ string) (string, error) {
+	return constant.RoleKaryawan, nil
 }
 
 func (h *Controller) CheckUsernameAvailability(c *fiber.Ctx) error {
@@ -246,33 +237,31 @@ func (h *Controller) ForgotPassword(c *fiber.Ctx) error {
 	if !utils.ParseAndValidate(c, &req) {
 		return nil
 	}
-
+	// Reset password anonim satu langkah dinonaktifkan. Human-check/CAPTCHA
+	// hanya membuktikan bahwa request lolos anti-bot; bukan bukti kepemilikan
+	// akun. Mengizinkannya mengganti password berdasarkan username/email dapat
+	// menyebabkan account takeover.
+	//
+	// Reset akun admin/karyawan harus dilakukan oleh Super Admin melalui alur
+	// terautentikasi. Reset mandiri harus memakai alur verifikasi 2FA/TOTP yang
+	// terpisah dan single-use; endpoint lama tidak boleh menjadi fallback.
 	if err := h.humanCheckSvc.Verify(req.HumanCheckToken); err != nil {
-		return utils.Fail(c, fiber.StatusBadRequest, "verifikasi gagal: "+err.Error(), nil)
+		return utils.Fail(c, fiber.StatusBadRequest, "verifikasi gagal", nil)
 	}
-
-	const resetDenied = "reset password tidak dapat diproses, username/email tidak ditemukan atau akun nonaktif"
+	// Response selalu generik untuk mencegah enumerasi username/email.
 	u, err := h.userRepo.FindByUsername(req.Identifier)
 	if err != nil {
 		u, err = h.userRepo.FindByEmail(req.Identifier)
 	}
-	if err != nil || !u.IsActive {
-		return utils.Fail(c, fiber.StatusForbidden, resetDenied, nil)
+	if err == nil && u.IsActive {
+		if _, pendingErr := h.resetRepo.FindPendingByUser(u.ID); pendingErr != nil {
+			r := &model.PasswordResetRequest{UserID: u.ID, Status: model.PasswordResetPending, Reason: strings.TrimSpace(req.Reason)}
+			if createErr := h.resetRepo.Create(r); createErr == nil {
+				notification.Notify(h.notifRepo, "password_reset_request", "Permintaan Reset Password", "Ada permintaan reset password yang menunggu verifikasi.", "/user-management?tab=password-reset", nil, constant.RoleSuperAdmin)
+			}
+		}
 	}
-	hashed, err := utils.HashPassword(req.NewPassword)
-	if err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengenkripsi password baru", nil)
-	}
-	u.PasswordHash = hashed
-	if err := h.userRepo.Update(u); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menyimpan password baru", nil)
-	}
-
-	if err := h.authRepo.RevokeAllUserTokens(u.ID); err != nil {
-		log.Printf("auth: gagal mencabut sesi lama setelah reset password (alur biasa) untuk user %d: %v", u.ID, err)
-	}
-
-	return utils.OK(c, "password berhasil diubah, silakan login dengan password baru", nil)
+	return utils.OK(c, "Jika akun memenuhi syarat, permintaan reset telah dicatat dan menunggu verifikasi administrator.", nil)
 }
 
 func (h *Controller) Login(c *fiber.Ctx) error {
@@ -570,7 +559,7 @@ func (h *Controller) Logout(c *fiber.Ctx) error {
 	if err := h.authRepo.RevokeAllUserTokens(userID); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal logout", nil)
 	}
-	c.Cookie(&fiber.Cookie{Name: "stockrsd_refresh_token", Value: "", Path: "/stockrsd/auth/refresh", MaxAge: -1, HTTPOnly: true, Secure: h.appEnv != "development", SameSite: "Lax"})
+	c.Cookie(&fiber.Cookie{Name: "stockrsd_refresh_token", Value: "", Path: "/", MaxAge: -1, HTTPOnly: true, Secure: h.appEnv != "development", SameSite: "Lax"})
 	return utils.OK(c, "logout berhasil", nil)
 }
 
@@ -611,6 +600,17 @@ func (h *Controller) ListSessions(c *fiber.Ctx) error {
 		result = append(result, toSessionInfo(s, currentSessionID))
 	}
 	return utils.OK(c, "berhasil memuat daftar sesi aktif", SessionListResponse{Sessions: result})
+}
+
+func (h *Controller) RevokeAllSessions(c *fiber.Ctx) error {
+	userID, ok := c.Locals(constant.CtxUserID).(uint)
+	if !ok || userID == 0 {
+		return utils.Fail(c, fiber.StatusUnauthorized, constant.ErrInvalidToken, nil)
+	}
+	if err := h.authRepo.RevokeAllUserTokens(userID); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mencabut semua sesi", nil)
+	}
+	return utils.OK(c, "semua sesi berhasil dicabut", fiber.Map{"revoked_current": true})
 }
 
 func (h *Controller) RevokeSession(c *fiber.Ctx) error {
@@ -682,5 +682,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	protected.Get("/me", h.Me)
 	protected.Post("/2fa/start", h.StartTwoFactorSetup)
 	protected.Get("/sessions", h.ListSessions)
+	protected.Delete("/sessions", h.RevokeAllSessions)
 	protected.Delete("/sessions/:id", h.RevokeSession)
 }

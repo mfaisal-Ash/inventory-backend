@@ -17,10 +17,11 @@ type entry struct {
 }
 
 var registry = map[string]entry{
-	"aset":         {label: "Aset Gudang"},
-	"barang":       {label: "Barang"},
-	"gudang":       {label: "Gudang"},
-	"barang_rusak": {label: "Barang Rusak"},
+	"aset":             {label: "Aset Gudang"},
+	"barang":           {label: "Barang"},
+	"gudang":           {label: "Gudang"},
+	"barang_rusak":     {label: "Barang Rusak"},
+	"pengajuan_barang": {label: "Pengajuan Barang"},
 }
 
 type Item struct {
@@ -50,6 +51,8 @@ func (h *Controller) modelForType(t string) (any, bool) {
 		return &model.Gudang{}, true
 	case "barang_rusak":
 		return &model.BarangRusak{}, true
+	case "pengajuan_barang":
+		return &model.PengajuanBarang{}, true
 	default:
 		return nil, false
 	}
@@ -69,6 +72,9 @@ func summarize(t string) (judul func(any) string, subjudul func(any) string) {
 	case "barang_rusak":
 		return func(m any) string { return m.(*model.BarangRusak).NamaBarang },
 			func(m any) string { return m.(*model.BarangRusak).LabelBarang }
+	case "pengajuan_barang":
+		return func(m any) string { return m.(*model.PengajuanBarang).NomorPengajuan },
+			func(m any) string { return m.(*model.PengajuanBarang).Keperluan }
 	default:
 		return func(any) string { return "" }, func(any) string { return "" }
 	}
@@ -139,6 +145,14 @@ func queryDeleted(db *gorm.DB, t string, modelPtr any) ([]deletedRow, error) {
 		}
 	case "barang_rusak":
 		var rows []model.BarangRusak
+		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			out = append(out, deletedRow{id: rows[i].ID, deletedAt: rows[i].DeletedAt.Time, model: &rows[i]})
+		}
+	case "pengajuan_barang":
+		var rows []model.PengajuanBarang
 		if err := db.Unscoped().Where("deleted_at IS NOT NULL").Order("deleted_at DESC").Find(&rows).Error; err != nil {
 			return nil, err
 		}

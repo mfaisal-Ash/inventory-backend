@@ -3,7 +3,10 @@ package config
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -13,12 +16,21 @@ import (
 )
 
 func NewDatabase(cfg *Config) *gorm.DB {
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.SSLMode,
-	)
+	var dialector gorm.Dialector
+	if cfg.DB.Driver == "sqlite" {
+		if err := os.MkdirAll(filepath.Dir(cfg.DB.SQLitePath), 0755); err != nil {
+			log.Fatalf("gagal membuat direktori database lokal: %v", err)
+		}
+		dialector = sqlite.Open(cfg.DB.SQLitePath)
+	} else {
+		dsn := fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.SSLMode,
+		)
+		dialector = postgres.Open(dsn)
+	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Warn),
 	})
 	if err != nil {
@@ -33,8 +45,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.Permission{},
 		&model.RolePermission{},
 		&model.User{},
+		&model.PasswordResetRequest{},
 		&model.RefreshToken{},
 		&model.DocumentCounter{},
+		&model.RoleChangeRequest{},
+		&model.FeatureRequest{},
 
 		&model.Kategori{},
 		&model.Satuan{},
@@ -53,8 +68,12 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.PengajuanBarang{},
 		&model.PengajuanBarangItem{},
 		&model.PengajuanTandaTangan{},
+		&model.Supplier{},
+		&model.PurchaseOrder{},
+		&model.PurchaseOrderItem{},
 		&model.StockOpname{},
 		&model.StockOpnameItem{},
+		&model.StockOpnameStatusHistory{},
 		&model.Asset{},
 		&model.AssetPort{},
 		&model.AssetHistory{},
@@ -70,6 +89,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.ActivityLog{},
 	); err != nil {
 		return err
+	}
+	// Index berikut menggunakan katalog PostgreSQL dan hanya diperlukan di production.
+	if db.Dialector.Name() != "postgres" {
+		return nil
 	}
 	if err := ensureAssetPartialUniqueIndexes(db); err != nil {
 		return err

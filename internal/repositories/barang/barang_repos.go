@@ -1,6 +1,8 @@
 package barang
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -11,41 +13,43 @@ import (
 )
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
-	if f.KategoriID != 0 {
-		q = q.Where("kategori_id = ?", f.KategoriID)
+	if f.IDKategori != 0 {
+		q = q.Where("kategori_id = ?", f.IDKategori)
 	}
-	if f.SatuanID != 0 {
-		q = q.Where("satuan_id = ?", f.SatuanID)
+	if f.IDSatuan != 0 {
+		q = q.Where("satuan_id = ?", f.IDSatuan)
 	}
-	if f.StokMenipis {
-		q = q.Where("stok_minimum > 0 AND stok <= stok_minimum")
+	switch f.StatusStok {
+	case "stok menipis":
+		q = q.Where("stok_minimum > 0 AND stok > 0 AND stok <= stok_minimum")
+	case "stok tersedia":
+		q = q.Where("stok > stok_minimum")
+	case "stok habis":
+		q = q.Where("stok <= 0")
 	}
-	if f.OnlyActive {
+	if f.HanyaAktif {
 		q = q.Where("is_active = ?", true)
 	}
 	if f.Merek != "" {
 		q = q.Where("merek = ?", f.Merek)
 	}
-	if f.Tipe != "" {
-		q = q.Where("tipe = ?", f.Tipe)
-	}
-	if f.OnlyDelegatedTo != 0 {
-		q = q.Where("didelegasikan_ke = ?", f.OnlyDelegatedTo)
-	} else if len(f.ApprovalStatuses) > 0 {
-		clause := "approval_status IN ?"
-		args := []interface{}{f.ApprovalStatuses}
-		if f.OrSubmittedBy != 0 {
+
+	if f.HanyaDelegasiTo != 0 {
+		q = q.Where("didelegasikan_ke = ?", f.HanyaDelegasiTo)
+	} else if len(f.Status) > 0 {
+		clause := "(approval_status IN ?"
+		args := []interface{}{f.Status}
+		if f.SubmitBy != 0 {
 			clause += " OR diajukan_oleh = ?"
-			args = append(args, f.OrSubmittedBy)
+			args = append(args, f.SubmitBy)
 		}
-		if f.OrDelegatedTo != 0 {
+		if f.DelegasiTo != 0 {
 			// Item yang didelegasikan ke admin ini harus tetap kelihatan
-			// walau statusnya masih "menunggu" — kalau tidak, admin yang
-			// ditugaskan tidak akan pernah tahu ada barang yang perlu
-			// dicek/disetujui olehnya (lihat Delegasikan di controller).
+			// walau statusnya masih "menunggu".
 			clause += " OR didelegasikan_ke = ?"
-			args = append(args, f.OrDelegatedTo)
+			args = append(args, f.DelegasiTo)
 		}
+		clause += ")"
 		q = q.Where(clause, args...)
 	}
 	return q
@@ -86,6 +90,20 @@ func (r *repository) FindByKode(kode string) (*model.Barang, error) {
 
 func (r *repository) Create(b *model.Barang) error {
 	return r.db.Create(b).Error
+}
+
+func (r *repository) CreateWithInitialStock(b *model.Barang, gudangID uint, stok int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(b).Error; err != nil {
+			return err
+		}
+		if stok > 0 && gudangID != 0 {
+			if err := barangstokgudang.SetStokGudangTx(tx, b.ID, gudangID, stok); err != nil {
+				return err
+			}
+		}
+		return barangstokgudang.SyncBarangStokTotalTx(tx, b.ID)
+	})
 }
 
 // Update: pakai Omit(clause.Associations) supaya Save() TIDAK ikut
@@ -140,7 +158,7 @@ func (r *repository) AdjustStok(id uint, delta int) (*model.Barang, error) {
 		}
 		b.Stok += delta
 		if b.Stok < 0 {
-			b.Stok = 0
+			return errors.New("stok tidak mencukupi")
 		}
 		return tx.Save(&b).Error
 	})

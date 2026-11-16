@@ -26,7 +26,12 @@ func parseIDParam(c *fiber.Ctx) (uint, error) {
 }
 
 func (h *Controller) validateItems(items []ItemRequest) error {
+	seen := make(map[uint]struct{}, len(items))
 	for _, it := range items {
+		if _, exists := seen[it.BarangID]; exists {
+			return fmt.Errorf("barang id %d tidak boleh dicatat lebih dari satu kali", it.BarangID)
+		}
+		seen[it.BarangID] = struct{}{}
 		if _, err := h.barangRepo.FindByID(it.BarangID); err != nil {
 			return fmt.Errorf("barang id %d tidak ditemukan", it.BarangID)
 		}
@@ -110,7 +115,7 @@ func (h *Controller) requireDraft(id uint) (*model.StockOpname, error) {
 	if err != nil {
 		return nil, err
 	}
-	if so.Status != constant.StatusSODraft {
+	if so.Status != constant.StatusSODraft && so.Status != constant.StatusSODitolak {
 		return nil, errors.New(constant.ErrSOBukanDraft)
 	}
 	return so, nil
@@ -162,6 +167,57 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus dokumen stock opname", nil)
 	}
 	return utils.OK(c, "dokumen stock opname berhasil dihapus", nil)
+}
+
+func (h *Controller) MulaiPenghitungan(c *fiber.Ctx) error {
+	return h.transition(c, h.repo.MulaiPenghitungan)
+}
+func (h *Controller) KirimPemeriksaan(c *fiber.Ctx) error {
+	return h.transition(c, h.repo.KirimPemeriksaan)
+}
+func (h *Controller) Setujui(c *fiber.Ctx) error {
+	return h.transition(c, h.repo.Setujui)
+}
+func (h *Controller) Tolak(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id stock opname tidak valid", nil)
+	}
+	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.Reason == "" {
+		return utils.Fail(c, fiber.StatusBadRequest, "alasan penolakan wajib diisi", nil)
+	}
+	so, err := h.repo.Tolak(id, userID, body.Reason)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	return utils.OK(c, "stock opname ditolak", so)
+}
+func (h *Controller) Riwayat(c *fiber.Ctx) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id stock opname tidak valid", nil)
+	}
+	rows, err := h.repo.Riwayat(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil riwayat stock opname", nil)
+	}
+	return utils.OK(c, "riwayat stock opname berhasil diambil", rows)
+}
+func (h *Controller) transition(c *fiber.Ctx, fn func(uint, uint) (*model.StockOpname, error)) error {
+	id, err := parseIDParam(c)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "id stock opname tidak valid", nil)
+	}
+	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	so, err := fn(id, userID)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+	}
+	return utils.OK(c, "status stock opname berhasil diperbarui", so)
 }
 
 func (h *Controller) Complete(c *fiber.Ctx) error {
@@ -225,14 +281,20 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	view := middleware.RequirePermission(h.roleRepo, Module, constant.ActionView)
 	tambah := middleware.RequirePermission(h.roleRepo, Module, constant.ActionTambah)
 	edit := middleware.RequirePermission(h.roleRepo, Module, constant.ActionEdit)
-	onlyStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
+	hanyaStaff := middleware.RequireRole(constant.RoleSuperAdmin, constant.RoleAdmin)
+	hanyaSuperAdmin := middleware.RequireRole(constant.RoleSuperAdmin)
 
 	g.Get("/summary", view, h.Summary)
 	g.Get("/", view, h.List)
 	g.Get("/:id", view, h.Detail)
 	g.Post("/", tambah, h.Create)
 	g.Put("/:id", edit, h.Update)
-	g.Delete("/:id", onlyStaff, edit, h.Delete)
-	g.Patch("/:id/selesai", edit, h.Complete)
+	g.Delete("/:id", hanyaStaff, edit, h.Delete)
+	g.Patch("/:id/mulai-penghitungan", edit, h.MulaiPenghitungan)
+	g.Patch("/:id/kirim-pemeriksaan", edit, h.KirimPemeriksaan)
+	g.Patch("/:id/setujui", hanyaStaff, edit, h.Setujui)
+	g.Patch("/:id/tolak", hanyaStaff, edit, h.Tolak)
+	g.Get("/:id/riwayat", view, h.Riwayat)
+	g.Patch("/:id/selesai", hanyaSuperAdmin, edit, h.Complete)
 	g.Patch("/:id/batalkan", edit, h.Batalkan)
 }

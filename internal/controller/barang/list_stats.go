@@ -57,6 +57,17 @@ func (h *Controller) fillListStats(list []model.Barang) {
 		}
 	}
 
+	menungguLaporan := map[uint]int64{}
+	var menungguRows []idTotal
+	if err := h.db.Model(&model.BarangRusak{}).
+		Where("barang_id IN ? AND status = ?", ids, constant.StatusPengecekan).
+		Select("barang_id AS barang_id, COUNT(*) AS total").
+		Group("barang_id").Scan(&menungguRows).Error; err == nil {
+		for _, r := range menungguRows {
+			menungguLaporan[r.BarangID] = r.Total
+		}
+	}
+
 	rusakLaporan := map[uint]int64{}
 	rows = nil
 	if err := h.db.Model(&model.BarangRusak{}).
@@ -81,6 +92,7 @@ func (h *Controller) fillListStats(list []model.Barang) {
 	for i := range list {
 		b := &list[i]
 		b.TotalKeluar = keluar[b.ID]
+		b.JumlahPengecekan = menungguLaporan[b.ID]
 		if b.IsSerialized {
 			b.JumlahRusak = rusakSerial[b.ID]
 		} else {

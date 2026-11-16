@@ -74,7 +74,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 		must(t, err)
 		p := &model.PengajuanBarang{NomorPengajuan: nomor, Jenis: constant.JenisPengajuanMasuk, GudangID: g.ID,
 			Tanggal: day(2026, 10, 27), Status: constant.StatusPengajuanDiajukan, Keperluan: "restock", DiajukanOleh: pengaju.ID,
-			Items: []model.PengajuanBarangItem{{BarangID: br.ID, Qty: "50"}}}
+			Items: []model.PengajuanBarangItem{{BarangID: model.UintPtr(br.ID), Qty: "50"}}}
 		p.TandaTangan = []model.PengajuanTandaTangan{{Peran: model.PeranTTDPencatat, UserID: pengaju.ID, Nama: "Pengaju",
 			Data: []byte("png-pengaju"), DokumenHash: p.ComputeDokumenHash(), SignedAt: day(2026, 10, 27)}}
 		must(t, repo.Create(p))
@@ -86,7 +86,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 
 	// Barang bersaldo <= minimum muncul di daftar stok menipis (filter yang sama dgn endpoint).
 	low, total, err := barangRepo.New(db).List(utils.PaginationParams{Page: 1, Limit: 50}, barangRepo.Filter{
-		StokMenipis: true, OnlyActive: true, ApprovalStatuses: []string{constant.ApprovalDisetujui},
+		StatusStok: "stok menipis", HanyaAktif: true, Status: []string{constant.ApprovalDisetujui},
 	})
 	if err != nil || total != 1 || len(low) != 1 || low[0].ID != br.ID {
 		t.Fatalf("stok menipis = %d (%v) err=%v", total, low, err)
@@ -118,7 +118,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 	}
 
 	// Edit isi -> tanda tangan lama gugur, lalu pengaju tanda tangan ulang.
-	p.Items = []model.PengajuanBarangItem{{BarangID: br.ID, Qty: "80"}}
+	p.Items = []model.PengajuanBarangItem{{BarangID: model.UintPtr(br.ID), Qty: "80"}}
 	must(t, repo.Update(p, p.Items, nil))
 	if _, err := repo.Setujui(p.ID, penyetuju.ID, "GA", "Manajer", "", ttd()); err == nil || err.Error() != constant.ErrPengajuanTTDPencatatHilang {
 		t.Fatalf("isi berubah tanpa tanda tangan ulang harus ditolak: %v", err)

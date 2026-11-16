@@ -96,7 +96,7 @@ type PengajuanRequest struct {
 	// ("data:image/png;base64,...") dari kanvas tanda tangan. WAJIB untuk jenis
 	// "masuk" (alur restock dua pihak), opsional untuk jenis lain. Setiap kali
 	// pengajuan diedit, tanda tangan harus dikirim ulang karena isinya berubah.
-	TTDPencatat string `json:"ttd_pencatat" validate:"omitempty,max=450000"`
+	TTDPencatat string `json:"ttd_pencatat" validate:"omitempty,max=7500000"`
 }
 
 type ProsesRequest struct {
@@ -108,7 +108,7 @@ type ProsesRequest struct {
 
 	// TTD: tanda tangan digital penyetuju (pihak kedua), format sama dengan
 	// PengajuanRequest.TTDPencatat. Wajib untuk jenis "masuk".
-	TTD string `json:"ttd" validate:"omitempty,max=450000"`
+	TTD string `json:"ttd" validate:"omitempty,max=7500000"`
 }
 
 type TolakRequest struct {

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -189,6 +190,14 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		}
 	}
 
+	// Nilai aset dihitung otomatis dari harga beli barang yang ditautkan.
+	// Nilai manual tetap dipertahankan bila pengguna memasukkan override.
+	if req.BarangID != nil && req.NilaiAset == 0 {
+		if barang, berr := h.barangRepo.FindByID(*req.BarangID); berr == nil {
+			req.NilaiAset = barang.HargaBeli
+		}
+	}
+
 	a := &model.Asset{
 		Nama:          req.Nama,
 		JenisAset:     req.JenisAset,
@@ -237,7 +246,11 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		if err != nil {
 			return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat kode BA", nil)
 		}
-		a.KodeBA = fmt.Sprintf("BA-%04d", nomor)
+		slug := map[string]string{"umum": "AsetUmum", "transportasi": "AsetTransportasi"}[req.JenisAset]
+		if slug == "" {
+			slug = "Aset" + strings.ToUpper(req.JenisAset[:1]) + req.JenisAset[1:]
+		}
+		a.KodeBA = fmt.Sprintf("RSD-%s-%s-%02d", slug, time.Now().Format("02012006"), nomor)
 	}
 
 	if err := h.repo.Create(a); err != nil {

@@ -70,7 +70,6 @@ var moduleLabels = map[string]string{
 	"gudang":              "Manajemen Gudang",
 	"users":               "Manajemen User",
 	"roles":               "Hak Akses & Role",
-	"tasks":               "Tugas",
 	"purchase-order":      "Purchase Order",
 	"supplier":            "Supplier",
 	"cod":                 "COD",

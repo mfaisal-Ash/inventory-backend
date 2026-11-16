@@ -182,17 +182,20 @@ func (h *Controller) buildBarangMasuk(dari, sampai *time.Time) (headers []string
 			continue
 		}
 		for _, it := range bm.Items {
-			kodeBarang, nama, merek, tipe, sn := "-", "-", "-", "-", "-"
+			kodeBarang, nama, merek, tipe, sn, satuan := "-", "-", "-", "-", "-", ""
 			if it.Barang != nil {
 				kodeBarang, nama = it.Barang.KodeBarang, it.Barang.Nama
 				merek, tipe = orDash(it.Barang.Merek), orDash(it.Barang.Tipe)
+				if it.Barang.Satuan != nil {
+					satuan = it.Barang.Satuan.Nama
+				}
 				if it.Barang.IsSerialized {
 					sn = h.serialsForMasukItem(it.ID)
 				}
 			}
 			rows = append(rows, []string{
 				bm.NomorPenerimaan, bm.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, merek, tipe,
-				strconv.Itoa(it.Qty), sn, bm.Status, h.userLabel(userCache, bm.DiterimaOleh), bm.Catatan,
+				utils.FormatQty(strconv.Itoa(it.Qty), satuan), sn, bm.Status, h.userLabel(userCache, bm.DiterimaOleh), bm.Catatan,
 			})
 		}
 	}
@@ -222,17 +225,20 @@ func (h *Controller) buildBarangKeluar(dari, sampai *time.Time) (headers []strin
 			continue
 		}
 		for _, it := range bk.Items {
-			kodeBarang, nama, merek, tipe, sn := "-", "-", "-", "-", "-"
+			kodeBarang, nama, merek, tipe, sn, satuan := "-", "-", "-", "-", "-", ""
 			if it.Barang != nil {
 				kodeBarang, nama = it.Barang.KodeBarang, it.Barang.Nama
 				merek, tipe = orDash(it.Barang.Merek), orDash(it.Barang.Tipe)
+				if it.Barang.Satuan != nil {
+					satuan = it.Barang.Satuan.Nama
+				}
 				if it.Barang.IsSerialized {
 					sn = h.serialsForKeluarItem(it.ID)
 				}
 			}
 			rows = append(rows, []string{
 				bk.NomorPengeluaran, bk.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, merek, tipe,
-				strconv.Itoa(it.Qty), sn, bk.Keperluan, bk.Penerima, bk.Status, h.userLabel(userCache, bk.DikeluarkanOleh),
+				utils.FormatQty(strconv.Itoa(it.Qty), satuan), sn, bk.Keperluan, bk.Penerima, bk.Status, h.userLabel(userCache, bk.DikeluarkanOleh),
 			})
 		}
 	}
@@ -283,12 +289,21 @@ func (h *Controller) buildPengajuanBarang(dari, sampai *time.Time) (headers []st
 			continue
 		}
 		for _, it := range p.Items {
-			kodeBarang, nama := "-", "-"
+			kodeBarang, nama, satuan := "-", "-", ""
 			if it.Barang != nil {
 				kodeBarang, nama = it.Barang.KodeBarang, it.Barang.Nama
+				if it.Barang.Satuan != nil {
+					satuan = it.Barang.Satuan.Nama
+				}
+			} else {
+				// Barang manual (belum terdaftar di Kelola Barang).
+				kodeBarang, nama = orDash(it.KodeManual), orDash(it.NamaManual)
+			}
+			if it.Satuan != nil {
+				satuan = it.Satuan.Nama
 			}
 			rows = append(rows, []string{
-				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, it.Qty,
+				p.NomorPengajuan, jenisLabel, p.Tanggal.Format(dateFormat), gudang, kodeBarang, nama, utils.FormatQty(it.Qty, satuan),
 				p.Keperluan, statusLabel, diajukan, diproses, orDash(p.CatatanProses),
 			})
 		}
@@ -588,7 +603,8 @@ func sumNumericColumn(rows [][]string, colIdx int) int64 {
 		if colIdx >= len(row) {
 			continue
 		}
-		if n, err := strconv.ParseInt(strings.TrimSpace(row[colIdx]), 10, 64); err == nil {
+		// "5 Rim" tetap dijumlahkan sebagai 5 (angka di depan satuan).
+		if n, ok := utils.LeadingInt(row[colIdx]); ok {
 			sum += n
 		}
 	}

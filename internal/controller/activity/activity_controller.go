@@ -91,6 +91,18 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	return utils.OKWithMeta(c, "riwayat aktivitas berhasil diambil", rows, utils.BuildPaginationMeta(p, total))
 }
 
+// DeleteAll: DELETE /activity-logs — hanya super admin, menghapus seluruh log.
+func (h *Controller) DeleteAll(c *fiber.Ctx) error {
+	if !isSuperAdmin(c) {
+		return utils.Fail(c, fiber.StatusForbidden, "hanya super admin yang dapat menghapus riwayat aktivitas", nil)
+	}
+	deleted, err := h.repo.DeleteAll()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghapus seluruh riwayat aktivitas", nil)
+	}
+	return utils.OK(c, "seluruh riwayat aktivitas berhasil dihapus", fiber.Map{"deleted": deleted})
+}
+
 // Options: GET /activity-logs/options — isi dropdown filter.
 func (h *Controller) Options(c *fiber.Ctx) error {
 	if !isSuperAdmin(c) {
@@ -141,5 +153,6 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := router.Group("/activity-logs", middleware.JWTAuth(h.jwtSvc))
 	g.Get("/options", h.Options)
 	g.Get("/", h.List)
+	g.Delete("/", h.DeleteAll)
 	g.Post("/track", h.Track)
 }

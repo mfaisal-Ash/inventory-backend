@@ -1,11 +1,15 @@
 package barangstokgudang
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 
 	"github.com/mfaisal-Ash/inventory-backend/internal/model"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/constant"
 )
+
+var ErrStokTidakCukup = errors.New("stok gudang tidak mencukupi")
 
 func AdjustStokGudangTx(tx *gorm.DB, barangID, gudangID uint, delta int) error {
 	var row model.BarangStokGudang
@@ -17,15 +21,14 @@ func AdjustStokGudangTx(tx *gorm.DB, barangID, gudangID uint, delta int) error {
 			return err
 		}
 
-		stok := delta
-		if stok < 0 {
-			stok = 0
+		if delta < 0 {
+			return ErrStokTidakCukup
 		}
-		return tx.Create(&model.BarangStokGudang{BarangID: barangID, GudangID: gudangID, Stok: stok}).Error
+		return tx.Create(&model.BarangStokGudang{BarangID: barangID, GudangID: gudangID, Stok: delta}).Error
 	}
 	newStok := row.Stok + delta
 	if newStok < 0 {
-		newStok = 0
+		return ErrStokTidakCukup
 	}
 	return tx.Model(&model.BarangStokGudang{}).Where("id = ?", row.ID).Update("stok", newStok).Error
 }
@@ -46,7 +49,7 @@ func GetStokGudangTx(tx *gorm.DB, barangID, gudangID uint) (int, error) {
 
 func SetStokGudangTx(tx *gorm.DB, barangID, gudangID uint, stok int) error {
 	if stok < 0 {
-		stok = 0
+		return ErrStokTidakCukup
 	}
 	res := tx.Model(&model.BarangStokGudang{}).
 		Where("barang_id = ? AND gudang_id = ?", barangID, gudangID).
@@ -92,6 +95,7 @@ func SumMasukKeluar(db *gorm.DB, barangID uint) (masuk int64, keluar int64, err 
 
 type StokRow struct {
 	BarangID   uint   `json:"barang_id"`
+	IDBarang   string `json:"id_barang"`
 	KodeBarang string `json:"kode_barang"`
 	NamaBarang string `json:"nama_barang"`
 	Merek      string `json:"merek"`
@@ -104,7 +108,7 @@ type StokRow struct {
 func ListAll(db *gorm.DB) ([]StokRow, error) {
 	var rows []StokRow
 	err := db.Table("barang_stok_gudang bsg").
-		Select("bsg.barang_id, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe, bsg.gudang_id, g.nama AS nama_gudang, bsg.stok").
+		Select("bsg.barang_id, b.id_barang, b.kode_barang, b.nama AS nama_barang, b.merek, b.tipe, bsg.gudang_id, g.nama AS nama_gudang, bsg.stok").
 		Joins("JOIN barang b ON b.id = bsg.barang_id").
 		Joins("JOIN gudangs g ON g.id = bsg.gudang_id").
 		Where("bsg.stok > 0").
@@ -116,7 +120,7 @@ func ListAll(db *gorm.DB) ([]StokRow, error) {
 func ListByGudang(db *gorm.DB, gudangID uint) ([]StokRow, error) {
 	var rows []StokRow
 	err := db.Table("barang_stok_gudang bsg").
-		Select("bsg.barang_id, b.kode_barang, b.nama AS nama_barang, bsg.gudang_id, bsg.stok").
+		Select("bsg.barang_id, b.id_barang, b.kode_barang, b.nama AS nama_barang, bsg.gudang_id, bsg.stok").
 		Joins("JOIN barang b ON b.id = bsg.barang_id").
 		Where("bsg.gudang_id = ? AND bsg.stok > 0", gudangID).
 		Order("b.nama").

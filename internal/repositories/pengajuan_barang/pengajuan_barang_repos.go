@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,6 +16,9 @@ import (
 	"github.com/mfaisal-Ash/inventory-backend/pkg/docnumber"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
+
+// ErrNomorPengajuan menandai kegagalan membuat nomor dokumen (bukan insert).
+var ErrNomorPengajuan = errors.New("gagal membuat nomor pengajuan")
 
 func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	if f.Status != "" {
@@ -41,6 +45,7 @@ func preloadPengajuan(q *gorm.DB) *gorm.DB {
 		Preload("Pemroses").
 		Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Barang.Satuan").
 		Preload("Items.Satuan").
 		Preload("BarangKeluar").
 		Preload("BarangMasuk").
@@ -70,6 +75,10 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.Pengajuan
 	return list, total, nil
 }
 
+func (r *repository) MarkPurchaseOrder(id uint) error {
+	return r.db.Model(&model.PengajuanBarang{}).Where("id = ? AND jenis = ? AND status = ?", id, "pengajuan", "disetujui").Update("catatan_proses", "Purchase Order dibuat").Error
+}
+
 func (r *repository) FindByID(id uint) (*model.PengajuanBarang, error) {
 	var pengajuan model.PengajuanBarang
 	if err := preloadPengajuan(r.db).First(&pengajuan, id).Error; err != nil {
@@ -78,8 +87,26 @@ func (r *repository) FindByID(id uint) (*model.PengajuanBarang, error) {
 	return &pengajuan, nil
 }
 
+// Create menyimpan pengajuan. Kalau NomorPengajuan kosong, nomornya dibuat DI
+// DALAM transaksi yang sama dengan insert — jadi kalau insert gagal, counter
+// ikut ter-rollback (tidak ada nomor PJ yang "hangus"/loncat), dan sidik jari
+// dokumen untuk tanda tangan yang belum punya hash dihitung setelah nomor ada.
 func (r *repository) Create(pengajuan *model.PengajuanBarang) error {
-	return r.db.Create(pengajuan).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if pengajuan.NomorPengajuan == "" {
+			nomor, err := docnumber.Next(tx, "PJ")
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrNomorPengajuan, err)
+			}
+			pengajuan.NomorPengajuan = nomor
+		}
+		for i := range pengajuan.TandaTangan {
+			if pengajuan.TandaTangan[i].DokumenHash == "" {
+				pengajuan.TandaTangan[i].DokumenHash = pengajuan.ComputeDokumenHash()
+			}
+		}
+		return tx.Create(pengajuan).Error
+	})
 }
 
 func (r *repository) Update(pengajuan *model.PengajuanBarang, items []model.PengajuanBarangItem, ttd *model.PengajuanTandaTangan) error {
@@ -87,9 +114,6 @@ func (r *repository) Update(pengajuan *model.PengajuanBarang, items []model.Peng
 		var current model.PengajuanBarang
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&current, pengajuan.ID).Error; err != nil {
 			return err
-		}
-		if current.Status != constant.StatusPengajuanDiajukan {
-			return errors.New(constant.ErrPengajuanBukanDiajukan)
 		}
 		if err := tx.Where("pengajuan_id = ?", pengajuan.ID).Delete(&model.PengajuanBarangItem{}).Error; err != nil {
 			return err
@@ -135,7 +159,7 @@ func (r *repository) Delete(id uint) error {
 		if err := tx.Where("pengajuan_id = ?", id).Delete(&model.PengajuanBarangItem{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&model.PengajuanBarang{}, id).Error
+		return tx.Where("id = ?", id).Delete(&model.PengajuanBarang{}).Error
 	})
 }
 
@@ -163,15 +187,18 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 		if err != nil {
 			return nil, fmt.Errorf("qty tidak dapat diproses: %s", item.Qty)
 		}
+		if item.BarangID == nil {
+			return nil, fmt.Errorf("barang %q belum terdaftar di Kelola Barang sehingga tidak bisa dikeluarkan", item.NamaManual)
+		}
 		var b model.Barang
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, item.BarangID).Error; err != nil {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&b, *item.BarangID).Error; err != nil {
 			return nil, err
 		}
 		if b.IsSerialized {
 			anySerialized = true
 		}
 
-		stokGudang, err := barangstokgudang.GetStokGudangTx(tx, item.BarangID, pengajuan.GudangID)
+		stokGudang, err := barangstokgudang.GetStokGudangTx(tx, *item.BarangID, pengajuan.GudangID)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +214,7 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 		if err != nil {
 			return nil, err
 		}
-		bkItems = append(bkItems, model.BarangKeluarItem{BarangID: item.BarangID, Qty: qty})
+		bkItems = append(bkItems, model.BarangKeluarItem{BarangID: *item.BarangID, Qty: qty})
 	}
 	nomorBK, err := docnumber.Next(tx, "BK")
 	if err != nil {
@@ -211,11 +238,11 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 			if err != nil {
 				return nil, err
 			}
-			if err := tx.Model(&model.Barang{}).Where("id = ?", item.BarangID).
+			if err := tx.Model(&model.Barang{}).Where("id = ?", *item.BarangID).
 				Update("stok", gorm.Expr("stok - ?", qty)).Error; err != nil {
 				return nil, err
 			}
-			if err := barangstokgudang.AdjustStokGudangTx(tx, item.BarangID, pengajuan.GudangID, -qty); err != nil {
+			if err := barangstokgudang.AdjustStokGudangTx(tx, *item.BarangID, pengajuan.GudangID, -qty); err != nil {
 				return nil, err
 			}
 		}
@@ -239,7 +266,11 @@ func (r *repository) setujuiKeluar(tx *gorm.DB, pengajuan *model.PengajuanBarang
 func (r *repository) setujuiMasuk(tx *gorm.DB, pengajuan *model.PengajuanBarang) (map[string]interface{}, error) {
 	bmItems := make([]model.BarangMasukItem, 0, len(pengajuan.Items))
 	for _, item := range pengajuan.Items {
-		bmItems = append(bmItems, model.BarangMasukItem{BarangID: item.BarangID, Qty: mustQty(item.Qty), HargaSatuan: 0})
+		barangID, err := resolveBarangMasuk(tx, item)
+		if err != nil {
+			return nil, err
+		}
+		bmItems = append(bmItems, model.BarangMasukItem{BarangID: barangID, Qty: mustQty(item.Qty), HargaSatuan: 0})
 	}
 	nomorBM, err := docnumber.Next(tx, "BM")
 	if err != nil {
@@ -257,6 +288,27 @@ func (r *repository) setujuiMasuk(tx *gorm.DB, pengajuan *model.PengajuanBarang)
 		return nil, err
 	}
 	return map[string]interface{}{"barang_masuk_id": bm.ID}, nil
+}
+
+// resolveBarangMasuk menentukan barang master untuk satu baris pengajuan
+// masuk. Baris dari Kelola Barang sudah punya ID. Baris input manual dicocokkan
+// ke master lewat kode barang; kalau belum terdaftar, persetujuan ditolak
+// dengan pesan yang jelas (barang harus didaftarkan dulu di Kelola Barang,
+// karena butuh kategori/satuan master untuk bisa masuk stok).
+func resolveBarangMasuk(tx *gorm.DB, item model.PengajuanBarangItem) (uint, error) {
+	if item.BarangID != nil {
+		return *item.BarangID, nil
+	}
+	kode := strings.TrimSpace(item.KodeManual)
+	if kode != "" {
+		var b model.Barang
+		if err := tx.Where("LOWER(kode_barang) = LOWER(?)", kode).First(&b).Error; err == nil {
+			return b.ID, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, err
+		}
+	}
+	return 0, fmt.Errorf("barang %q (kode %s) belum terdaftar di Kelola Barang — daftarkan dulu sebelum menyetujui pengajuan barang masuk ini", item.NamaManual, kode)
 }
 
 // setujuiTemplate: pengajuan berbasis formulir yang diunggah admin (jenis
@@ -278,11 +330,14 @@ func (r *repository) setujuiRusak(tx *gorm.DB, pengajuan *model.PengajuanBarang)
 		if err != nil {
 			return nil, err
 		}
+		if item.BarangID == nil {
+			return nil, fmt.Errorf("barang %q belum terdaftar di Kelola Barang sehingga tidak bisa dilaporkan rusak", item.NamaManual)
+		}
 		var b model.Barang
-		if err := tx.First(&b, item.BarangID).Error; err != nil {
+		if err := tx.First(&b, *item.BarangID).Error; err != nil {
 			return nil, err
 		}
-		barangID := item.BarangID
+		barangID := *item.BarangID
 		for i := 0; i < qty; i++ {
 			br := &model.BarangRusak{
 				BarangID:       &barangID,

@@ -1,12 +1,15 @@
 package barang
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	notification "github.com/mfaisal-Ash/inventory-backend/internal/controller/notifikasi"
 	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
@@ -45,14 +48,13 @@ func maskProtected(role string, list []model.Barang) {
 
 func parseListFilter(c *fiber.Ctx) barangRepo.Filter {
 	kategoriID, _ := strconv.ParseUint(c.Query("kategori_id", "0"), 10, 64)
-	satuanID, _ := strconv.ParseUint(c.Query("satuan_id", "0"), 10, 64)
+	satuanID, _ := strconv.ParseUint(c.Query("id_satuan", "0"), 10, 64)
 	f := barangRepo.Filter{
-		KategoriID:  uint(kategoriID),
-		SatuanID:    uint(satuanID),
-		StokMenipis: c.QueryBool("stok_menipis", false),
-		OnlyActive:  c.Query("status", "") == "aktif",
-		Merek:       c.Query("merek", ""),
-		Tipe:        c.Query("tipe", ""),
+		IDKategori: uint(kategoriID),
+		IDSatuan:   uint(satuanID),
+		StatusStok: c.Query("status_stok", ""),
+		HanyaAktif: c.Query("status", "") == "aktif",
+		Merek:      c.Query("merek", ""),
 	}
 
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
@@ -62,25 +64,25 @@ func parseListFilter(c *fiber.Ctx) barangRepo.Filter {
 	case constant.RoleSuperAdmin:
 
 		if delegatedToMe {
-			f.OnlyDelegatedTo = userID
+			f.HanyaDelegasiTo = userID
 		} else if s := c.Query("approval_status", ""); s != "" {
-			f.ApprovalStatuses = []string{s}
+			f.Status = []string{s}
 		}
 	case constant.RoleAdmin:
 
 		if delegatedToMe {
-			f.OnlyDelegatedTo = userID
+			f.HanyaDelegasiTo = userID
 		} else {
-			f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
-			f.OrSubmittedBy = userID
-			f.OrDelegatedTo = userID
+			f.Status = []string{constant.ApprovalDisetujui}
+			f.SubmitBy = userID
+			f.DelegasiTo = userID
 		}
 	case constant.RoleKaryawan:
 
-		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
-		f.OrSubmittedBy = userID
+		f.Status = []string{constant.ApprovalDisetujui}
+		f.SubmitBy = userID
 	default:
-		f.ApprovalStatuses = []string{constant.ApprovalDisetujui}
+		f.Status = []string{constant.ApprovalDisetujui}
 	}
 	return f
 }
@@ -106,7 +108,10 @@ func (h *Controller) Detail(c *fiber.Ctx) error {
 	}
 	b, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusNotFound, "Data Data barang tidak ditemukan", nil)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		}
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil detail barang", nil)
 	}
 	roleName, _ := c.Locals(constant.CtxRoleName).(string)
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
@@ -163,11 +168,20 @@ func resolveTanggalKuantitas(req BarangRequest) (time.Time, int, int, error) {
 
 func (h *Controller) nextIDBarang(tanggal time.Time) (string, error) {
 	key := fmt.Sprintf("RSD-%s", tanggal.Format("02012006"))
-	var counter int
-	if err := h.db.Raw(`INSERT INTO document_counters (key, counter, updated_at) VALUES (?, 1, now()) ON CONFLICT (key) DO UPDATE SET counter = document_counters.counter + 1, updated_at = now() RETURNING counter`, key).Scan(&counter).Error; err != nil {
+	var counter model.DocumentCounter
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "key"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{"counter": gorm.Expr("document_counters.counter + 1"), "updated_at": time.Now()}),
+		}).Create(&model.DocumentCounter{Key: key, Counter: 1, UpdatedAt: time.Now()})
+		if result.Error != nil {
+			return result.Error
+		}
+		return tx.First(&counter, "key = ?", key).Error
+	}); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s-%02d", key, counter), nil
+	return fmt.Sprintf("%s-%02d", key, counter.Counter), nil
 }
 
 func (h *Controller) buildBarangModel(req BarangRequest, stokGudang *model.Gudang, tanggal time.Time, kuantitas, keluarAwal int, idBarang string) *model.Barang {
@@ -271,13 +285,8 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	b := h.buildBarangModel(req, stokGudang, tanggal, kuantitas, keluarAwal, idBarang)
 	h.setApprovalStatus(c, b)
 
-	if err := h.repo.Create(b); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat barang", nil)
-	}
-
-	if err := h.handlePostCreateStok(b, req); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError,
-			"barang berhasil dibuat, TAPI gagal mencatat stok awal ke gudang tujuan — buka Ubah Barang untuk mengisi ulang", nil)
+	if err := h.repo.CreateWithInitialStock(b, req.StokGudangID, req.Stok); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat barang dan stok awal", nil)
 	}
 
 	msg := h.getCreateMessage(b)
@@ -579,7 +588,7 @@ func (h *Controller) DetailStok(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung neraca stok", nil)
 	}
 	return utils.OK(c, "detail stok barang berhasil diambil", DetailStokResponse{
-		BarangID:    b.ID,
+		BarangID:    b.IDBarang,
 		KodeBarang:  b.KodeBarang,
 		NamaBarang:  b.Nama,
 		TotalStok:   b.Stok,
@@ -637,6 +646,12 @@ func (h *Controller) AdjustStok(c *fiber.Ctx) error {
 
 	b, err := h.repo.AdjustStok(id, req.Delta)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.Fail(c, fiber.StatusNotFound, "barang tidak ditemukan", nil)
+		}
+		if err.Error() == "stok tidak mencukupi" {
+			return utils.Fail(c, fiber.StatusConflict, "stok tidak mencukupi", nil)
+		}
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui stok barang", nil)
 	}
 	return utils.OK(c, "stok barang berhasil diperbarui", b)
@@ -676,7 +691,7 @@ func (h *Controller) RingkasanStok(c *fiber.Ctx) error {
 	out := make([]RingkasanStokRow, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, RingkasanStokRow{
-			BarangID: r.BarangID, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
+			BarangID: r.BarangID, IDBarang: r.IDBarang, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
 			Merek: r.Merek, Tipe: r.Tipe,
 			GudangID: r.GudangID, NamaGudang: r.NamaGudang, Stok: r.Stok,
 		})
@@ -701,7 +716,7 @@ func (h *Controller) ringkasanStokPerTanggal(c *fiber.Ctx, raw string) error {
 	out := make([]RingkasanStokRow, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, RingkasanStokRow{
-			BarangID: r.BarangID, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
+			BarangID: r.BarangID, IDBarang: r.IDBarang, KodeBarang: r.KodeBarang, NamaBarang: r.NamaBarang,
 			Merek: r.Merek, Tipe: r.Tipe,
 			GudangID: r.GudangID, NamaGudang: r.NamaGudang, Stok: r.Stok,
 		})

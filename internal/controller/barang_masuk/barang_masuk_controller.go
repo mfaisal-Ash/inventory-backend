@@ -182,9 +182,9 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIdBM, nil)
 	}
-	bm, err := h.requireDraft(id)
+	bm, err := h.repo.FindByID(id)
 	if err != nil {
-		return utils.Fail(c, fiber.StatusConflict, err.Error(), nil)
+		return utils.Fail(c, fiber.StatusNotFound, "dokumen barang masuk tidak ditemukan", nil)
 	}
 	if bm.IsProtected {
 		return utils.Fail(c, fiber.StatusForbidden,

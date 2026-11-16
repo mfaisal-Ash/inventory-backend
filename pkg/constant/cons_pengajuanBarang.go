@@ -34,7 +34,7 @@ const (
 
 	ErrPengajuanTTDPencatatWajib        = "tanda tangan digital pengaju (pihak gudang) wajib diisi untuk pengajuan barang masuk"
 	ErrPengajuanTTDPenyetujuWajib       = "tanda tangan digital penyetuju wajib diisi untuk menyetujui pengajuan barang masuk"
-	ErrPengajuanTTDTidakValid           = "tanda tangan digital tidak valid (kirim gambar PNG hasil coretan, maksimal 300 KB)"
+	ErrPengajuanTTDTidakValid           = "tanda tangan digital tidak valid (kirim gambar PNG hasil coretan, maksimal 5 MB)"
 	ErrPengajuanTTDPencatatHilang       = "pengajuan ini belum ditandatangani pihak pengaju, atau isinya sudah berubah setelah ditandatangani — minta pengaju menandatangani ulang"
 	ErrPengajuanPenyetujuSamaDgnPengaju = "penyetuju harus orang yang berbeda dari pengaju (dua pihak harus menyetujui)"
 	ErrPengajuanTTDTidakDitemukan       = "tanda tangan tidak ditemukan"
@@ -44,4 +44,6 @@ const (
 // tanda tangan digital (pengaju -> penyetuju) sebelum barang masuk dibuat.
 // Jenis lain tetap boleh tanda tangan (opsional), tapi tidak diwajibkan supaya
 // alur lama tidak berubah.
-func PengajuanWajibTTD(jenis string) bool { return jenis == JenisPengajuanMasuk }
+func PengajuanWajibTTD(jenis string) bool {
+	return jenis == JenisPengajuanMasuk || jenis == JenisPengajuanBarang
+}

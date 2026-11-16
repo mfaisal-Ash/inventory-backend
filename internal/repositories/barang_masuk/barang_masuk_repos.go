@@ -58,6 +58,7 @@ func (r *repository) List(p utils.PaginationParams, f Filter) ([]model.BarangMas
 	if err := p.Apply(q.Session(&gorm.Session{}).
 		Preload("Gudang").Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Barang.Satuan").
 		Order("id desc")).
 		Find(&list).Error; err != nil {
 		return nil, 0, err
@@ -70,6 +71,7 @@ func (r *repository) FindByID(id uint) (*model.BarangMasuk, error) {
 	err := r.db.Preload("Gudang").
 		Preload("Items").
 		Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
+		Preload("Items.Barang.Satuan").
 		First(&bm, id).Error
 	if err != nil {
 		return nil, err
@@ -211,7 +213,7 @@ func (r *repository) PendingInspections(p utils.PaginationParams) ([]model.Baran
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := p.Apply(q.Preload("Gudang").Preload("Items").Order("id desc")).Find(&out).Error; err != nil {
+	if err := p.Apply(q.Preload("Gudang").Preload("Items.Barang", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).Preload("Items.Barang.Satuan").Order("id desc")).Find(&out).Error; err != nil {
 		return nil, 0, err
 	}
 	return out, total, nil

@@ -1,6 +1,7 @@
 package barang_serial
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +38,7 @@ func (h *Controller) List(c *fiber.Ctx) error {
 	}
 	list, total, err := h.repo.List(p, f)
 	if err != nil {
+		log.Printf("barang-serial list failed barang_id=%d gudang_id=%d status=%q bm_item_id=%d bk_item_id=%d: %v", barangID, gudangID, f.Status, bmItemID, bkItemID, err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mengambil daftar unit barang", nil)
 	}
 	return utils.OKWithMeta(c, "daftar unit barang berhasil diambil", list, utils.BuildPaginationMeta(p, total))

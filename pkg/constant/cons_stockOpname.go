@@ -1,9 +1,12 @@
 package constant
 
 const (
-	StatusSODraft      = "draft"
-	StatusSOSelesai    = "selesai"
-	StatusSODibatalkan = "dibatalkan"
+	StatusSODraft               = "draft"
+	StatusSOSedangDihitung      = "sedang_dihitung"
+	StatusSOMenungguPemeriksaan = "menunggu_pemeriksaan"
+	StatusSODitolak             = "ditolak"
+	StatusSOSelesai             = "selesai"
+	StatusSODibatalkan          = "dibatalkan"
 )
 
 const (
