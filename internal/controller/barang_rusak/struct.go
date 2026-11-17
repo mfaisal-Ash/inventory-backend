@@ -28,6 +28,7 @@ func New(repo barangRusakRepo.Repository, barangRepo barangRepo.Repository, guda
 
 type BarangRusakRequest struct {
 	BarangID     *uint  `json:"barang_id" validate:"omitempty"`
+	Qty          int64  `json:"qty" validate:"omitempty,min=1"`
 	LabelBarang  string `json:"label_barang" validate:"required,max=60"`
 	NamaBarang   string `json:"nama_barang" validate:"required,max=150"`
 	Merek        string `json:"merek" validate:"max=100"`

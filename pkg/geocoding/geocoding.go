@@ -70,7 +70,7 @@ func NewService(appName string) *Service {
 	}
 	return &Service{
 		client:    &http.Client{Timeout: requestTimeout},
-		userAgent: fmt.Sprintf("%s/1.0 (internal warehouse management system; geocoding proxy)", ua),
+		userAgent: fmt.Sprintf("%s/1.0 (sistem manajemen gudang internal; geocoding proxy)", ua),
 		cache:     make(map[string]cacheEntry),
 	}
 }

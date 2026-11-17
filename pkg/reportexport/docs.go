@@ -171,7 +171,7 @@ func writeBannerHeader(b *strings.Builder) {
 	fmt.Fprintf(b, `<w:tcW w:w="%d" w:type="dxa"/>`, docxPageWidthTwip)
 	b.WriteString(`<w:shd w:val="clear" w:fill="143C14"/><w:tcMar><w:top w:w="120" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:left w:w="120" w:type="dxa"/></w:tcMar></w:tcPr>`)
 	b.WriteString(`<w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="32"/></w:rPr><w:t>WMS-RSD</w:t></w:r></w:p>`)
-	b.WriteString(`<w:p><w:r><w:rPr><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Warehouse Management System - RSD</w:t></w:r></w:p>`)
+	b.WriteString(`<w:p><w:r><w:rPr><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Sistem Manajemen Gudang - RSD</w:t></w:r></w:p>`)
 	b.WriteString(`</w:tc></w:tr></w:tbl>`)
 }
 

@@ -95,6 +95,14 @@ type RingkasanStokRow struct {
 	Stok       int    `json:"stok"`
 }
 
+type KondisiStokResponse struct {
+	Normal         int64 `json:"normal"`
+	Rusak          int64 `json:"rusak"`
+	BelumDiperiksa int64 `json:"belum_diperiksa"`
+	Retur          int64 `json:"retur"`
+	Tersedia       int64 `json:"tersedia"`
+}
+
 type DetailStokResponse struct {
 	BarangID    string                     `json:"barang_id"`
 	KodeBarang  string                     `json:"kode_barang"`
@@ -102,6 +110,7 @@ type DetailStokResponse struct {
 	TotalStok   int                        `json:"total_stok"`
 	TotalMasuk  int64                      `json:"total_masuk"`
 	TotalKeluar int64                      `json:"total_keluar"`
+	Kondisi     *KondisiStokResponse       `json:"kondisi,omitempty"`
 	PerGudang   []barangstokgudang.StokRow `json:"per_gudang"`
 
 	// Neraca: stok per gudang dengan metode neraca sepanjang waktu —

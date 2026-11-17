@@ -3,6 +3,7 @@ package captcha
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -15,5 +16,5 @@ func (h *Controller) GenerateCaptcha(c *fiber.Ctx) error {
 }
 
 func (h *Controller) RegisterRoutes(router fiber.Router) {
-	router.Get("/captcha", h.GenerateCaptcha)
+	router.Get("/captcha", middleware.CaptchaRateLimiter(), h.GenerateCaptcha)
 }

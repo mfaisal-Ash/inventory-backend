@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
@@ -35,6 +36,11 @@ func NewDatabase(cfg *Config) *gorm.DB {
 	})
 	if err != nil {
 		log.Fatalf("gagal konek database: %v", err)
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetConnMaxLifetime(30 * time.Minute)
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetMaxOpenConns(50)
 	}
 	return db
 }
@@ -78,6 +84,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.AssetPort{},
 		&model.AssetHistory{},
 		&model.BarangRusak{},
+		&model.InspeksiStok{},
+		&model.BalanceStok{},
 		&model.ReturPenggantian{},
 		&model.KabelGulungan{},
 		&model.KabelPemakaian{},
@@ -94,10 +102,27 @@ func AutoMigrate(db *gorm.DB) error {
 	if db.Dialector.Name() != "postgres" {
 		return nil
 	}
+	if err := ensureSearchIndexes(db); err != nil {
+		return err
+	}
 	if err := ensureAssetPartialUniqueIndexes(db); err != nil {
 		return err
 	}
 	return ensureUsersEmailNotUnique(db)
+}
+
+func ensureSearchIndexes(db *gorm.DB) error {
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_pengajuan_barang_nomor ON pengajuan_barang (nomor_pengajuan)",
+		"CREATE INDEX IF NOT EXISTS idx_purchase_orders_nomor ON purchase_orders (nomor_po)",
+		"CREATE INDEX IF NOT EXISTS idx_users_username ON users (username)",
+	}
+	for _, stmt := range indexes {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ensureUsersEmailNotUnique(db *gorm.DB) error {

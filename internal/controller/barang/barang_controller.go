@@ -587,13 +587,53 @@ func (h *Controller) DetailStok(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung neraca stok", nil)
 	}
+	barangID := b.IDBarang
+	if strings.TrimSpace(barangID) == "" {
+		barangID = strconv.FormatUint(uint64(b.ID), 10)
+	}
+	var kondisi *KondisiStokResponse
+	if b.IsSerialized {
+		var returSelesai int64
+		if err := h.db.Model(&model.ReturPenggantian{}).
+			Where("barang_id = ? AND status = ?", id, constant.StatusReturSelesai).
+			Count(&returSelesai).Error; err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung retur selesai", nil)
+		}
+		var totalNormal int64
+		if err := h.db.Model(&model.BarangSerial{}).
+			Where("barang_id = ? AND status = ?", id, constant.StatusSerialTersedia).
+			Count(&totalNormal).Error; err != nil {
+			return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung unit serial tersedia", nil)
+		}
+		tersedia := totalNormal - returSelesai
+		if tersedia < 0 {
+			tersedia = 0
+		}
+		kondisi = &KondisiStokResponse{Normal: totalNormal, Retur: returSelesai, Tersedia: tersedia}
+	} else {
+		var balance model.BalanceStok
+		if err := h.db.Where("barang_id = ?", id).First(&balance).Error; err == nil {
+			var returSelesai int64
+			if err := h.db.Model(&model.ReturPenggantian{}).
+				Where("barang_id = ? AND gudang_id = ? AND status = ?", id, balance.GudangID, constant.StatusReturSelesai).
+				Count(&returSelesai).Error; err != nil {
+				return utils.Fail(c, fiber.StatusInternalServerError, "gagal menghitung retur selesai", nil)
+			}
+			tersedia := balance.NormalQty - returSelesai
+			if tersedia < 0 {
+				tersedia = 0
+			}
+			kondisi = &KondisiStokResponse{Normal: balance.NormalQty, Rusak: balance.RusakQty, BelumDiperiksa: balance.BelumDiperiksaQty, Retur: returSelesai, Tersedia: tersedia}
+		}
+	}
 	return utils.OK(c, "detail stok barang berhasil diambil", DetailStokResponse{
-		BarangID:    b.IDBarang,
+		BarangID:    barangID,
 		KodeBarang:  b.KodeBarang,
 		NamaBarang:  b.Nama,
 		TotalStok:   b.Stok,
 		TotalMasuk:  masuk,
 		TotalKeluar: keluar,
+		Kondisi:     kondisi,
 		PerGudang:   perGudang,
 		Neraca:      neracaRes.Rows,
 		NeracaTotal: neracaRes.Total,

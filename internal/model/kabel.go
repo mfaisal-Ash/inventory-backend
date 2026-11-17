@@ -17,9 +17,11 @@ type KabelGulungan struct {
 	GudangID     uint    `json:"gudang_id" gorm:"not null;index"`
 	Gudang       *Gudang `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
 	PanjangAwal  int     `json:"panjang_awal" gorm:"not null"`
-	Catatan      string  `json:"catatan" gorm:"size:255"`
-	DibuatOleh   uint    `json:"dibuat_oleh" gorm:"not null"`
-	Pembuat      *User   `json:"pembuat,omitempty" gorm:"foreignKey:DibuatOleh"`
+	// Satuan panjang selalu meter untuk kabel fiber optik/LAN.
+	Satuan     string `json:"satuan" gorm:"size:10;not null;default:'meter'"`
+	Catatan    string `json:"catatan" gorm:"size:255"`
+	DibuatOleh uint   `json:"dibuat_oleh" gorm:"not null"`
+	Pembuat    *User  `json:"pembuat,omitempty" gorm:"foreignKey:DibuatOleh"`
 
 	Pemakaian []KabelPemakaian `json:"pemakaian,omitempty" gorm:"foreignKey:GulunganID"`
 

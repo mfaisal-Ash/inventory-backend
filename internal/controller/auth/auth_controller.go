@@ -672,8 +672,8 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g.Post("/login", h.Login)
 	g.Post("/2fa/setup", h.Setup2FA)
 	g.Post("/2fa/confirm", h.ConfirmSetup2FA)
-	g.Post("/verify-otp", h.VerifyOTP)
-	g.Post("/refresh", h.RefreshToken)
+	g.Post("/verify-otp", middleware.OTPrateLimiter(), h.VerifyOTP)
+	g.Post("/refresh", middleware.RefreshRateLimiter(), h.RefreshToken)
 
 	g.Post("/password/forgot", middleware.PasswordResetRateLimiter(), h.ForgotPassword)
 

@@ -3,6 +3,7 @@ package humancheck
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/mfaisal-Ash/inventory-backend/internal/middleware"
 	"github.com/mfaisal-Ash/inventory-backend/pkg/utils"
 )
 
@@ -15,5 +16,5 @@ func (h *Controller) Issue(c *fiber.Ctx) error {
 }
 
 func (h *Controller) RegisterRoutes(router fiber.Router) {
-	router.Get("/human-check", h.Issue)
+	router.Get("/human-check", middleware.CaptchaRateLimiter(), h.Issue)
 }

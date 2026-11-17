@@ -71,8 +71,13 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 	}
 
 	userID, _ := c.Locals(constant.CtxUserID).(uint)
+	qty := req.Qty
+	if qty == 0 {
+		qty = 1
+	}
 	b := &model.BarangRusak{
 		BarangID:       req.BarangID,
+		Qty:            qty,
 		LabelBarang:    req.LabelBarang,
 		NamaBarang:     req.NamaBarang,
 		Merek:          req.Merek,
@@ -125,6 +130,10 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	b.Merek = req.Merek
 	b.KodeBarang = req.KodeBarang
 	b.SerialNumber = req.SerialNumber
+	b.Qty = req.Qty
+	if b.Qty == 0 {
+		b.Qty = 1
+	}
 	b.Keterangan = req.Keterangan
 	if err := h.repo.Update(b); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui laporan barang rusak", nil)

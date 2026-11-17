@@ -250,7 +250,10 @@ func (r *repository) Ganti(id uint, serialBaru string, userID uint) (*model.Retu
 			return err
 		}
 
-		// 4) Tutup retur.
+		// 4) Tutup retur. Jumlah retur selesai dihitung dari agregasi
+		// retur_penggantian saat membaca detail stok, bukan disimpan melalui
+		// increment balance_stok. Dengan demikian data tetap benar apabila ada
+		// koreksi atau data retur lama.
 		rt.SerialBaru = serialBaru
 		rt.Status = constant.StatusReturSelesai
 		rt.DigantiOleh = &userID

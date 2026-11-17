@@ -70,7 +70,7 @@ func drawLetterhead(pdf *gofpdf.Fpdf, reportTitle string) {
 	pdf.CellFormat(pageWidth-20, 8, "WMS-RSD", "", 1, "L", false, 0, "")
 	pdf.SetFont("Arial", "", 9)
 	pdf.SetX(10)
-	pdf.CellFormat(pageWidth-20, 6, "Warehouse Management System - RSD", "", 1, "L", false, 0, "")
+	pdf.CellFormat(pageWidth-20, 6, "Sistem Manajemen Gudang, Reueus Sumber Data", "", 1, "L", false, 0, "")
 
 	pdf.SetTextColor(0, 0, 0)
 	pdf.SetY(26)
@@ -91,7 +91,7 @@ func drawFooterBand(pdf *gofpdf.Fpdf) {
 	pdf.SetTextColor(footerTextColor[0], footerTextColor[1], footerTextColor[2])
 	pdf.SetFont("Arial", "", 8)
 	pdf.SetXY(10, bandY+4)
-	pdf.CellFormat(pageWidth-20, 6, "www.wms-rsd.internal - Dokumen ini dihasilkan otomatis oleh sistem WMS-RSD", "", 0, "L", false, 0, "")
+	pdf.CellFormat(pageWidth-20, 6, "www.wms-rsd.my.id Dokumen ini dihasilkan otomatis oleh sistem WMS-RSD", "", 0, "L", false, 0, "")
 	pdf.SetTextColor(0, 0, 0)
 }
 

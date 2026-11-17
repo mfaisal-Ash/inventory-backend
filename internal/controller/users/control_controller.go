@@ -48,7 +48,7 @@ func (h *Controller) ListPasswordResetRequests(c *fiber.Ctx) error {
 }
 
 func (h *Controller) ApprovePasswordReset(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("requestId"), 10, 64)
+	id, err := strconv.ParseUint(strings.TrimSpace(c.Params("requestId")), 10, 64)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, cons.ErrIDInvalid, nil)
 	}
@@ -70,7 +70,7 @@ func (h *Controller) ApprovePasswordReset(c *fiber.Ctx) error {
 }
 
 func (h *Controller) RejectPasswordReset(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("requestId"), 10, 64)
+	id, err := strconv.ParseUint(strings.TrimSpace(c.Params("requestId")), 10, 64)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, cons.ErrIDInvalid, nil)
 	}

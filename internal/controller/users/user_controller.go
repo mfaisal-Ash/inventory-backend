@@ -500,7 +500,7 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 	g := authed.Group("", middleware.RequireRole(cons.RoleSuperAdmin, constant.RoleAdmin))
 	g.Get("/", h.List)
 	g.Get("/:id", h.Detail)
-	g.Post("/", middleware.RequireRole(cons.RoleSuperAdmin), h.Create)
+	g.Post("/", middleware.RequireRole(cons.RoleSuperAdmin), middleware.GlobalRateLimiter(), h.Create)
 	g.Put("/:id", h.Update)
 
 	g.Delete("/:id", middleware.RequireRole(cons.RoleSuperAdmin), h.Delete)
@@ -510,8 +510,8 @@ func (h *Controller) RegisterRoutes(router fiber.Router) {
 
 	// Kendali super admin atas akun admin/karyawan.
 	g.Get("/password-reset-requests", middleware.RequireRole(cons.RoleSuperAdmin), h.ListPasswordResetRequests)
-	g.Post("/password-reset-requests/:requestId/approve", middleware.RequireRole(cons.RoleSuperAdmin), h.ApprovePasswordReset)
+	g.Post("/password-reset-requests/:requestId/approve", middleware.RequireRole(cons.RoleSuperAdmin), middleware.GlobalRateLimiter(), h.ApprovePasswordReset)
 	g.Post("/password-reset-requests/:requestId/reject", middleware.RequireRole(cons.RoleSuperAdmin), h.RejectPasswordReset)
-	g.Post("/:id/reset-password", middleware.RequireRole(cons.RoleSuperAdmin), h.ResetPassword)
+	g.Post("/:id/reset-password", middleware.RequireRole(cons.RoleSuperAdmin), middleware.PasswordResetRateLimiter(), h.ResetPassword)
 	g.Post("/:id/logout-all", middleware.RequireRole(cons.RoleSuperAdmin), h.ForceLogout)
 }

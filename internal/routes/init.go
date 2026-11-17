@@ -20,6 +20,7 @@ import (
 	geocodeController "github.com/mfaisal-Ash/inventory-backend/internal/controller/geocode"
 	gudangController "github.com/mfaisal-Ash/inventory-backend/internal/controller/gudang"
 	humanCheckController "github.com/mfaisal-Ash/inventory-backend/internal/controller/humancheck"
+	inspeksiStokController "github.com/mfaisal-Ash/inventory-backend/internal/controller/inspeksi_stok"
 	kabelController "github.com/mfaisal-Ash/inventory-backend/internal/controller/kabel"
 	laporanController "github.com/mfaisal-Ash/inventory-backend/internal/controller/laporan"
 	maintenanceController "github.com/mfaisal-Ash/inventory-backend/internal/controller/maintenance"
@@ -49,6 +50,7 @@ import (
 	barangRusakRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_rusak"
 	barangSerialRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/barang_serial"
 	gudangRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/gudang"
+	inspeksiStokRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/inspeksi_stok"
 	kabelRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/kabel"
 	maintenanceRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/maintenance"
 	neracaRepo "github.com/mfaisal-Ash/inventory-backend/internal/repositories/neraca"
@@ -98,6 +100,7 @@ type Dependencies struct {
 	StockOpnameController  *stockOpnameController.Controller
 	AssetController        *assetController.Controller
 	BarangRusakController  *barangRusakController.Controller
+	InspeksiStokController *inspeksiStokController.Controller
 	ReturController        *returController.Controller
 	KabelController        *kabelController.Controller
 	NeracaController       *neracaController.Controller
@@ -146,6 +149,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	rAssetPort := assetPortRepo.New(db)
 	rAssetHistory := assetHistoryRepo.New(db)
 	rBarangRusak := barangRusakRepo.New(db)
+	_ = inspeksiStokRepo.New(db)
 	rRetur := returRepo.New(db)
 	rKabel := kabelRepo.New(db)
 	rNeraca := neracaRepo.New(db)
@@ -201,6 +205,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 	cStockOpname := stockOpnameController.New(rStockOpname, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cAsset := assetController.New(rAsset, rGudang, rAssetPort, rAssetHistory, rUsers, rRole, rBarang, jwtSvc, rNotification)
 	cBarangRusak := barangRusakController.New(rBarangRusak, rBarang, rGudang, rRole, jwtSvc, rNotification)
+	cInspeksiStok := inspeksiStokController.New(inspeksiStokRepo.New(db), rRole, jwtSvc)
 	cRetur := returController.New(rRetur, rBarang, rGudang, rRole, jwtSvc, rNotification)
 	cKabel := kabelController.New(rKabel, rRole, jwtSvc)
 	cNeraca := neracaController.New(rNeraca, rRole, jwtSvc)
@@ -240,6 +245,7 @@ func New(db *gorm.DB, cfg *config.Config) *Dependencies {
 		StockOpnameController:       cStockOpname,
 		AssetController:             cAsset,
 		BarangRusakController:       cBarangRusak,
+		InspeksiStokController:      cInspeksiStok,
 		ReturController:             cRetur,
 		KabelController:             cKabel,
 		NeracaController:            cNeraca,

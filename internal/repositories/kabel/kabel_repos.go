@@ -58,9 +58,9 @@ func applyFilter(q *gorm.DB, f Filter) *gorm.DB {
 	}
 	switch f.Status {
 	case constant.StatusKabelAktif:
-		q = q.Where("kabel_gulungan.panjang_awal > " + sqlTerpakai)
+		q = q.Where("kabel_gulungan.panjang_awal > (" + sqlTerpakai + ")")
 	case constant.StatusKabelHabis:
-		q = q.Where("kabel_gulungan.panjang_awal <= " + sqlTerpakai)
+		q = q.Where("kabel_gulungan.panjang_awal <= (" + sqlTerpakai + ")")
 	}
 	return q
 }

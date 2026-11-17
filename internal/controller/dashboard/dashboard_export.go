@@ -180,7 +180,7 @@ func renderReportHTML(title string, from, to time.Time, rows []struct {
 	</style></head><body>`)
 	b.WriteString(`<header><div class="brand"><div class="brand-badge">S</div><div><h1>`)
 	b.WriteString(html.EscapeString(title))
-	b.WriteString(`</h1><div style="font-size:12px;color:#8a7b74">StokRSD Warehouse Management System</div></div></div><div style="text-align:right;font-size:11px;color:#8a7b74">Dicetak: `)
+	b.WriteString(`</h1><div style="font-size:12px;color:#8a7b74">StokRSD Sistem Manajemen Gudang</div></div></div><div style="text-align:right;font-size:11px;color:#8a7b74">Dicetak: `)
 	b.WriteString(time.Now().Format("02 Jan 2006 15:04"))
 	b.WriteString(`</div></header>`)
 	b.WriteString(fmt.Sprintf(`<div class="meta"><strong>Periode:</strong> %s s/d %s &nbsp;&middot;&nbsp; <strong>Total record:</strong> %d</div>`, from.Format(prettyDateFormat), to.Format(prettyDateFormat), len(rows)))

@@ -18,7 +18,8 @@ var db *gorm.DB
 var jwtSvc *utils.JWTService
 
 func mintHandler(w http.ResponseWriter, r *http.Request) {
-	if os.Getenv("APP_ENV") != "development" {
+	if os.Getenv("APP_ENV") != "development" || os.Getenv("ENABLE_DEV_TOKEN_MINT") != "true" {
+
 		http.Error(w, "disabled", 403)
 		return
 	}
@@ -63,7 +64,7 @@ func main() {
 	jwtSvc = utils.NewJWTService(&cfg.JWT)
 
 	http.HandleFunc("/dev/mint-token", mintHandler)
-	addr := ":9099"
+	addr := "127.0.0.1:9099"
 	log.Printf("Dev token minter on %s", addr)
 	fmt.Println(http.ListenAndServe(addr, nil))
 }

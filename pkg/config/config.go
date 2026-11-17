@@ -229,13 +229,7 @@ func Load() *Config {
 	return cfg
 }
 
-var weakSecretDefaults = map[string]string{
-	"JWT_ACCESS_SECRET":  "access-secret",
-	"JWT_REFRESH_SECRET": "refresh-secret",
-	"CAPTCHA_SECRET":     "change-me-captcha-secret",
-	"HUMANCHECK_SECRET":  "change-me-humancheck-secret",
-	"BOTCHECK_SECRET":    "change-me-botcheck-secret",
-}
+var weakSecretDefaults = map[string]string{}
 
 func defaultDBDriver() string {
 	if strings.EqualFold(strings.TrimSpace(getEnv("APP_ENV", "development")), "development") {
@@ -245,6 +239,9 @@ func defaultDBDriver() string {
 }
 
 func validateProductionSecrets(cfg *Config) {
+	if strings.TrimSpace(cfg.JWT.AccessSecret) == "" || strings.TrimSpace(cfg.JWT.RefreshSecret) == "" || strings.TrimSpace(cfg.Captcha.Secret) == "" || strings.TrimSpace(cfg.HumanCheck.Secret) == "" || strings.TrimSpace(cfg.BotCheck.Secret) == "" {
+		log.Fatalf("config: semua secret autentikasi dan anti-bot wajib diisi")
+	}
 	// Validasi secret dan password database hanya berlaku di luar development.
 	// Pada lokal, APP_ENV=development memang boleh memakai konfigurasi kosong
 	// agar backend dapat dijalankan tanpa mengisi secret production.

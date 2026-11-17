@@ -16,7 +16,7 @@ type idTotal struct {
 //     Kuantitas = Stok + TotalKeluar (semua yang pernah tercatat) dan
 //     Sisa = Stok.
 //   - JumlahRusak : barang ber-SN -> unit serial berstatus rusak; barang
-//     tanpa SN -> laporan Barang Rusak berstatus rusak.
+//     tanpa SN -> jumlah qty laporan Barang Rusak berstatus rusak.
 //   - NamaPengaju : nama petugas yang mendaftarkan barang (kolom "Nama").
 //
 // Best-effort: kalau salah satu query gagal, daftar barang tetap tampil
@@ -72,7 +72,7 @@ func (h *Controller) fillListStats(list []model.Barang) {
 	rows = nil
 	if err := h.db.Model(&model.BarangRusak{}).
 		Where("barang_id IN ? AND status = ?", ids, constant.StatusRusak).
-		Select("barang_id AS barang_id, COUNT(*) AS total").
+		Select("barang_id AS barang_id, COALESCE(SUM(qty), 0) AS total").
 		Group("barang_id").Scan(&rows).Error; err == nil {
 		for _, r := range rows {
 			rusakLaporan[r.BarangID] = r.Total

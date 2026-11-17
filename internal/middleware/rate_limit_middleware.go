@@ -173,6 +173,38 @@ const (
 
 var globalLimiter = newIPRateLimiter(globalRateLimitMax, globalRateLimitWindow)
 
+const (
+	otpRateLimitMax        = 5
+	otpRateLimitWindow     = 10 * time.Minute
+	refreshRateLimitMax    = 30
+	refreshRateLimitWindow = time.Minute
+	captchaRateLimitMax    = 30
+	captchaRateLimitWindow = time.Minute
+)
+
+var otpLimiter = newIPRateLimiter(otpRateLimitMax, otpRateLimitWindow)
+var refreshLimiter = newIPRateLimiter(refreshRateLimitMax, refreshRateLimitWindow)
+var captchaLimiter = newIPRateLimiter(captchaRateLimitMax, captchaRateLimitWindow)
+
+func endpointLimiter(rl *ipRateLimiter, message string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !rl.allow(c.IP()) {
+			return utils.Fail(c, fiber.StatusTooManyRequests, message, nil)
+		}
+		return c.Next()
+	}
+}
+
+func OTPrateLimiter() fiber.Handler {
+	return endpointLimiter(otpLimiter, "terlalu banyak percobaan OTP, coba lagi nanti")
+}
+func RefreshRateLimiter() fiber.Handler {
+	return endpointLimiter(refreshLimiter, "terlalu banyak permintaan refresh token, coba lagi nanti")
+}
+func CaptchaRateLimiter() fiber.Handler {
+	return endpointLimiter(captchaLimiter, "terlalu banyak permintaan CAPTCHA, coba lagi nanti")
+}
+
 func GlobalRateLimiter() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if !globalLimiter.allow(c.IP()) {

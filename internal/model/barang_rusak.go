@@ -26,7 +26,9 @@ type BarangRusak struct {
 	KodeBarang string `json:"kode_barang" gorm:"size:60"`
 
 	SerialNumber string `json:"serial_number" gorm:"size:100"`
-	Keterangan   string `json:"keterangan" gorm:"size:500"`
+	// Qty dipakai untuk laporan non-serial; laporan berserial tetap bernilai 1.
+	Qty        int64  `json:"qty" gorm:"not null;default:1"`
+	Keterangan string `json:"keterangan" gorm:"size:500"`
 
 	FotoData        []byte `json:"-" gorm:"type:bytea"`
 	FotoContentType string `json:"-" gorm:"size:100"`
