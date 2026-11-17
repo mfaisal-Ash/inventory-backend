@@ -6,7 +6,10 @@ RUN apk add --no-cache ca-certificates git
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/inventory-backend ./cmd/main.go
+ARG APP_VERSION=v1.3.9
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X github.com/mfaisal-Ash/inventory-backend/internal/controller/appinfo.CurrentVersion=${APP_VERSION}" \
+    -o /out/inventory-backend ./cmd/main.go
 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata && addgroup -S app && adduser -S -G app app

@@ -1,6 +1,8 @@
 package notifikasi
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -93,19 +95,18 @@ func (r *repository) MarkAllRead(userID uint, userRole string) error {
 		return nil
 	}
 
-	// Catatan: SEBELUMNYA pakai `unnest(?::bigint[])` dengan slice Go dibind ke
-	// satu placeholder `?` — GORM otomatis meng-expand argumen ber-tipe slice
-	// jadi banyak placeholder (?,?,?,...), yang merusak cast array itu jadi
-	// SQL tidak valid (makanya tombol "Tandai semua dibaca" selalu gagal).
-	// Pola `IN (?)` di bawah ini konsisten dengan cara IN-clause dipakai di
-	// seluruh repository lain di project ini dan memang didesain untuk
-	// di-expand GORM seperti itu.
-	return r.db.Exec(
-		`INSERT INTO notification_reads (notification_id, user_id, read_at)
-		 SELECT id, ?, NOW() FROM notifications WHERE id IN (?)
-		 ON CONFLICT (notification_id, user_id) DO NOTHING`,
-		userID, ids,
-	).Error
+	// Insert satu baris per notifikasi melalui GORM agar kompatibel dengan
+	// PostgreSQL dan SQLite, serta aman ketika daftar notifikasi kosong.
+	rows := make([]model.NotificationRead, len(ids))
+	now := time.Now()
+	for i, id := range ids {
+		rows[i] = model.NotificationRead{
+			NotificationID: id,
+			UserID:         userID,
+			ReadAt:         now,
+		}
+	}
+	return r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
 }
 
 func (r *repository) Dismiss(notificationID, userID uint) error {
