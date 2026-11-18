@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"os"
 	"strconv"
@@ -225,8 +227,42 @@ func Load() *Config {
 		},
 	}
 
+	applyDevelopmentSecretDefaults(cfg)
 	validateProductionSecrets(cfg)
 	return cfg
+}
+
+// applyDevelopmentSecretDefaults membuat secret sementara hanya untuk
+// APP_ENV=development agar `go run cmd/main.go` dapat dipakai di lokal.
+// Production tidak pernah memakai fallback ini karena validasi produksi tetap
+// mewajibkan secret yang kuat dari environment.
+func applyDevelopmentSecretDefaults(cfg *Config) {
+	if !strings.EqualFold(strings.TrimSpace(cfg.App.Env), "development") {
+		return
+	}
+	if cfg.JWT.AccessSecret == "" {
+		cfg.JWT.AccessSecret = developmentSecret("jwt-access")
+	}
+	if cfg.JWT.RefreshSecret == "" {
+		cfg.JWT.RefreshSecret = developmentSecret("jwt-refresh")
+	}
+	if cfg.Captcha.Secret == "" {
+		cfg.Captcha.Secret = developmentSecret("captcha")
+	}
+	if cfg.HumanCheck.Secret == "" {
+		cfg.HumanCheck.Secret = developmentSecret("human-check")
+	}
+	if cfg.BotCheck.Secret == "" {
+		cfg.BotCheck.Secret = developmentSecret("bot-check")
+	}
+}
+
+func developmentSecret(label string) string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		log.Fatalf("config: gagal membuat secret lokal %s: %v", label, err)
+	}
+	return label + "-" + hex.EncodeToString(buf)
 }
 
 var weakSecretDefaults = map[string]string{}
