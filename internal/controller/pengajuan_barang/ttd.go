@@ -94,8 +94,8 @@ func (h *Controller) ServeTTD(c *fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, msgIDInvalid, nil)
 	}
 	peran := c.Params("peran")
-	if peran != model.PeranTTDPencatat && peran != model.PeranTTDPenyetuju {
-		return utils.Fail(c, fiber.StatusBadRequest, "peran tanda tangan harus pencatat atau penyetuju", nil)
+	if peran != model.PeranTTDPencatat && peran != model.PeranTTDDiverifikasi && peran != model.PeranTTDMenyetujui {
+		return utils.Fail(c, fiber.StatusBadRequest, "peran tanda tangan tidak valid", nil)
 	}
 	t, err := h.repo.FindTandaTangan(id, peran)
 	if err != nil {

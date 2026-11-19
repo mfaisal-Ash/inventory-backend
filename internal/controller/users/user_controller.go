@@ -198,12 +198,17 @@ func (h *Controller) Delete(c *fiber.Ctx) error {
 	if requesterID == u.ID {
 		return utils.Fail(c, fiber.StatusForbidden, "tidak bisa menghapus akun Anda sendiri", nil)
 	}
-
-	u.IsActive = false
-	if err := h.userRepo.Update(u); err != nil {
-		return utils.Fail(c, fiber.StatusInternalServerError, cons.ErrGagalMemperbaruiUser, nil)
+	targetRole, err := h.roleRepo.FindByID(u.RoleID)
+	if err != nil || targetRole.Name == cons.RoleSuperAdmin {
+		return utils.Fail(c, fiber.StatusForbidden, "akun super admin tidak bisa dihapus", nil)
 	}
-	return utils.OK(c, "user berhasil dinonaktifkan", h.toResponseSingle(u))
+	if err := h.authRepo.RevokeAllUserTokens(u.ID); err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, "gagal mencabut sesi user", nil)
+	}
+	if err := h.userRepo.Delete(u.ID); err != nil {
+		return utils.Fail(c, fiber.StatusConflict, "user tidak dapat dihapus karena masih digunakan oleh data lain; nonaktifkan akun jika riwayatnya harus dipertahankan", nil)
+	}
+	return utils.OK(c, "user berhasil dihapus", nil)
 }
 
 func (h *Controller) currentUser(c *fiber.Ctx) (*model.User, error) {

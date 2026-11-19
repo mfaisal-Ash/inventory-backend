@@ -405,7 +405,7 @@ func (r *repository) Setujui(id uint, userID uint, namaGA, jabatanGA, catatan st
 		if ttd != nil {
 			ttd.ID = 0
 			ttd.PengajuanID = id
-			ttd.Peran = model.PeranTTDPenyetuju
+			ttd.Peran = model.PeranTTDDiverifikasi
 			ttd.UserID = userID
 			ttd.SignedAt = now
 			if err := tx.Create(ttd).Error; err != nil {

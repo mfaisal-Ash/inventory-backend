@@ -204,7 +204,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 		Jenis:      normalizeJenis(req.Jenis),
 		GudangID:   req.GudangID,
 		Tanggal:    tanggal,
-		Keperluan:  req.Keperluan,
+		Keperluan:  req.Jelaskan,
 		Perihal:    req.Perihal,
 		TemplateID: req.TemplateID,
 		// Pengajuan tetap menunggu persetujuan meskipun dibuat oleh
@@ -288,7 +288,7 @@ func (h *Controller) Update(c *fiber.Ctx) error {
 	pengajuan.Jenis = jenis
 	pengajuan.GudangID = req.GudangID
 	pengajuan.Tanggal = tanggal
-	pengajuan.Keperluan = req.Keperluan
+	pengajuan.Keperluan = req.Jelaskan
 	pengajuan.Perihal = req.Perihal
 	pengajuan.TemplateID = req.TemplateID
 	pengajuan.NamaPencatat = req.NamaPencatat
@@ -362,7 +362,7 @@ func (h *Controller) Setujui(c *fiber.Ctx) error {
 		if derr != nil {
 			return utils.Fail(c, fiber.StatusBadRequest, derr.Error(), nil)
 		}
-		ttd = h.buildTTD(userID, model.PeranTTDPenyetuju, req.NamaGA, req.JabatanGA, data, c.IP())
+		ttd = h.buildTTD(userID, model.PeranTTDDiverifikasi, req.NamaGA, req.JabatanGA, data, c.IP())
 	}
 	pengajuan, err := h.repo.Setujui(id, userID, req.NamaGA, req.JabatanGA, req.Catatan, ttd)
 	if err != nil {
