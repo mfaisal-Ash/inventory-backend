@@ -132,8 +132,9 @@ func UintPtr(v uint) *uint { return &v }
 
 // Peran penanda tangan pada pengajuan barang.
 const (
-	PeranTTDPencatat  = "pencatat"  // pihak pertama: gudang/pengaju
-	PeranTTDPenyetuju = "penyetuju" // pihak kedua: GA/atasan yang menyetujui
+	PeranTTDPencatat     = "pencatat" // Yang Mengajukan
+	PeranTTDDiverifikasi = "diverifikasi"
+	PeranTTDMenyetujui   = "menyetujui"
 )
 
 // PengajuanTandaTangan adalah tanda tangan digital satu pihak pada satu

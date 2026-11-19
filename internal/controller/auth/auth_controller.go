@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	maxFailedLoginAttempts = 10
-	lockDuration           = 15 * time.Minute
+	maxFailedLoginAttempts = 4
+	lockDuration           = 30 * time.Second
 
 	accountInactiveMessage     = "Akun kamu terkunci, hubungi admin supaya bisa dibuka lagi akunnya."
 	otpCodeReusedMessage       = "kode sudah tidak bisa digunakan, coba gunakan kode yang baru."
@@ -317,7 +317,7 @@ func (h *Controller) loginAuthFailure(c *fiber.Ctx, u *model.User, err error, pa
 func (h *Controller) loginLockedOrInactive(c *fiber.Ctx, u *model.User) bool {
 	if u.LockedUntil != nil && u.LockedUntil.After(time.Now()) {
 		_ = utils.Fail(c, fiber.StatusTooManyRequests,
-			"akun anda dikunci sementara karena terlalu banyak percobaan gagal, coba lagi setelah 15 menit", nil)
+			"akun anda dikunci sementara karena terlalu banyak percobaan gagal, coba lagi setelah 30 detik", nil)
 		return true
 	}
 	if !u.IsActive {
@@ -502,6 +502,18 @@ func (h *Controller) VerifyOTP(c *fiber.Ctx) error {
 	return utils.OK(c, "Verifikasi OTP Berhasil", res)
 }
 
+func (h *Controller) clearRefreshCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     "stockrsd_refresh_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HTTPOnly: true,
+		Secure:   h.appEnv != "development",
+		SameSite: "Lax",
+	})
+}
+
 func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	var req RefreshTokenRequest
 	if len(c.Body()) > 0 {
@@ -514,26 +526,31 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 		refreshToken = strings.TrimSpace(c.Cookies("stockrsd_refresh_token"))
 	}
 	if refreshToken == "" {
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusUnauthorized, "refresh token tidak ditemukan", nil)
 	}
 
 	claims, err := h.jwtSvc.ParseRefreshToken(refreshToken)
 	if err != nil {
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusUnauthorized, "refresh token tidak valid atau kedaluwarsa", nil)
 	}
 
 	userID := utils.ParseUintSubject(claims.Subject)
 	oldSession, err := h.authRepo.FindActiveRefreshToken(userID, hashToken(refreshToken))
 	if err != nil {
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusUnauthorized, "sesi tidak ditemukan atau sudah di-revoke", nil)
 	}
 
 	u, err := h.userRepo.FindByID(userID)
 	if err != nil {
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusNotFound, constant.ErrUserNotFound, nil)
 	}
 	// Akun yang dinonaktifkan tidak boleh memperpanjang sesi lewat refresh token.
 	if !u.IsActive {
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusForbidden, accountInactiveMessage, nil)
 	}
 
@@ -549,6 +566,7 @@ func (h *Controller) RefreshToken(c *fiber.Ctx) error {
 	// false" di FindActiveRefreshToken).
 	if err := h.authRepo.RevokeSession(userID, oldSession.ID, userID); err != nil {
 		log.Printf("auth: gagal mencabut sesi lama %d setelah refresh: %v", oldSession.ID, err)
+		h.clearRefreshCookie(c)
 		return utils.Fail(c, fiber.StatusServiceUnavailable, "gagal mengamankan rotasi sesi", nil)
 	}
 	return utils.OK(c, "token berhasil diperbarui", res)

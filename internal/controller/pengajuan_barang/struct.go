@@ -68,7 +68,7 @@ type PengajuanRequest struct {
 	Jenis     string `json:"jenis" validate:"omitempty,oneof=masuk keluar rusak pengajuan template"`
 	GudangID  uint   `json:"gudang_id" validate:"required"`
 	Tanggal   string `json:"tanggal" validate:"required"`
-	Keperluan string `json:"keperluan" validate:"required,max=255"`
+	Jelaskan string `json:"jelaskan" validate:"required"`
 
 	// Perihal: catatan/subjek singkat opsional untuk jenis apa pun.
 	Perihal string `json:"perihal" validate:"omitempty,max=150"`
@@ -108,7 +108,8 @@ type ProsesRequest struct {
 
 	// TTD: tanda tangan digital penyetuju (pihak kedua), format sama dengan
 	// PengajuanRequest.TTDPencatat. Wajib untuk jenis "masuk".
-	TTD string `json:"ttd" validate:"omitempty,max=7500000"`
+	TTD           string `json:"ttd" validate:"omitempty,max=7500000"`
+	TTDMenyetujui string `json:"ttd_menyetujui" validate:"omitempty,max=7500000"`
 }
 
 type TolakRequest struct {

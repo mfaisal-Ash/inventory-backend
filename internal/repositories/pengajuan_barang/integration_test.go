@@ -135,7 +135,7 @@ func TestAlurDuaPihak_Integrasi(t *testing.T) {
 	if hasil.Status != constant.StatusPengajuanDisetujui {
 		t.Fatalf("status = %s", hasil.Status)
 	}
-	if s := hasil.TandaTanganPeran(model.PeranTTDPenyetuju); s == nil || s.UserID != penyetuju.ID || s.DokumenHash != p.ComputeDokumenHash() {
+	if s := hasil.TandaTanganPeran(model.PeranTTDDiverifikasi); s == nil || s.UserID != penyetuju.ID || s.DokumenHash != p.ComputeDokumenHash() {
 		t.Fatalf("ttd penyetuju tidak tercatat benar: %+v", s)
 	}
 	var nBM int64
