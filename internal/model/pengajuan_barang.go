@@ -27,8 +27,10 @@ type PengajuanBarang struct {
 	GudangID       uint      `json:"gudang_id" gorm:"not null;index"`
 	Gudang         *Gudang   `json:"gudang,omitempty" gorm:"foreignKey:GudangID"`
 	Tanggal        time.Time `json:"tanggal" gorm:"not null"`
-	Keperluan      string    `json:"keperluan" gorm:"size:255;not null"`
-	Status         string    `json:"status" gorm:"size:20;not null;default:'diajukan';index"`
+	// Keperluan is free-form explanatory text and may contain the complete
+	// operational justification submitted by the user.
+	Keperluan string `json:"keperluan" gorm:"type:text;not null"`
+	Status    string `json:"status" gorm:"size:20;not null;default:'diajukan';index"`
 
 	// Jenis: "masuk" | "keluar" | "rusak" | "pengajuan" | "template" — menentukan dokumen
 	// apa yang otomatis dibuat saat pengajuan disetujui. Default "keluar"
