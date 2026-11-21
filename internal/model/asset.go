@@ -18,7 +18,9 @@ type Asset struct {
 	LabelRSD   string `json:"label_rsd" gorm:"size:40;index"`
 	KodeBarang string `json:"kode_barang" gorm:"size:60;index"`
 
-	KodeBA string `json:"kode_ba" gorm:"size:20;index"`
+	// KodeBA includes the generated asset label (for example
+	// RSD-AsetUmum-21112026-01), which is longer than 20 characters.
+	KodeBA string `json:"kode_ba" gorm:"size:50;index"`
 
 	Latitude  *float64 `json:"latitude"`
 	Longitude *float64 `json:"longitude"`

@@ -18,7 +18,7 @@ func Next(db *gorm.DB, prefix string) (string, error) {
 	// Ekspresi ini kompatibel dengan PostgreSQL dan SQLite.
 	if err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "key"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"counter": gorm.Expr("counter + 1"), "updated_at": time.Now()}),
+		DoUpdates: clause.Assignments(map[string]interface{}{"counter": gorm.Expr("document_counters.counter + 1"), "updated_at": time.Now()}),
 	}).Create(&model.DocumentCounter{Key: key, Counter: 1, UpdatedAt: time.Now()}).Error; err != nil {
 		return "", err
 	}

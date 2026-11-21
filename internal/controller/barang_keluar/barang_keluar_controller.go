@@ -3,6 +3,7 @@ package barang_keluar
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -95,6 +96,9 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 
 	nomor, err := h.repo.NextNomor()
 	if err != nil {
+		// Keep the public response generic, but retain the database cause in
+		// server logs so production failures can be diagnosed safely.
+		log.Printf("barang keluar: gagal membuat nomor pengeluaran: %v", err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor pengeluaran", nil)
 	}
 	bk := &model.BarangKeluar{

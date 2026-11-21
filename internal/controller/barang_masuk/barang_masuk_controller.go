@@ -3,6 +3,7 @@ package barang_masuk
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -108,6 +109,7 @@ func (h *Controller) Create(c *fiber.Ctx) error {
 
 	nomor, err := h.repo.NextNomor()
 	if err != nil {
+		log.Printf("barang masuk: gagal membuat nomor penerimaan: %v", err)
 		return utils.Fail(c, fiber.StatusInternalServerError, "gagal membuat nomor penerimaan", nil)
 	}
 	bm := &model.BarangMasuk{
